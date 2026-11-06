@@ -7,7 +7,11 @@ import { normalizeQuizType } from '../../utils/quizTypes';
 import { QuizType } from '../../types';
 import { getQuizResultPercentage, getQuizResultScore } from '../../utils/quizScoring';
 import { formatAcademicPath, quizResultPath } from '../../utils/academicPath';
-import { html, printDocument } from '../../utils/printHtml';
+import { html, printDocument, type SafeHtml } from '../../utils/printHtml';
+import { studentReportDocument } from '../../utils/officialDocuments';
+import DocumentPreview from '../../components/portal/DocumentPreview';
+import { readStorageArray } from '../../utils/storage';
+import type { CertificateRecord, TeacherInfo } from '../../types';
 
 interface TeacherReportsProps {
   teacherId: string;
@@ -19,6 +23,7 @@ const TeacherReports: React.FC<TeacherReportsProps> = ({ teacherId }) => {
   const [quizResults, setQuizResults] = useState<QuizResult[]>([]);
   const [createdQuizzes, setCreatedQuizzes] = useState<CreatedQuiz[]>([]);
   const [loading, setLoading] = useState(true);
+  const [reportPreview, setReportPreview] = useState<{ name: string; document: SafeHtml } | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [teacherResultStudentFilter, setTeacherResultStudentFilter] = useState('all');
   const [teacherResultQuizFilter, setTeacherResultQuizFilter] = useState('all');
@@ -93,95 +98,24 @@ const TeacherReports: React.FC<TeacherReportsProps> = ({ teacherId }) => {
     .filter(quiz => quiz.studentId === studentId && normalizeQuizType(quiz.quizType) === QuizType.TEACHER)
     .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 
+  /**
+   * تقريرُ الطالب الرسمي — القالبُ نفسه الذي يراه وليُّ الأمر ويطبعه
+   * (utils/officialDocuments)، فما يرسله المعلم هو ما في يد الأسرة.
+   */
   const printStudentReport = (student: StudentInfo) => {
-    const stats = calculateStudentStats(student);
-    const teacherResults = getTeacherResults(student.id);
-    const parentName = getParentName(student.parentId);
-    const date = new Date().toLocaleDateString('ar-SA', { year: 'numeric', month: 'long', day: 'numeric' });
-    
-
-    printDocument(html`
-      <!DOCTYPE html>
-      <html dir="rtl" lang="ar">
-        <head>
-          <meta charset="UTF-8">
-          <title>تقرير الطالب - ${student.name}</title>
-          <style>
-            body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; padding: 40px; max-width: 800px; margin: 0 auto; }
-            .header { text-align: center; border-bottom: 3px solid #4F46E5; padding-bottom: 20px; margin-bottom: 30px; }
-            .header h1 { color: #4F46E5; font-size: 32px; margin-bottom: 10px; }
-            .info-section { background: #F3F4F6; padding: 20px; border-radius: 10px; margin-bottom: 20px; }
-            .info-row { display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid #E5E7EB; }
-            .info-label { font-weight: bold; color: #6B7280; }
-            .info-value { color: #111827; font-weight: 600; }
-            .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; margin: 30px 0; }
-            .stat-card { background: linear-gradient(135deg, #667EEA 0%, #764BA2 100%); color: white; padding: 20px; border-radius: 10px; text-align: center; }
-            .stat-value { font-size: 36px; font-weight: bold; margin-bottom: 5px; }
-            .stat-label { font-size: 14px; opacity: 0.9; }
-            .footer { margin-top: 50px; text-align: center; color: #6B7280; font-size: 12px; }
-            @media print { body { padding: 20px; } }
-          </style>
-        </head>
-        <body>
-          <div class="header">
-            <h1>📊 تقرير الأداء الأكاديمي</h1>
-            <p style="color: #6B7280;">منصة التعليم الذكي</p>
-          </div>
-          
-          <div class="info-section">
-            <div class="info-row">
-              <span class="info-label">اسم الطالب:</span>
-              <span class="info-value">${student.name}</span>
-            </div>
-            <div class="info-row">
-              <span class="info-label">ولي الأمر:</span>
-              <span class="info-value">${parentName}</span>
-            </div>
-            <div class="info-row">
-              <span class="info-label">الصف:</span>
-              <span class="info-value">${student.primaryGrade || student.grade || 'غير محدد'}</span>
-            </div>
-            <div class="info-row">
-              <span class="info-label">تاريخ التقرير:</span>
-              <span class="info-value">${date}</span>
-            </div>
-          </div>
-          
-          <div class="stats">
-            <div class="stat-card">
-              <div class="stat-value">${stats.totalQuizzes}</div>
-              <div class="stat-label">عدد الاختبارات</div>
-            </div>
-            <div class="stat-card">
-              <div class="stat-value">${stats.avgScore}%</div>
-              <div class="stat-label">المعدل العام</div>
-            </div>
-            <div class="stat-card">
-              <div class="stat-value">${stats.avgScore >= 90 ? 'ممتاز' : stats.avgScore >= 70 ? 'جيد جداً' : stats.avgScore >= 50 ? 'جيد' : 'يحتاج تحسين'}</div>
-              <div class="stat-label">مستوى الأداء</div>
-            </div>
-            <div class="stat-card">
-              <div class="stat-value">${stats.level}</div>
-              <div class="stat-label">المستوى</div>
-            </div>
-            <div class="stat-card">
-              <div class="stat-value">${stats.gems} 💎</div>
-              <div class="stat-label">الجواهر</div>
-            </div>
-            <div class="stat-card">
-              <div class="stat-value">${stats.xp} ⚡</div>
-              <div class="stat-label">الخبرة</div>
-            </div>
-          </div>
-          
-          <div class="footer">
-            <p>تم إنشاء هذا التقرير تلقائياً بواسطة منصة التعليم الذكي</p>
-            <p>للاستفسارات يرجى التواصل مع إدارة المنصة</p>
-          </div>
-          
-        </body>
-      </html>
-    `, { autoPrintDelayMs: 500 });
+    const teacher = readStorageArray<TeacherInfo>(STORAGE_KEYS.TEACHERS).find((t) => t.id === teacherId);
+    const certificates = readStorageArray<CertificateRecord>('smartEdu_certificates').filter((cert) => cert.studentId === student.id);
+    setReportPreview({
+      name: student.name,
+      document: studentReportDocument({
+        student,
+        results: quizResults.filter((result) => result.studentId === student.id),
+        certificates,
+        parentName: getParentName(student.parentId),
+        teacherName: teacher?.name,
+        progress: getStudentProgressSummary(student, quizResults),
+      }),
+    });
   };
 
   const printTeacherResultsReport = (student: StudentInfo) => {
@@ -222,7 +156,7 @@ const TeacherReports: React.FC<TeacherReportsProps> = ({ teacherId }) => {
         </head>
         <body>
           <div class="header">
-            <h1>📝 نتائج اختبارات المعلم</h1>
+            <h1>نتائج اختبارات المعلم</h1>
             <p>تقرير مستقل لأداء الطالب في تقييمات المعلم</p>
           </div>
           <div class="info">
@@ -308,7 +242,7 @@ const TeacherReports: React.FC<TeacherReportsProps> = ({ teacherId }) => {
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="🔍 ابحث عن طالب بالاسم، ولي الأمر، أو الصف..."
+            placeholder="ابحث عن طالب بالاسم، ولي الأمر، أو الصف..."
              className="dashboard-reports-search-input"
           />
           {searchQuery && (
@@ -316,7 +250,7 @@ const TeacherReports: React.FC<TeacherReportsProps> = ({ teacherId }) => {
               onClick={() => setSearchQuery('')}
                className="dashboard-reports-clear"
             >
-              ✖ مسح
+              مسح
             </button>
           )}
         </div>
@@ -366,20 +300,18 @@ const TeacherReports: React.FC<TeacherReportsProps> = ({ teacherId }) => {
          <div className="dashboard-reports-section-heading">
            <div>
              <span>السجل الأكاديمي</span>
-             <h2>📋 تقارير الطلاب</h2>
+             <h2>تقارير الطلاب</h2>
            </div>
            <p>{filteredStudents.length} طالب ظاهر في التقرير</p>
          </div>
         
         {students.length === 0 ? (
           <div className="text-center py-12 text-gray-500">
-            <div className="text-6xl mb-4">📭</div>
             <p className="text-xl font-medium">لا يوجد طلاب حتى الآن</p>
             <p className="text-sm mt-2">قم بإنشاء حسابات أولياء أمور وطلاب أولاً</p>
           </div>
         ) : filteredStudents.length === 0 ? (
           <div className="text-center py-12 text-gray-500">
-            <div className="text-6xl mb-4">🔍</div>
             <p className="text-xl font-medium">لا توجد نتائج للبحث</p>
           </div>
         ) : (
@@ -465,7 +397,7 @@ const TeacherReports: React.FC<TeacherReportsProps> = ({ teacherId }) => {
                           className="bg-amber-500 hover:bg-amber-600 text-white px-4 py-2 rounded-lg font-bold transition-all"
                           title="طباعة التقرير"
                         >
-                          🖨️ طباعة
+                          تقرير الطالب
                         </button>
                       </td>
                     </tr>
@@ -482,7 +414,7 @@ const TeacherReports: React.FC<TeacherReportsProps> = ({ teacherId }) => {
          <div className="dashboard-reports-section-heading">
           <div>
              <span>التقييمات الخاصة بالمعلم</span>
-             <h2>📝 نتائج اختبارات الطلاب</h2>
+             <h2>نتائج اختبارات الطلاب</h2>
              <p>فلترة النتائج حسب الطالب أو الاختبار أو ولي الأمر أو المادة.</p>
           </div>
            <span className="dashboard-reports-section-icon">✓</span>
@@ -575,7 +507,7 @@ const TeacherReports: React.FC<TeacherReportsProps> = ({ teacherId }) => {
                             <p className="text-xs text-purple-500 font-bold">{student.primaryGrade || student.grade || '—'} • {results.length} اختبار</p>
                           </div>
                           <button onClick={() => printTeacherResultsReport(student)} className="bg-purple-600 hover:bg-purple-700 text-white px-3 py-2 rounded-xl font-black text-xs">
-                            🖨️ طباعة
+                            طباعة
                           </button>
                         </div>
                         <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 mb-3 text-center">
@@ -616,14 +548,13 @@ const TeacherReports: React.FC<TeacherReportsProps> = ({ teacherId }) => {
          <div className="dashboard-reports-section-heading">
            <div>
              <span>الحسابات المرتبطة</span>
-             <h2>👪 أولياء الأمور</h2>
+             <h2>أولياء الأمور</h2>
            </div>
            <p>{parents.length} ولي أمر</p>
          </div>
         
         {parents.length === 0 ? (
           <div className="text-center py-12 text-gray-500">
-            <div className="text-6xl mb-4">📭</div>
             <p className="text-xl font-medium">لا يوجد أولياء أمور حتى الآن</p>
           </div>
         ) : (
@@ -635,7 +566,6 @@ const TeacherReports: React.FC<TeacherReportsProps> = ({ teacherId }) => {
                   key={parent.id}
                    className="dashboard-account-record dashboard-reports-parent-card"
                 >
-                  <div className="text-4xl mb-2">👤</div>
                   <h3 className="text-xl font-black text-gray-800 mb-2">{parent.name}</h3>
                   <div className="space-y-1 text-sm">
                     <p className="text-gray-600">
@@ -654,6 +584,14 @@ const TeacherReports: React.FC<TeacherReportsProps> = ({ teacherId }) => {
           </div>
         )}
       </div>
+      {reportPreview && (
+        <DocumentPreview
+          title={`تقرير أداء — ${reportPreview.name}`}
+          document={reportPreview.document}
+          pageWidth={794}
+          onClose={() => setReportPreview(null)}
+        />
+      )}
     </div>
   );
 };

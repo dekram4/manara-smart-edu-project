@@ -199,7 +199,7 @@ const GenerateAllPanel: React.FC<{ onFinished: () => void }> = ({ onFinished }) 
     <div className="rounded-2xl border border-purple-200 bg-white p-4 sm:p-5">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h3 className="text-lg font-black text-purple-800">✨ توليد الأسئلة لكل الدروس</h3>
+          <h3 className="text-lg font-black text-purple-800">توليد الأسئلة لكل الدروس</h3>
           <p className="mt-1 text-sm font-bold text-purple-700">
             يولّد أسئلة من مجال كل درس لم تُولَّد له بعد. الدروس التي لها أسئلة تُتخطّى، فإعادة التشغيل آمنة.
           </p>
@@ -210,7 +210,7 @@ const GenerateAllPanel: React.FC<{ onFinished: () => void }> = ({ onFinished }) 
           disabled={running || starting || !ready}
           className="shrink-0 rounded-xl bg-purple-600 px-5 py-3 font-black text-white hover:bg-purple-700 disabled:opacity-50"
         >
-          {running ? '⏳ جارٍ التوليد…' : starting ? '…' : '✨ ابدأ التوليد'}
+          {running ? 'جارٍ التوليد…' : starting ? '…' : 'ابدأ التوليد'}
         </button>
       </div>
 
@@ -350,7 +350,7 @@ const DuelQuestionReview: React.FC<{ role: Role }> = ({ role }) => {
   return (
     <div className="dashboard-page dashboard-consistent-page animate-fadeIn">
       <div>
-        <h2 className={`text-3xl font-black ${theme.title}`}>⚔️ أسئلة «تحدَّ زملاءك»</h2>
+        <h2 className={`text-3xl font-black ${theme.title}`}>أسئلة «تحدَّ زملاءك»</h2>
         <p className={`mt-2 text-sm font-bold ${theme.text}`}>
           {role === 'admin'
             ? 'كل أسئلة المبارزة في كل المواد. السؤال المعطّل لا يُختار في أي مباراة جديدة، ويُعاد بضغطة.'
@@ -411,7 +411,7 @@ const DuelQuestionReview: React.FC<{ role: Role }> = ({ role }) => {
             type="submit"
             className={`rounded-xl px-4 py-3 font-black text-white ${theme.button}`}
           >
-            🔎 بحث
+            بحث
           </button>
         </form>
         {role === 'teacher' && (
@@ -509,7 +509,7 @@ const DuelQuestionReview: React.FC<{ role: Role }> = ({ role }) => {
                           : 'bg-green-100 text-green-700 hover:bg-green-200'
                       }`}
                     >
-                      {busy === question.id ? '…' : question.active ? '⛔ تعطيل' : '✅ تفعيل'}
+                      {busy === question.id ? '…' : question.active ? 'تعطيل' : 'تفعيل'}
                     </button>
                   ) : (
                     <span className="block rounded-xl bg-gray-50 px-3 py-2 text-xs font-bold text-gray-500">

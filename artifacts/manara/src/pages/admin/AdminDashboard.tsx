@@ -21,7 +21,6 @@ import PermissionPackages from './PermissionPackages';
 import AdminVideoNotifications from './AdminVideoNotifications';
 import DuelQuestionReview from '../shared/DuelQuestionReview';
 import CardPermissions from '../shared/CardPermissions';
-import ManaraBrand from '../../components/ManaraBrand';
 import VideoNotificationBadge from './VideoNotificationBadge';
 import PrivateChat from '../shared/PrivateChat';
 import { getQuizResultPercentage } from '../../utils/quizScoring';
@@ -33,6 +32,26 @@ import {
 } from '../../utils/sessionPersistence';
 import { writeAuthSession } from '../../utils/authSession';
 import { useDashboardPage } from '../../hooks/useDashboardPage';
+import PortalShell, { PortalNavItem } from '../../components/portal/PortalShell';
+import type { LucideIcon } from 'lucide-react';
+import {
+  BellRing,
+  BookOpenCheck,
+  ChartColumn,
+  ClipboardList,
+  Film,
+  Gamepad2,
+  KeyRound,
+  LayoutDashboard,
+  MessageSquareText,
+  Package,
+  School,
+  Settings2,
+  ShieldCheck,
+  SlidersHorizontal,
+  Swords,
+  UsersRound,
+} from 'lucide-react';
 
 /** صفحاتُ القائمة كلُّها — وما ليس منها في العنوان يُردّ إلى الرئيسية. */
 const ADMIN_PAGES = [
@@ -45,6 +64,24 @@ const ADMIN_PAGES = [
   'CARD_PERMISSIONS',
 ] as AdminMenuType[];
 
+/** القائمة بترتيبها، واسمُ كل صفحةٍ في الشريط العلوي. */
+const ADMIN_MENU: { id: AdminMenuType; label: string; icon: LucideIcon }[] = [
+  { id: AdminMenuType.DASHBOARD, label: 'الرئيسية', icon: LayoutDashboard },
+  { id: AdminMenuType.ACADEMIC_SETTINGS, label: 'الإعدادات الأكاديمية', icon: Settings2 },
+  { id: AdminMenuType.STUDENT_MANAGEMENT, label: 'إدارة الحسابات', icon: UsersRound },
+  { id: AdminMenuType.TEACHER_MANAGEMENT, label: 'إدارة المعلمين', icon: School },
+  { id: AdminMenuType.CONTENT_MANAGEMENT, label: 'إدارة المحتوى', icon: BookOpenCheck },
+  { id: 'VIDEO_MANAGEMENT' as AdminMenuType, label: 'سينما منارة', icon: Film },
+  { id: 'ENTERTAINMENT' as AdminMenuType, label: 'الترفيه والألعاب', icon: Gamepad2 },
+  { id: AdminMenuType.QUIZ_MANAGEMENT, label: 'إدارة الاختبارات', icon: ClipboardList },
+  { id: 'DUEL_QUESTIONS' as AdminMenuType, label: 'أسئلة «تحدَّ زملاءك»', icon: Swords },
+  { id: 'CARD_PERMISSIONS' as AdminMenuType, label: 'صلاحيات البطاقات', icon: ShieldCheck },
+  { id: AdminMenuType.REPORTS, label: 'التقارير', icon: ChartColumn },
+  { id: 'PERMISSION_PACKAGES' as AdminMenuType, label: 'إدارة الصلاحيات', icon: Package },
+  { id: 'VIDEO_NOTIFICATIONS' as AdminMenuType, label: 'إشعارات الفيديو', icon: BellRing },
+  { id: AdminMenuType.SYSTEM_SETTINGS, label: 'إعدادات النظام', icon: SlidersHorizontal },
+];
+
 interface AdminDashboardProps {
   onLogout: () => void;
 }
@@ -55,7 +92,6 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
   // ‏الصفحةُ في العنوان: التحديثُ يُبقي المشرفَ حيث كان — انظر utils/dashboardRoute.
   const [activeMenu, setActiveMenu] = useDashboardPage('admin', ADMIN_PAGES, AdminMenuType.DASHBOARD);
   const [showChat, setShowChat] = useState(false);
-  const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [stats, setStats] = useState<SystemStats>({
     totalStudents: 0,
     totalParents: 0,
@@ -208,119 +244,44 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
     }
   };
 
+  const nav: PortalNavItem[] = ADMIN_MENU.map((item) => ({
+    id: item.id,
+    label: item.label,
+    icon: item.icon,
+    active: activeMenu === item.id,
+    onSelect: () => setActiveMenu(item.id),
+  }));
+  const pageTitle = ADMIN_MENU.find((item) => item.id === activeMenu)?.label ?? 'الرئيسية';
+
   return (
-    <div dir="rtl" className="dashboard-shell manara-enterprise animate-fadeIn">
-      {/* Sidebar */}
-       {mobileNavOpen && (
-         <button
-           type="button"
-           className="dashboard-sidebar-overlay lg:hidden"
-           onClick={() => setMobileNavOpen(false)}
-           aria-label="إغلاق القائمة الجانبية"
-         />
-       )}
-         <aside className={`dashboard-sidebar ${mobileNavOpen ? 'dashboard-sidebar--open' : 'dashboard-sidebar--closed'} flex transform flex-col bg-gradient-to-b from-purple-800 via-purple-700 to-purple-600 text-white shadow-2xl transition-transform duration-300 lg:translate-x-0`}>
-         <div className="dashboard-sidebar-header">
-          <button type="button" onClick={() => setMobileNavOpen(false)} className="mb-3 rounded-xl bg-white/10 px-3 py-2 text-sm font-bold lg:hidden">✕ إغلاق</button>
-          <ManaraBrand variant="sidebar" className="text-white" />
-          <p className="mt-2 text-center text-purple-200 text-xs font-bold">لوحة إدارة المشرف</p>
-        </div>
-
-         <nav className="dashboard-nav">
-          {[
-            { id: AdminMenuType.DASHBOARD, label: 'الرئيسية', icon: '📊' },
-            { id: AdminMenuType.ACADEMIC_SETTINGS, label: 'الإعدادات الأكاديمية', icon: '🏫' },
-            { id: AdminMenuType.STUDENT_MANAGEMENT, label: 'إدارة الحسابات', icon: '👥' },
-            { id: AdminMenuType.TEACHER_MANAGEMENT, label: 'إدارة المعلمين', icon: '👨‍🏫' },
-            { id: AdminMenuType.CONTENT_MANAGEMENT, label: 'إدارة المحتوى', icon: '📚' },
-            { id: 'VIDEO_MANAGEMENT' as AdminMenuType, label: 'سينما منارة', icon: '🎬' },
-            { id: 'ENTERTAINMENT' as AdminMenuType, label: 'الترفيه والألعاب', icon: '🎮' },
-            { id: AdminMenuType.QUIZ_MANAGEMENT, label: 'إدارة الاختبارات', icon: '📝' },
-            { id: 'DUEL_QUESTIONS' as AdminMenuType, label: 'أسئلة «تحدَّ زملاءك»', icon: '⚔️' },
-            { id: 'CARD_PERMISSIONS' as AdminMenuType, label: 'صلاحيات البطاقات', icon: '🔐' },
-            { id: AdminMenuType.REPORTS, label: 'التقارير', icon: '📋' },
-            { id: 'PERMISSION_PACKAGES' as AdminMenuType, label: 'إدارة الصلاحيات', icon: '🔐' },
-            { id: 'VIDEO_NOTIFICATIONS' as AdminMenuType, label: 'إشعارات الفيديو', icon: '📢' },
-            { id: AdminMenuType.SYSTEM_SETTINGS, label: 'إعدادات النظام', icon: '⚙️' },
-          ].map((item) => (
-            <button
-              key={item.id}
-              onClick={() => { setActiveMenu(item.id); setMobileNavOpen(false); }}
-              className={`dashboard-menu-item rounded-xl px-4 py-3 transition-all hover:translate-x-[-2px] active:scale-95 ${
-                activeMenu === item.id
-                ? 'bg-white/10 text-white shadow-lg font-bold'
-                : 'text-purple-100 hover:bg-white/5'
-              }`}
-            >
-              <span className="text-xl shrink-0" aria-hidden="true">{item.icon}</span>
-              <span>{item.label}</span>
-            </button>
-          ))}
-          
-          {/* زر الدردشة */}
-          <button
-            onClick={() => { setShowChat(true); setMobileNavOpen(false); }}
-            className="dashboard-menu-item rounded-xl px-4 py-3 text-purple-100 hover:bg-white/5 font-bold transition-colors"
-          >
-            <span className="text-xl shrink-0" aria-hidden="true">💬</span>
-            <span>الدردشة مع المعلمين وأولياء الأمور</span>
-          </button>
-        </nav>
-
-           <div className="dashboard-sidebar-footer">
-          <button
-            onClick={onLogout}
-            className="dashboard-menu-item justify-center rounded-xl px-4 py-3 text-red-500 hover:bg-red-50 font-bold transition-all hover:scale-[1.02] active:scale-95"
-          >
-            <span>🚪</span>
-            <span>تسجيل الخروج</span>
-          </button>
-        </div>
-      </aside>
-
-      {/* Main Area */}
-      <main className="dashboard-main flex flex-col">
-        <header className="bg-white border-b px-4 sm:px-6 lg:px-10 py-3 sm:py-4 flex flex-wrap justify-between items-center gap-3 shrink-0 safe-area-top">
-          <div className="flex min-w-0 flex-wrap items-center gap-2 sm:gap-6">
-               <button type="button" onClick={() => setMobileNavOpen(true)} className="dashboard-mobile-menu-trigger bg-purple-100 px-3 py-2 text-purple-800 lg:hidden" aria-label="فتح القائمة">☰</button>
-             <div className="bg-purple-50 px-4 py-2 rounded-full border border-purple-100 flex items-center gap-2">
-                <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
-                <span className="text-xs font-bold text-purple-700">النظام نشط</span>
-             </div>
-          </div>
-          {/* ‏صفٌّ واحد على الهاتف أيضاً: كان زرُّ كلمة المرور `w-full` فيأخذ سطراً
-              ‏كاملاً، والصورةُ سطراً ثالثاً — نحو ٢٢٠ بكسلاً من الشاشة للرأس وحده. */}
-          <div className="flex items-center justify-end gap-2 sm:gap-4 min-w-0">
-            {/* 🔔 Video Notifications Bell */}
+    <>
+      <PortalShell
+        portalName="لوحة المشرف"
+        userName="مشرف النظام"
+        userRole="إدارة المنصّة"
+        nav={nav}
+        secondaryNav={[{ id: 'chat', label: 'الدردشة مع المعلمين وأولياء الأمور', icon: MessageSquareText, onSelect: () => setShowChat(true) }]}
+        onLogout={onLogout}
+        pageTitle={pageTitle}
+        topbarEnd={
+          <>
             <VideoNotificationBadge onClick={() => setActiveMenu('VIDEO_NOTIFICATIONS' as AdminMenuType)} />
-            <div className="hidden text-left sm:block">
-              <p className="text-sm font-bold text-purple-800 whitespace-nowrap">مشرف النظام</p>
-              <p className="text-[10px] text-purple-400 whitespace-nowrap">آخر دخول: منذ دقائق</p>
-            </div>
             <button
               type="button"
               onClick={() => alert('تتم إدارة كلمة مرور المشرف من متغيّرات الخادم (ADMIN_PASSWORD) في Railway.')}
-              className="shrink-0 px-3 py-2 bg-purple-100 text-purple-800 rounded-md font-bold hover:bg-purple-200 whitespace-nowrap text-xs sm:text-sm"
-              aria-label="إدارة كلمة المرور"
+              className="portal-btn portal-btn-secondary"
               title="إدارة كلمة المرور"
+              aria-label="إدارة كلمة المرور"
             >
-              🔐<span className="hidden sm:inline"> إدارة كلمة المرور</span>
+              <KeyRound aria-hidden="true" />
+              <span className="hidden sm:inline">كلمة المرور</span>
             </button>
-            <div className="w-10 h-10 shrink-0 bg-purple-100 rounded-full flex items-center justify-center text-xl">👤</div>
-          </div>
-        </header>
+          </>
+        }
+      >
+        {renderContent()}
+      </PortalShell>
 
-        <div className="dashboard-content-area min-w-0 flex-1 safe-area-x safe-area-bottom">
-          {/* بلا سقف عرض: `max-w-7xl` (1280px) كان يترك 320 بكسل فارغة على
-              شاشة 1920 في كل شاشة من شاشات المشرف، ولوحة إدارة مكوّنة من
-              بطاقات وجداول تستفيد من العرض ولا تعاني منه كما يعاني نص مقالة. */}
-          <div className="dashboard-content-fluid">
-            {renderContent()}
-          </div>
-        </div>
-      </main>
-
-      {/* Private Chat */}
       {showChat && (
         <PrivateChat
           currentUserId="admin"
@@ -329,7 +290,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
           onClose={() => setShowChat(false)}
         />
       )}
-    </div>
+    </>
   );
 };
 

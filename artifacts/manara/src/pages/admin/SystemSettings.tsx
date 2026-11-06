@@ -46,7 +46,7 @@ const StudentApkSettings: React.FC = () => {
 
   return (
     <div className="dashboard-surface w-full max-w-2xl space-y-3 text-right" data-testid="student-apk-settings">
-      <h3 className="font-bold text-lg">📱 رابط تحميل تطبيق الطالب (Student APK URL)</h3>
+      <h3 className="font-bold text-lg">رابط تحميل تطبيق الطالب (Student APK URL)</h3>
       <p className="text-sm text-purple-400">
         يفتحه زرّ «تحميل تطبيق الطالب (Android APK)» في شاشة اختيار الأدوار. يُحفظ في الخادم ويظهر لجميع الزوار فوراً.
       </p>
@@ -148,7 +148,7 @@ const SystemSettings: React.FC = () => {
         </div>
 
         <div className="space-y-2">
-           <h3 className="font-bold text-lg">📞 رقم هاتف المشرف للتواصل</h3>
+           <h3 className="font-bold text-lg">رقم هاتف المشرف للتواصل</h3>
            <p className="text-sm text-purple-400">سيظهر هذا الرقم في الدردشة للمعلمين فقط</p>
            <input 
             type="text" 

@@ -56,14 +56,14 @@ const TeacherManagement: React.FC<TeacherManagementProps> = ({ onUpdate }) => {
     e.preventDefault();
 
     if (!formData.name.trim() || !formData.username.trim() || !formData.teacherId.trim()) {
-      alert('⚠️ يرجى ملء جميع الحقول المطلوبة');
+      alert('يرجى ملء جميع الحقول المطلوبة');
       return;
     }
 
     // التحقق من عدم تكرار اسم المستخدم
     const existingTeacher = teachers.find(t => t.username === formData.username && t.id !== editingTeacher?.id);
     if (existingTeacher) {
-      alert('❌ اسم المستخدم موجود مسبقاً');
+      alert('اسم المستخدم موجود مسبقاً');
       return;
     }
     
@@ -76,7 +76,7 @@ const TeacherManagement: React.FC<TeacherManagementProps> = ({ onUpdate }) => {
         t.teacherId === teacherId && t.id !== editingTeacher?.id
       );
       if (duplicateTeacher) {
-        alert(`⚠️ رقم الهوية ${teacherId} مستخدم بالفعل من قبل المعلم: ${duplicateTeacher.name}`);
+        alert(`رقم الهوية ${teacherId} مستخدم بالفعل من قبل المعلم: ${duplicateTeacher.name}`);
         return;
       }
       
@@ -84,7 +84,7 @@ const TeacherManagement: React.FC<TeacherManagementProps> = ({ onUpdate }) => {
       const allParents = JSON.parse(localStorage.getItem(STORAGE_KEYS.PARENTS) || '[]');
       const duplicateParent = allParents.find((p: any) => p.nationalId === teacherId);
       if (duplicateParent) {
-        alert(`⚠️ رقم الهوية ${teacherId} مستخدم بالفعل من قبل ولي الأمر: ${duplicateParent.name}`);
+        alert(`رقم الهوية ${teacherId} مستخدم بالفعل من قبل ولي الأمر: ${duplicateParent.name}`);
         return;
       }
       
@@ -92,7 +92,7 @@ const TeacherManagement: React.FC<TeacherManagementProps> = ({ onUpdate }) => {
       const allStudents = JSON.parse(localStorage.getItem(STORAGE_KEYS.STUDENTS) || '[]');
       const duplicateStudent = allStudents.find((s: any) => s.nationalId === teacherId);
       if (duplicateStudent) {
-        alert(`⚠️ رقم الهوية ${teacherId} مستخدم بالفعل من قبل الطالب: ${duplicateStudent.name}`);
+        alert(`رقم الهوية ${teacherId} مستخدم بالفعل من قبل الطالب: ${duplicateStudent.name}`);
         return;
       }
     }
@@ -123,7 +123,7 @@ const TeacherManagement: React.FC<TeacherManagementProps> = ({ onUpdate }) => {
     setShowForm(false);
     setEditingTeacher(null);
     resetForm();
-    alert(`✅ تم ${editingTeacher ? 'تحديث' : 'إضافة'} المعلم بنجاح`);
+    alert(`تم ${editingTeacher ? 'تحديث' : 'إضافة'} المعلم بنجاح`);
   };
 
   const handleEdit = (teacher: TeacherInfo) => {
@@ -140,7 +140,7 @@ const TeacherManagement: React.FC<TeacherManagementProps> = ({ onUpdate }) => {
   };
 
   const handleDelete = (id: string) => {
-    if (!confirm('🗑️ حذف المعلم نهائياً؟ سيتم حذف جميع البيانات المرتبطة به.')) return;
+    if (!confirm('حذف المعلم نهائياً؟ سيتم حذف جميع البيانات المرتبطة به.')) return;
     
     const updated = teachers.filter(t => t.id !== id);
     localStorage.setItem(STORAGE_KEYS.TEACHERS, JSON.stringify(updated));
@@ -153,7 +153,7 @@ const TeacherManagement: React.FC<TeacherManagementProps> = ({ onUpdate }) => {
     );
     localStorage.setItem(STORAGE_KEYS.PARENTS, JSON.stringify(updatedParents));
     
-    alert('✅ تم حذف المعلم وجميع البيانات المرتبطة به');
+    alert('تم حذف المعلم وجميع البيانات المرتبطة به');
   };
 
   const resetForm = () => {
@@ -168,7 +168,7 @@ const TeacherManagement: React.FC<TeacherManagementProps> = ({ onUpdate }) => {
   };
 
   const resetPassword = (id: string) => {
-    if (!confirm('🔄 إعادة تعيين كلمة المرور إلى 123456؟')) return;
+    if (!confirm('إعادة تعيين كلمة المرور إلى 123456؟')) return;
     
     const updated = teachers.map(t => 
       t.id === id ? { ...t, password: hashPassword(DEFAULT_PASSWORD), mustChangePassword: true } : t
@@ -176,7 +176,7 @@ const TeacherManagement: React.FC<TeacherManagementProps> = ({ onUpdate }) => {
     
     localStorage.setItem(STORAGE_KEYS.TEACHERS, JSON.stringify(updated));
     setTeachers(updated);
-    alert('✅ تم إعادة تعيين كلمة المرور');
+    alert('تم إعادة تعيين كلمة المرور');
   };
 
   return (
@@ -184,7 +184,7 @@ const TeacherManagement: React.FC<TeacherManagementProps> = ({ onUpdate }) => {
       {/* 📊 Header */}
        <div className="dashboard-section-header">
         <div className="min-w-0">
-          <h1 className="text-2xl font-black text-purple-900 sm:text-3xl">👨‍🏫 إدارة المعلمين</h1>
+          <h1 className="text-2xl font-black text-purple-900 sm:text-3xl">إدارة المعلمين</h1>
           <p className="text-purple-500 font-medium">إضافة وإدارة حسابات المعلمين</p>
         </div>
         <button
@@ -196,22 +196,22 @@ const TeacherManagement: React.FC<TeacherManagementProps> = ({ onUpdate }) => {
           }}
           className="min-h-11 bg-gradient-to-r from-purple-500 to-violet-500 text-white px-5 py-3 rounded-[20px] font-black text-base hover:shadow-2xl transition-all sm:px-8 sm:py-4 sm:rounded-[25px] sm:text-lg"
         >
-          {showForm ? '❌ إلغاء' : '➕ إضافة معلم جديد'}
+          {showForm ? 'إلغاء' : 'إضافة معلم جديد'}
         </button>
       </div>
 
-      {/* 📝 نموذج الإضافة/التعديل */}
+      {/* نموذج الإضافة/التعديل */}
       {showForm && (
          <div className="dashboard-surface dashboard-account-form mobile-modal-panel bg-gradient-to-br from-blue-50 to-violet-50 border-blue-300 shadow-2xl">
           <h2 className="text-2xl font-black text-blue-900 mb-8">
-            {editingTeacher ? '✏️ تعديل بيانات المعلم' : '✨ إضافة معلم جديد'}
+            {editingTeacher ? 'تعديل بيانات المعلم' : 'إضافة معلم جديد'}
           </h2>
 
           <form onSubmit={handleSubmit} className="space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               {/* اسم المعلم */}
               <div>
-                <label className="block font-black text-blue-900 mb-2">👤 اسم المعلم</label>
+                <label className="block font-black text-blue-900 mb-2">اسم المعلم</label>
                 <input
                   type="text"
                   value={formData.name}
@@ -224,7 +224,7 @@ const TeacherManagement: React.FC<TeacherManagementProps> = ({ onUpdate }) => {
 
               {/* هوية المعلم */}
               <div>
-                <label className="block font-black text-blue-900 mb-2">🆔 هوية المعلم</label>
+                <label className="block font-black text-blue-900 mb-2">هوية المعلم</label>
                 <input
                   type="text"
                   value={formData.teacherId}
@@ -237,7 +237,7 @@ const TeacherManagement: React.FC<TeacherManagementProps> = ({ onUpdate }) => {
 
               {/* اسم المستخدم */}
               <div>
-                <label className="block font-black text-blue-900 mb-2">🔐 اسم المستخدم</label>
+                <label className="block font-black text-blue-900 mb-2">اسم المستخدم</label>
                 <input
                   type="text"
                   value={formData.username}
@@ -250,7 +250,7 @@ const TeacherManagement: React.FC<TeacherManagementProps> = ({ onUpdate }) => {
 
               {/* كلمة المرور */}
               <div>
-                <label className="block font-black text-blue-900 mb-2">🔑 كلمة المرور</label>
+                <label className="block font-black text-blue-900 mb-2">كلمة المرور</label>
                 <input
                   type="text"
                   value={formData.password}
@@ -266,7 +266,7 @@ const TeacherManagement: React.FC<TeacherManagementProps> = ({ onUpdate }) => {
 
               {/* المادة */}
               <div>
-                <label className="block font-black text-blue-900 mb-2">📚 المادة/التخصص</label>
+                <label className="block font-black text-blue-900 mb-2">المادة/التخصص</label>
                 <input
                   type="text"
                   value={formData.subject}
@@ -277,7 +277,7 @@ const TeacherManagement: React.FC<TeacherManagementProps> = ({ onUpdate }) => {
               </div>
 
               <div>
-                <label className="block font-black text-blue-900 mb-2">🔐 إدارة صلاحيات المعلم</label>
+                <label className="block font-black text-blue-900 mb-2">إدارة صلاحيات المعلم</label>
                 <select
                   value={formData.permissionPackageId}
                   onChange={e => setFormData({ ...formData, permissionPackageId: e.target.value })}
@@ -295,21 +295,20 @@ const TeacherManagement: React.FC<TeacherManagementProps> = ({ onUpdate }) => {
               type="submit"
               className="w-full bg-gradient-to-r from-purple-400 to-violet-500 text-white py-5 rounded-[24px] font-black text-xl shadow-xl hover:shadow-2xl transition-all"
             >
-              {editingTeacher ? '💾 حفظ التعديلات' : '➕ إضافة المعلم'}
+              {editingTeacher ? 'حفظ التعديلات' : 'إضافة المعلم'}
             </button>
           </form>
         </div>
       )}
 
-      {/* 📋 قائمة المعلمين */}
+      {/* قائمة المعلمين */}
        <div className="dashboard-surface dashboard-content-records space-y-4">
         <h2 className="text-2xl font-black text-purple-900">
-          📚 المعلمون المسجلون ({teachers.length})
+          المعلمون المسجلون ({teachers.length})
         </h2>
 
         {teachers.length === 0 ? (
           <div className="p-32 text-center bg-white rounded-[40px] border-2 border-dashed border-purple-200">
-            <div className="text-6xl mb-4">👨‍🏫</div>
             <h3 className="text-2xl font-black text-purple-300 mb-2">لا يوجد معلمون حتى الآن</h3>
             <p className="text-purple-400">ابدأ بإضافة معلم جديد</p>
           </div>
@@ -374,7 +373,7 @@ const TeacherManagement: React.FC<TeacherManagementProps> = ({ onUpdate }) => {
                   <div className="bg-orange-50">
                     <dt className="text-orange-600">الحالة</dt>
                     <dd className="text-orange-900">
-                      {teacher.mustChangePassword ? '⚠️ يجب تغيير كلمة المرور' : '✅ نشط'}
+                      {teacher.mustChangePassword ? 'يجب تغيير كلمة المرور' : 'نشط'}
                     </dd>
                   </div>
                 </dl>

@@ -5,7 +5,10 @@ import { STORAGE_KEYS } from '../../constants';
 import { getRecordTeacherId, getTeacherParents, getTeacherStudents, normalizeScopeValue } from '../../utils/scope';
 import { getQuizResultPercentage } from '../../utils/quizScoring';
 import { normalizeQuizType } from '../../utils/quizTypes';
-import { html, printDocument } from '../../utils/printHtml';
+import { Award, Eye, GraduationCap, Pencil, Plus, Star, Trash2, Trophy } from 'lucide-react';
+import { CERTIFICATE_TYPES, certificateDocument, certificateNumber } from '../../utils/officialDocuments';
+import DocumentPreview from '../../components/portal/DocumentPreview';
+import { Badge, EmptyState, PageHeader, Panel, StatCard, relativeDay, scoreTone } from '../../components/portal/PortalUI';
 
 interface TeacherCertificatesProps {
   teacherId: string;
@@ -35,6 +38,7 @@ const TeacherCertificates: React.FC<TeacherCertificatesProps> = ({ teacherId, te
   const [editCert, setEditCert] = useState<CertificateRecord | null>(null);
   const [editType, setEditType] = useState<'excellence' | 'appreciation' | 'participation'>('excellence');
   const [editNote, setEditNote] = useState('');
+  const [previewCert, setPreviewCert] = useState<CertificateRecord | null>(null);
 
   useEffect(() => {
     loadData();
@@ -176,7 +180,6 @@ const TeacherCertificates: React.FC<TeacherCertificatesProps> = ({ teacherId, te
     term: string
   ) => {
     const average = getTeacherSubjectAverage(student.id, subject, grade);
-    const date = new Date().toLocaleDateString('ar-SA', { year: 'numeric', month: 'long', day: 'numeric' });
 
     const saved: CertificateRecord[] = JSON.parse(localStorage.getItem(CERT_KEY) || '[]');
     const newCertificate: CertificateRecord = {
@@ -200,117 +203,8 @@ const TeacherCertificates: React.FC<TeacherCertificatesProps> = ({ teacherId, te
         : students.some(teacherStudent => teacherStudent.id === cert.studentId),
     ));
 
-    const certificates_data = {
-      excellence: {
-        title: 'شهادة تفوق وامتياز',
-        emoji: '🏆',
-        color: '#FFD700',
-        gradient: 'linear-gradient(135deg, #FFD700 0%, #FFA500 100%)',
-        message: html`يسرنا أن نشهد بأن الطالب/ة <strong>${student.name}</strong> قد أظهر/ت تفوقاً ملحوظاً وأداءً متميزاً في دراسة مادة <strong>${subject}</strong> للفصل <strong>${term}</strong>، حيث حقق/ت في اختبارات المعلم لهذه المادة نسبة <strong>${average}%</strong>. نفخر بإنجازاتك المتميزة ونتمنى لك مزيداً من التقدم والنجاح في مسيرتك التعليمية.`,
-      },
-      appreciation: {
-        title: 'شهادة شكر وتقدير',
-        emoji: '⭐',
-        color: '#4169E1',
-        gradient: 'linear-gradient(135deg, #4169E1 0%, #1E90FF 100%)',
-        message: html`نتقدم بجزيل الشكر والتقدير للطالب/ة <strong>${student.name}</strong> لجهوده/ها الدؤوبة في دراسة مادة <strong>${subject}</strong> للفصل <strong>${term}</strong>، حيث حقق/ت في اختبارات المعلم لهذه المادة نسبة <strong>${average}%</strong>. نثمن عالياً اجتهادك ونتمنى لك المزيد من النجاح والتوفيق.`,
-      },
-      participation: {
-        title: 'شهادة مشاركة فعالة',
-        emoji: '🌟',
-        color: '#32CD32',
-        gradient: 'linear-gradient(135deg, #32CD32 0%, #228B22 100%)',
-        message: html`نشهد بأن الطالب/ة <strong>${student.name}</strong> قد أبدى/ت مشاركة فعالة ونشاطاً ملحوظاً في دراسة مادة <strong>${subject}</strong> للفصل <strong>${term}</strong>، وحقق/ت في اختبارات المعلم لهذه المادة نسبة <strong>${average}%</strong>. نقدر حماسك واهتمامك ونشجعك على الاستمرار في هذا النهج الإيجابي.`,
-      },
-    };
-
-    const cert = certificates_data[type];
-
-
-    printDocument(html`
-      <!DOCTYPE html>
-      <html dir="rtl" lang="ar">
-        <head>
-          <meta charset="UTF-8">
-          <title>${cert.title} - ${student.name}</title>
-          <style>
-            @import url('https://fonts.googleapis.com/css2?family=Tajawal:wght@400;700;900&display=swap');
-            * { margin: 0; padding: 0; box-sizing: border-box; }
-            body {
-              font-family: 'Tajawal', sans-serif;
-              background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-              min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 20px;
-            }
-            .certificate {
-              background: white; width: 800px; padding: 60px; border-radius: 20px;
-              box-shadow: 0 20px 60px rgba(0,0,0,0.3); position: relative; overflow: hidden;
-            }
-            .certificate::before {
-              content: ''; position: absolute; top: 0; left: 0; right: 0; height: 10px;
-              background: ${cert.gradient};
-            }
-            .certificate::after {
-              content: '${cert.emoji}'; position: absolute; font-size: 200px; opacity: 0.05;
-              top: 50%; left: 50%; transform: translate(-50%, -50%);
-            }
-            .header { text-align: center; margin-bottom: 40px; position: relative; }
-            .logo { font-size: 80px; margin-bottom: 20px; }
-            .title { font-size: 42px; font-weight: 900; background: ${cert.gradient}; -webkit-background-clip: text; -webkit-text-fill-color: transparent; margin-bottom: 10px; }
-            .subtitle { font-size: 18px; color: #666; font-weight: 700; }
-            .content { text-align: center; line-height: 2.5; font-size: 20px; color: #333; margin: 40px 0; position: relative; }
-            .student-name { font-size: 32px; font-weight: 900; color: ${cert.color}; margin: 20px 0; }
-            .footer { margin-top: 60px; display: flex; justify-content: space-between; align-items: center; border-top: 3px solid #f0f0f0; padding-top: 30px; }
-            .signature { text-align: center; }
-            .signature-line { width: 200px; height: 2px; background: #333; margin: 10px auto; }
-            .signature-label { font-weight: 700; color: #666; font-size: 16px; }
-            .date { text-align: center; color: #666; font-size: 16px; font-weight: 700; }
-            .seal { position: absolute; bottom: 40px; left: 40px; width: 120px; height: 120px; border: 5px solid ${cert.color}; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 60px; opacity: 0.3; transform: rotate(-15deg); }
-            .border-decoration { position: absolute; top: 20px; right: 20px; width: 60px; height: 60px; border-top: 5px solid ${cert.color}; border-right: 5px solid ${cert.color}; }
-            .border-decoration-bottom { position: absolute; bottom: 20px; left: 20px; width: 60px; height: 60px; border-bottom: 5px solid ${cert.color}; border-left: 5px solid ${cert.color}; }
-            .academic-info { margin-top: 16px; padding: 12px 20px; background: #f8f9ff; border-radius: 12px; display: inline-block; }
-            .academic-info p { font-size: 15px; color: #555; margin: 4px 0; font-weight: 700; }
-            @media print {
-              body { background: white; padding: 0; }
-              .certificate { box-shadow: none; margin: 0; width: 100%; }
-            }
-          </style>
-        </head>
-        <body>
-          <div class="certificate">
-            <div class="border-decoration"></div>
-            <div class="border-decoration-bottom"></div>
-            <div class="seal">${cert.emoji}</div>
-
-            <div class="header">
-              <div class="logo">${cert.emoji}</div>
-              <h1 class="title">${cert.title}</h1>
-              <p class="subtitle">منصة التعليم الذكي</p>
-            </div>
-
-            <div class="content">
-              <p>${cert.message}</p>
-              <div class="academic-info">
-                <p>المادة: <strong>${subject}</strong> · الصف: <strong>${grade}</strong> · الفصل: <strong>${term}</strong></p>
-                <p>نسبة نتائج اختبارات المعلم للمادة: <strong style="font-size:22px;color:${cert.color};">${average}%</strong></p>
-              </div>
-            </div>
-
-            <div class="footer">
-              <div class="signature">
-                <div class="signature-line"></div>
-                <p class="signature-label">إدارة المنصة</p>
-              </div>
-              <div class="date"><p>التاريخ: ${date}</p></div>
-              <div class="signature">
-                <p style="font-weight:900;font-size:18px;color:#333;margin-bottom:10px;">${teacherName}</p>
-                <div class="signature-line"></div>
-                <p class="signature-label">المعلم/ة</p>
-              </div>
-            </div>
-          </div>
-        </body>
-      </html>
-    `, { autoPrintDelayMs: 500 });
+    // ‏تُعرض الشهادةُ الصادرة بالقالب الرسمي، ومن المعاينة تُطبع.
+    setPreviewCert(newCertificate);
   };
 
   const filteredStudents = students.filter(student => {
@@ -322,286 +216,246 @@ const TeacherCertificates: React.FC<TeacherCertificatesProps> = ({ teacherId, te
     return matchesParent && matchesSearch;
   });
 
-  return (
-    <div className="dashboard-page dashboard-consistent-page dashboard-certificates-page animate-fadeIn">
-      {/* Header */}
-      <div className="dashboard-filter-surface dashboard-page-toolbar">
-        <div className="dashboard-section-header">
-          <div>
-            <h1 className="text-3xl font-black text-slate-900">🏆 شهادات التقدير</h1>
-            <p className="text-slate-500 text-lg font-medium">
-              اطبع شهادات شكر وتقدير للطلاب المتميزين
-            </p>
-          </div>
-          <div className="text-5xl opacity-70">📜</div>
-        </div>
+  const sortedCertificates = [...certificates].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+  const typeTone = (type: CertificateRecord['type']) => (type === 'excellence' ? 'gold' : type === 'appreciation' ? 'primary' : 'accent');
 
-        {/* Parent Filter + Search */}
-        <div className="dashboard-filter-grid dashboard-filter-grid-wide">
-          <div className="md:w-1/3">
+  return (
+    <div className="portal-page">
+      <PageHeader
+        eyebrow="بوابة المعلم"
+        title="الشهادات"
+        description="إصدار شهادات التفوّق والتقدير والمشاركة لطلابك، ومعاينتها وطباعتها بتنسيقٍ رسمي."
+        icon={Award}
+      />
+
+      <div className="portal-stats">
+        <StatCard label="متفوّقون (٩٠٪ فأكثر)" value={students.filter(s => getStudentAverage(s.id) >= 90).length} hint="في اختبارات المعلم" icon={Trophy} tone="gold" />
+        <StatCard label="مجتهدون (٧٠–٨٩٪)" value={students.filter(s => getStudentAverage(s.id) >= 70 && getStudentAverage(s.id) < 90).length} hint="في اختبارات المعلم" icon={Star} />
+        <StatCard label="الطلاب" value={students.length} hint="طلابك المرتبطون" icon={GraduationCap} tone="accent" />
+        <StatCard label="الشهادات الصادرة" value={certificates.length} hint="منك لطلابك" icon={Award} tone="success" />
+      </div>
+
+      <Panel
+        title="إصدار شهادة"
+        subtitle="اختر الطالب ثم نوع الشهادة والمادة والفصل"
+        icon={GraduationCap}
+        flush
+        actions={
+          <div className="flex flex-wrap gap-2">
             <select
               value={selectedParentId}
               onChange={(e) => setSelectedParentId(e.target.value)}
-              className="dashboard-form-control w-full p-4 rounded-xl border-2 border-slate-200 bg-white text-slate-800 font-bold text-lg outline-none focus:border-purple-500 cursor-pointer"
+              className="rounded-lg border px-3 py-2 text-sm"
+              aria-label="ولي الأمر"
             >
-              <option value="all" className="text-amber-800">👨‍👧 جميع أولياء الأمور</option>
+              <option value="all">كل أولياء الأمور</option>
               {parents.map((parent) => (
-                <option key={parent.id} value={parent.id} className="text-amber-800">
-                  {parent.name} ({students.filter(s => s.parentId === parent.id).length} طالب)
+                <option key={parent.id} value={parent.id}>
+                  {parent.name} ({students.filter(s => s.parentId === parent.id).length})
                 </option>
               ))}
             </select>
-          </div>
-          <div className="md:w-2/3 relative">
             <input
-              type="text"
+              type="search"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="🔍 ابحث عن طالب بالاسم أو اسم المستخدم..."
-              className="dashboard-form-control w-full p-4 pr-12 rounded-xl border-2 border-slate-200 bg-slate-50 text-slate-800 placeholder-slate-400 focus:bg-white focus:border-purple-500 outline-none font-bold text-lg"
+              placeholder="بحث باسم الطالب"
+              className="rounded-lg border px-3 py-2 text-sm"
             />
-            {searchQuery && (
-              <button
-                onClick={() => setSearchQuery('')}
-                className="absolute left-4 top-1/2 -translate-y-1/2 bg-slate-200 hover:bg-slate-300 text-slate-700 px-3 py-1 rounded-lg font-bold text-sm transition-all"
-              >
-                ✖ مسح
-              </button>
-            )}
           </div>
-        </div>
-      </div>
-
-      {/* Statistics */}
-      <div className="dashboard-stats-grid dashboard-stats-grid-compact">
-        <div className="dashboard-stat-card bg-gradient-to-br from-yellow-50 to-yellow-100 border-yellow-200">
-          <div className="text-5xl mb-3">🏆</div>
-          <div className="text-3xl font-black text-yellow-900">{students.filter(s => getStudentAverage(s.id) >= 90).length}</div>
-          <div className="text-yellow-700 font-bold">طالب متفوق (90%+)</div>
-        </div>
-        <div className="dashboard-stat-card bg-gradient-to-br from-blue-50 to-blue-100 border-amber-200">
-          <div className="text-5xl mb-3">⭐</div>
-          <div className="text-3xl font-black text-blue-900">{students.filter(s => getStudentAverage(s.id) >= 70 && getStudentAverage(s.id) < 90).length}</div>
-          <div className="text-blue-700 font-bold">طالب مجتهد (70-89%)</div>
-        </div>
-        <div className="dashboard-stat-card bg-gradient-to-br from-green-50 to-green-100 border-green-200">
-          <div className="text-5xl mb-3">👨‍🎓</div>
-          <div className="text-3xl font-black text-green-900">{students.length}</div>
-          <div className="text-green-700 font-bold">إجمالي الطلاب</div>
-        </div>
-      </div>
-
-      {/* Students List */}
-      <div className="dashboard-surface border-amber-200">
-        <h2 className="text-2xl font-black text-amber-900 mb-6">📋 قائمة الطلاب</h2>
-
+        }
+      >
         {filteredStudents.length === 0 ? (
-          <div className="text-center py-20">
-            <div className="text-6xl mb-4">🔍</div>
-            <p className="text-gray-500 font-bold text-xl">لا توجد نتائج</p>
-          </div>
+          <EmptyState title="لا نتائج" description="غيّر البحث أو ولي الأمر." />
         ) : (
-          <div className="dashboard-card-grid dashboard-card-grid-wide">
-            {filteredStudents.map((student) => {
-              const average = getStudentAverage(student.id);
-              const quizCount = allQuizzes.filter(q => q.studentId === student.id).length;
-              return (
-                <div key={student.id} className="bg-gradient-to-br from-amber-50 to-orange-50 p-6 rounded-[30px] border-2 border-amber-200 hover:shadow-xl transition-all">
-                  <div className="flex items-start gap-4 mb-4">
-                    <div className="text-5xl">👤</div>
-                    <div className="flex-1">
-                      <h3 className="text-xl font-black text-amber-900">{student.name}</h3>
-                      <p className="text-sm text-amber-600 font-medium">{student.primaryGrade || student.grade}</p>
-                      <div className="mt-2 flex gap-2">
-                        <span className={`px-3 py-1 rounded-full text-xs font-bold ${average >= 90 ? 'bg-yellow-500 text-white' : average >= 70 ? 'bg-amber-500 text-white' : 'bg-gray-400 text-white'}`}>
-                          {average}%
-                        </span>
-                        <span className="px-3 py-1 rounded-full text-xs font-bold bg-purple-100 text-purple-700">
-                          {quizCount} اختبار
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Issued certificates log */}
-                  {(() => {
-                    const sc = getStudentCerts(student.id);
-                    if (sc.length === 0) return null;
-                    return (
-                      <div className="mt-4 pt-4 border-t border-amber-100">
-                        <p className="text-xs font-black text-amber-500 mb-2 uppercase tracking-wider">📜 شهادات مصدّرة</p>
-                        <div className="space-y-2">
-                          {sc.map(cert => (
-                            <div key={cert.id} className="bg-white p-3 rounded-[16px] border border-amber-100 flex items-center justify-between">
-                              <div className="flex items-center gap-2">
-                                <span className="text-lg">{cert.type === 'excellence' ? '🏆' : cert.type === 'appreciation' ? '⭐' : '🌟'}</span>
-                                <div>
-                                  <p className="text-sm font-bold text-amber-800">{cert.type === 'excellence' ? 'تفوق' : cert.type === 'appreciation' ? 'شكر' : 'مشاركة'}</p>
-                                  <p className="text-[10px] text-amber-500">{cert.grade} · {cert.subject} · {cert.term}</p>
-                                </div>
-                              </div>
-                              <div className="flex gap-1">
-                                <button
-                                  onClick={() => openEdit(cert)}
-                                  className="p-1.5 bg-amber-50 text-amber-500 rounded-lg hover:bg-amber-100 transition-all text-xs font-bold"
-                                  title="تعديل"
-                                >✏️</button>
-                                <button
-                                  onClick={() => deleteCertificate(cert.id)}
-                                  className="p-1.5 bg-red-50 text-red-500 rounded-lg hover:bg-red-100 transition-all text-xs font-bold"
-                                  title="حذف"
-                                >🗑️</button>
-                              </div>
-                            </div>
-                          ))}
+          <div className="portal-table-wrap">
+            <table className="portal-table">
+              <thead>
+                <tr>
+                  <th>الطالب</th>
+                  <th>الصف</th>
+                  <th>معدّل اختبارات المعلم</th>
+                  <th>الاختبارات</th>
+                  <th>الشهادات</th>
+                  <th aria-label="إجراءات" />
+                </tr>
+              </thead>
+              <tbody>
+                {filteredStudents.map((student) => {
+                  const average = getStudentAverage(student.id);
+                  const quizCount = allQuizzes.filter(q => q.studentId === student.id).length;
+                  const teacherQuizCount = allQuizzes.filter(q => q.studentId === student.id && normalizeQuizType(q.quizType) === QuizType.TEACHER).length;
+                  const issued = getStudentCerts(student.id);
+                  return (
+                    <tr key={student.id}>
+                      <td className="font-bold text-slate-800">{student.name}</td>
+                      <td>{student.primaryGrade || student.grade || '—'}</td>
+                      <td>{teacherQuizCount === 0 ? <span className="text-slate-400">لا نتائج</span> : <Badge tone={scoreTone(average)}>{average}%</Badge>}</td>
+                      <td className="is-num">{quizCount}</td>
+                      <td>
+                        {issued.length === 0 ? (
+                          <span className="text-slate-400">—</span>
+                        ) : (
+                          <div className="flex flex-wrap gap-1">
+                            {issued.map(cert => (
+                              <Badge key={cert.id} tone={typeTone(cert.type)}>{CERTIFICATE_TYPES[cert.type]?.short ?? 'شهادة'}</Badge>
+                            ))}
+                          </div>
+                        )}
+                      </td>
+                      <td>
+                        <div className="flex justify-end">
+                          <button type="button" className="portal-btn portal-btn-secondary portal-btn-sm" onClick={() => openIssueModal(student, average >= 90 ? 'excellence' : average >= 70 ? 'appreciation' : 'participation')}>
+                            <Plus aria-hidden="true" /> إصدار شهادة
+                          </button>
                         </div>
-                      </div>
-                    );
-                  })()}
-
-                  <div className="space-y-2 mt-2">
-                    <button
-                      onClick={() => openIssueModal(student, 'excellence')}
-                      className="w-full bg-gradient-to-r from-yellow-500 to-orange-500 hover:from-yellow-600 hover:to-orange-600 text-white py-3 rounded-[20px] font-bold transition-all shadow-md hover:shadow-lg flex items-center justify-center gap-2 hover:scale-[1.02] active:scale-95"
-                    >
-                      <span>🏆</span>
-                      <span>اصدار شهادة تفوق</span>
-                    </button>
-                    <button
-                      onClick={() => openIssueModal(student, 'appreciation')}
-                      className="w-full bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white py-3 rounded-[20px] font-bold transition-all shadow-md hover:shadow-lg flex items-center justify-center gap-2 hover:scale-[1.02] active:scale-95"
-                    >
-                      <span>⭐</span>
-                      <span>اصدار شهادة شكر</span>
-                    </button>
-                    <button
-                      onClick={() => openIssueModal(student, 'participation')}
-                      className="w-full bg-gradient-to-r from-green-500 to-teal-500 hover:from-green-600 hover:to-teal-600 text-white py-3 rounded-[20px] font-bold transition-all shadow-md hover:shadow-lg flex items-center justify-center gap-2 hover:scale-[1.02] active:scale-95"
-                    >
-                      <span>🌟</span>
-                      <span>اصدار شهادة مشاركة</span>
-                    </button>
-                  </div>
-                </div>
-              );
-            })}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
           </div>
         )}
-      </div>
+      </Panel>
 
-      {/* Issue Modal */}
+      <Panel title="الشهادات الصادرة" subtitle="الأحدث أولاً" icon={Award} flush>
+        {sortedCertificates.length === 0 ? (
+          <EmptyState title="لم تُصدر شهادات بعد" icon={Award} />
+        ) : (
+          <div className="portal-table-wrap">
+            <table className="portal-table">
+              <thead>
+                <tr>
+                  <th>الشهادة</th>
+                  <th>الطالب</th>
+                  <th>المادة</th>
+                  <th>الصف والفصل</th>
+                  <th>رقم الشهادة</th>
+                  <th>التاريخ</th>
+                  <th aria-label="إجراءات" />
+                </tr>
+              </thead>
+              <tbody>
+                {sortedCertificates.map(cert => (
+                  <tr key={cert.id}>
+                    <td><Badge tone={typeTone(cert.type)}>{CERTIFICATE_TYPES[cert.type]?.short ?? 'شهادة'}</Badge></td>
+                    <td className="font-bold text-slate-800">{cert.studentName}</td>
+                    <td>{cert.subject}</td>
+                    <td>{cert.grade} · {cert.term}</td>
+                    <td className="is-num text-slate-500">{certificateNumber(cert)}</td>
+                    <td className="is-num text-slate-500">{relativeDay(cert.date)}</td>
+                    <td>
+                      <div className="flex justify-end gap-1">
+                        <button type="button" className="portal-btn portal-btn-secondary portal-btn-sm" onClick={() => setPreviewCert(cert)}>
+                          <Eye aria-hidden="true" /> معاينة
+                        </button>
+                        <button type="button" className="portal-btn portal-btn-ghost portal-btn-sm" onClick={() => openEdit(cert)} aria-label={`تعديل شهادة ${cert.studentName}`} title="تعديل">
+                          <Pencil aria-hidden="true" />
+                        </button>
+                        <button type="button" className="portal-btn portal-btn-ghost portal-btn-sm text-red-700" onClick={() => deleteCertificate(cert.id)} aria-label={`حذف شهادة ${cert.studentName}`} title="حذف">
+                          <Trash2 aria-hidden="true" />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </Panel>
+
+      {/* إصدار شهادة */}
       {issueModalOpen && issueStudent && issueType && (
-        <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4 animate-fadeIn" onClick={() => setIssueModalOpen(false)}>
-          <div className="mobile-modal-panel bg-white p-5 sm:p-8 rounded-[28px] sm:rounded-[40px] shadow-2xl max-w-lg w-full animate-slideUp" onClick={e => e.stopPropagation()}>
-            <h3 className="text-2xl font-black text-amber-900 mb-2">
-              {issueType === 'excellence' ? '🏆 إصدار شهادة تفوق' : issueType === 'appreciation' ? '⭐ إصدار شهادة شكر' : '🌟 إصدار شهادة مشاركة'}
-            </h3>
-            <p className="text-amber-500 text-sm mb-6">{issueStudent.name} — اختر المادة والفصل من إعداداتك الأكاديمية</p>
-
-            <div className="space-y-4 text-right">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4" onClick={() => setIssueModalOpen(false)} role="dialog" aria-modal="true" aria-label="إصدار شهادة">
+          <div className="portal-panel w-full max-w-lg" onClick={e => e.stopPropagation()}>
+            <div className="portal-panel-head">
               <div>
-                <label className="block text-sm font-bold text-amber-700 mb-2">🎓 الصف</label>
-                <select
-                  value={issueGrade}
-                  onChange={e => { setIssueGrade(e.target.value); setIssueSubject(''); setIssueTerm(''); }}
-                  className="w-full p-4 rounded-xl border-2 border-amber-200 focus:border-amber-500 outline-none font-bold text-lg"
-                >
-                  <option value="">اختر الصف...</option>
-                  {getGradeOptions().map(g => <option key={g} value={g}>{g}</option>)}
-                </select>
-              </div>
-              <div>
-                <label className="block text-sm font-bold text-amber-700 mb-2">📖 المادة</label>
-                <select
-                  value={issueSubject}
-                  onChange={e => { setIssueSubject(e.target.value); setIssueTerm(''); }}
-                  className="w-full p-4 rounded-xl border-2 border-amber-200 focus:border-amber-500 outline-none font-bold text-lg"
-                  disabled={!issueGrade}
-                >
-                  <option value="">اختر المادة...</option>
-                  {getSubjectsForGrade(issueGrade).map(s => <option key={s} value={s}>{s}</option>)}
-                </select>
-              </div>
-              <div>
-                <label className="block text-sm font-bold text-amber-700 mb-2">📅 الفصل</label>
-                <select
-                  value={issueTerm}
-                  onChange={e => setIssueTerm(e.target.value)}
-                  className="w-full p-4 rounded-xl border-2 border-amber-200 focus:border-amber-500 outline-none font-bold text-lg"
-                  disabled={!issueSubject}
-                >
-                  <option value="">اختر الفصل...</option>
-                  {getTermsForSubject(issueGrade, issueSubject).map(t => <option key={t} value={t}>{t}</option>)}
-                </select>
+                <h2><Award aria-hidden="true" /> إصدار شهادة</h2>
+                <p>{issueStudent.name} — من إعداداتك الأكاديمية</p>
               </div>
             </div>
-
-            <div className="flex flex-col sm:flex-row gap-3 mt-8">
-              <button
-                onClick={confirmIssue}
-                className="flex-1 bg-amber-500 text-white py-4 rounded-[20px] font-black text-lg hover:bg-amber-600 shadow-lg transition-all hover:scale-[1.02] active:scale-95"
-              >
-                🖨️ إصدار وطباعة
-              </button>
-              <button
-                onClick={() => setIssueModalOpen(false)}
-                className="px-6 py-4 bg-amber-100 text-amber-700 rounded-[20px] font-bold hover:bg-amber-200 transition-all"
-              >
-                إلغاء
-              </button>
+            <div className="portal-panel-body flex flex-col gap-4">
+              <label className="flex flex-col gap-1 text-sm font-bold">
+                نوع الشهادة
+                <select value={issueType} onChange={e => setIssueType(e.target.value as CertificateRecord['type'])} className="rounded-lg border px-3 py-2.5">
+                  <option value="excellence">{CERTIFICATE_TYPES.excellence.title}</option>
+                  <option value="appreciation">{CERTIFICATE_TYPES.appreciation.title}</option>
+                  <option value="participation">{CERTIFICATE_TYPES.participation.title}</option>
+                </select>
+              </label>
+              <label className="flex flex-col gap-1 text-sm font-bold">
+                الصف
+                <select value={issueGrade} onChange={e => { setIssueGrade(e.target.value); setIssueSubject(''); setIssueTerm(''); }} className="rounded-lg border px-3 py-2.5">
+                  <option value="">اختر الصف</option>
+                  {getGradeOptions().map(g => <option key={g} value={g}>{g}</option>)}
+                </select>
+              </label>
+              <label className="flex flex-col gap-1 text-sm font-bold">
+                المادة
+                <select value={issueSubject} onChange={e => { setIssueSubject(e.target.value); setIssueTerm(''); }} className="rounded-lg border px-3 py-2.5" disabled={!issueGrade}>
+                  <option value="">اختر المادة</option>
+                  {getSubjectsForGrade(issueGrade).map(s => <option key={s} value={s}>{s}</option>)}
+                </select>
+              </label>
+              <label className="flex flex-col gap-1 text-sm font-bold">
+                الفصل الدراسي
+                <select value={issueTerm} onChange={e => setIssueTerm(e.target.value)} className="rounded-lg border px-3 py-2.5" disabled={!issueSubject}>
+                  <option value="">اختر الفصل</option>
+                  {getTermsForSubject(issueGrade, issueSubject).map(t => <option key={t} value={t}>{t}</option>)}
+                </select>
+              </label>
+              <div className="flex flex-wrap gap-2 pt-2">
+                <button type="button" onClick={confirmIssue} className="portal-btn portal-btn-primary">
+                  <Award aria-hidden="true" /> إصدار ومعاينة
+                </button>
+                <button type="button" onClick={() => setIssueModalOpen(false)} className="portal-btn portal-btn-secondary">إلغاء</button>
+              </div>
             </div>
           </div>
         </div>
       )}
 
-      {/* Edit Modal */}
+      {/* تعديل شهادة */}
       {editCert && (
-        <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4 animate-fadeIn" onClick={() => setEditCert(null)}>
-          <div className="mobile-modal-panel bg-white p-5 sm:p-8 rounded-[28px] sm:rounded-[40px] shadow-2xl max-w-md w-full animate-slideUp" onClick={e => e.stopPropagation()}>
-            <h3 className="text-2xl font-black text-amber-900 mb-2">✏️ تعديل الشهادة</h3>
-            <p className="text-amber-500 text-sm mb-6">{editCert.studentName} — {editCert.grade} · {editCert.subject}</p>
-
-            <div className="space-y-4 text-right">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4" onClick={() => setEditCert(null)} role="dialog" aria-modal="true" aria-label="تعديل الشهادة">
+          <div className="portal-panel w-full max-w-md" onClick={e => e.stopPropagation()}>
+            <div className="portal-panel-head">
               <div>
-                <label className="block text-sm font-bold text-amber-700 mb-2">نوع الشهادة</label>
-                <select
-                  value={editType}
-                  onChange={e => setEditType(e.target.value as CertificateRecord['type'])}
-                  className="w-full p-4 rounded-xl border-2 border-amber-200 focus:border-amber-500 outline-none font-bold text-lg"
-                >
-                  <option value="excellence">🏆 شهادة تفوق</option>
-                  <option value="appreciation">⭐ شهادة شكر</option>
-                  <option value="participation">🌟 شهادة مشاركة</option>
-                </select>
-              </div>
-              <div>
-                <label className="block text-sm font-bold text-amber-700 mb-2">ملاحظة (اختياري)</label>
-                <textarea
-                  value={editNote}
-                  onChange={e => setEditNote(e.target.value)}
-                  className="w-full p-4 rounded-xl border-2 border-amber-200 focus:border-amber-500 outline-none font-bold text-sm resize-none"
-                  rows={3}
-                  placeholder="اكتب ملاحظة إضافية..."
-                />
+                <h2><Pencil aria-hidden="true" /> تعديل الشهادة</h2>
+                <p>{editCert.studentName} — {editCert.grade} · {editCert.subject}</p>
               </div>
             </div>
-
-            <div className="flex flex-col sm:flex-row gap-3 mt-8">
-              <button
-                onClick={saveEdit}
-                className="flex-1 bg-amber-500 text-white py-4 rounded-[20px] font-black text-lg hover:bg-amber-600 shadow-lg transition-all hover:scale-[1.02] active:scale-95"
-              >
-                💾 حفظ التعديل
-              </button>
-              <button
-                onClick={() => setEditCert(null)}
-                className="px-6 py-4 bg-amber-100 text-amber-700 rounded-[20px] font-bold hover:bg-amber-200 transition-all"
-              >
-                إلغاء
-              </button>
+            <div className="portal-panel-body flex flex-col gap-4">
+              <label className="flex flex-col gap-1 text-sm font-bold">
+                نوع الشهادة
+                <select value={editType} onChange={e => setEditType(e.target.value as CertificateRecord['type'])} className="rounded-lg border px-3 py-2.5">
+                  <option value="excellence">{CERTIFICATE_TYPES.excellence.title}</option>
+                  <option value="appreciation">{CERTIFICATE_TYPES.appreciation.title}</option>
+                  <option value="participation">{CERTIFICATE_TYPES.participation.title}</option>
+                </select>
+              </label>
+              <label className="flex flex-col gap-1 text-sm font-bold">
+                ملاحظة تظهر على الشهادة (اختياري)
+                <textarea value={editNote} onChange={e => setEditNote(e.target.value)} className="rounded-lg border px-3 py-2.5" rows={3} />
+              </label>
+              <div className="flex flex-wrap gap-2 pt-2">
+                <button type="button" onClick={saveEdit} className="portal-btn portal-btn-primary">حفظ التعديل</button>
+                <button type="button" onClick={() => setEditCert(null)} className="portal-btn portal-btn-secondary">إلغاء</button>
+              </div>
             </div>
           </div>
         </div>
+      )}
+
+      {previewCert && (
+        <DocumentPreview
+          title={`${CERTIFICATE_TYPES[previewCert.type]?.title ?? 'شهادة'} — ${previewCert.studentName}`}
+          document={certificateDocument(previewCert)}
+          pageWidth={1123}
+          onClose={() => setPreviewCert(null)}
+        />
       )}
     </div>
   );

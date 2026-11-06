@@ -191,7 +191,7 @@ const PrivateChat: React.FC<PrivateChatProps> = ({
        <div className="dashboard-chat-container" style={styles.container}>
         {/* Header */}
          <div className="dashboard-chat-header" style={styles.header}>
-          <h2 style={styles.headerTitle}>💬 الدردشة الخاصة</h2>
+          <h2 style={styles.headerTitle}>الدردشة الخاصة</h2>
           <button onClick={onClose} style={styles.closeButton}>✖</button>
         </div>
 
@@ -304,7 +304,7 @@ const PrivateChat: React.FC<PrivateChatProps> = ({
                     style={styles.input}
                   />
                   <button type="submit" style={styles.sendButton}>
-                    📤 إرسال
+                    إرسال
                   </button>
                 </form>
               </>

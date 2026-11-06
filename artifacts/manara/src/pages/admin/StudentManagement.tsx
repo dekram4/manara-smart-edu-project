@@ -300,7 +300,7 @@ const StudentManagement: React.FC<StudentManagementProps> = ({ onUpdate }) => {
     // القديم. النافذة تُغلق عند نجاح الكتابة، وتبقى مفتوحة مع سبب الفشل.
     const outcome = await saveStudentConfirmed(student);
     if (outcome.ok === false) {
-      alert(`⚠️ لم يُحفظ في قاعدة البيانات: ${outcome.reason}
+      alert(`لم يُحفظ في قاعدة البيانات: ${outcome.reason}
 التعديل محفوظ في هذا المتصفّح وسيُعاد إرساله.`);
       onUpdate();
       return;
@@ -311,7 +311,7 @@ const StudentManagement: React.FC<StudentManagementProps> = ({ onUpdate }) => {
     alert(
       (editingStudent ? 'تم التحديث' : 'تمت الإضافة') +
         (outcome.verified
-          ? ' والحفظ في قاعدة البيانات ✅'
+          ? ' والحفظ في قاعدة البيانات'
           : ' — أُرسل وتعذّر التحقّق من القراءة'),
     );
   };
@@ -513,8 +513,8 @@ const StudentManagement: React.FC<StudentManagementProps> = ({ onUpdate }) => {
         <div style={styles.quickAddHeader}>
           <h3 style={styles.quickAddTitle}>إضافة حساب جديد</h3>
           <div style={styles.quickAddButtons}>
-            <button onClick={() => quickAddAccount('student')} style={styles.quickAddButton}>👨‍🎓 إضافة طالب</button>
-            <button onClick={() => quickAddAccount('parent')} style={{...styles.quickAddButton, backgroundColor: COLORS.secondary}}>👨‍👦 إضافة ولي أمر</button>
+            <button onClick={() => quickAddAccount('student')} style={styles.quickAddButton}>إضافة طالب</button>
+            <button onClick={() => quickAddAccount('parent')} style={{...styles.quickAddButton, backgroundColor: COLORS.secondary}}>إضافة ولي أمر</button>
           </div>
         </div>
          <div className="dashboard-stats-grid dashboard-stats-grid-compact" style={styles.quickAddStats}>
@@ -531,7 +531,7 @@ const StudentManagement: React.FC<StudentManagementProps> = ({ onUpdate }) => {
 
       {showStudentForm && (
          <div ref={studentFormView.formRef} className="dashboard-surface dashboard-account-form" style={styles.formCard}>
-          <h3 style={styles.formTitle}>{editingStudent ? '✏️ تعديل الطالب' : '➕ إضافة طالب جديد'}</h3>
+          <h3 style={styles.formTitle}>{editingStudent ? 'تعديل الطالب' : 'إضافة طالب جديد'}</h3>
           <form onSubmit={handleAddStudent} style={styles.form}>
             <div style={styles.formGrid}>
                <div style={styles.formGroup}><label style={styles.label}>الاسم *</label><input type="text" value={studentForm.name} onChange={e => setStudentForm({...studentForm, name: e.target.value})} style={styles.input} required /></div>
@@ -552,7 +552,7 @@ const StudentManagement: React.FC<StudentManagementProps> = ({ onUpdate }) => {
                   </select>
                </div>
                <div style={styles.formGroup}>
-                  <label style={styles.label}>👨‍🏫 المعلم *</label>
+                  <label style={styles.label}>المعلم *</label>
                   <select value={studentForm.teacherId} onChange={e => setStudentForm({...studentForm, teacherId: e.target.value})} style={styles.select} required>
                     <option value="">اختر المعلم</option>
                     {teachers.map((t) => <option key={t.id} value={t.id}>👨‍🏫 {t.name} - {t.subject || 'معلم'}</option>)}
@@ -570,7 +570,7 @@ const StudentManagement: React.FC<StudentManagementProps> = ({ onUpdate }) => {
                       لا شيء مؤشَّر = جميع مواد المعلم، وهي الحالة
                       الافتراضية لكل طالب مسجَّل قبل وجود هذا الحقل. */}
                   <label style={styles.label}>
-                    📚 المواد المتاحة للطالب
+                    المواد المتاحة للطالب
                     <span style={{ fontWeight: 'normal', color: '#6b7280', fontSize: '0.8rem' }}>
                       {' '}— {studentForm.assignedSubjects.length === 0
                         ? 'جميع المواد'
@@ -626,7 +626,7 @@ const StudentManagement: React.FC<StudentManagementProps> = ({ onUpdate }) => {
                   )}
                 </div>
                 <div style={styles.formGroup}>
-                    <label style={styles.label}>🔐 إدارة صلاحيات الطالب</label>
+                    <label style={styles.label}>إدارة صلاحيات الطالب</label>
                    <select value={studentForm.permissionPackageId} onChange={e => setStudentForm({...studentForm, permissionPackageId: e.target.value})} style={styles.select}>
                      <option value="">الصلاحيات العامة الحالية</option>
                      {studentPackages.map(pkg => <option key={pkg.id} value={pkg.id}>{pkg.name}</option>)}
@@ -644,7 +644,7 @@ const StudentManagement: React.FC<StudentManagementProps> = ({ onUpdate }) => {
 
       {showParentForm && (
          <div ref={parentFormView.formRef} className="dashboard-surface dashboard-account-form" style={styles.formCard}>
-           <h3 style={styles.formTitle}>{editingParent ? '✏️ تعديل ولي أمر' : '➕ إضافة ولي أمر جديد'}</h3>
+           <h3 style={styles.formTitle}>{editingParent ? 'تعديل ولي أمر' : 'إضافة ولي أمر جديد'}</h3>
            <form onSubmit={handleAddParent} style={styles.form}>
              <div style={styles.formGrid}>
                <div style={styles.formGroup}><label style={styles.label}>اسم ولي الأمر *</label><input type="text" value={parentForm.name} onChange={e => setParentForm({...parentForm, name: e.target.value})} style={styles.input} required /></div>
@@ -652,14 +652,14 @@ const StudentManagement: React.FC<StudentManagementProps> = ({ onUpdate }) => {
                <div style={styles.formGroup}><label style={styles.label}>كلمة المرور {editingParent ? '' : '*'}</label><input type="text" value={parentForm.password} onChange={e => setParentForm({...parentForm, password: e.target.value})} style={styles.input} placeholder={editingParent ? 'اتركه فارغاً للإبقاء على الحالية' : ''} required={!editingParent} /></div>
                <div style={styles.formGroup}><label style={styles.label}>رقم الجوال</label><input type="text" value={parentForm.phoneNumber} onChange={e => setParentForm({...parentForm, phoneNumber: e.target.value})} style={styles.input} /></div>
                <div style={styles.formGroup}>
-                  <label style={styles.label}>👨‍🏫 المعلم *</label>
+                  <label style={styles.label}>المعلم *</label>
                   <select value={parentForm.teacherId} onChange={e => setParentForm({...parentForm, teacherId: e.target.value})} style={styles.select} required>
                     <option value="">اختر المعلم</option>
                     {teachers.map((t) => <option key={t.id} value={t.id}>👨‍🏫 {t.name} - {t.subject || 'معلم'}</option>)}
                   </select>
                </div>
                 <div style={styles.formGroup}>
-                    <label style={styles.label}>🔐 إدارة صلاحيات ولي الأمر</label>
+                    <label style={styles.label}>إدارة صلاحيات ولي الأمر</label>
                    <select value={parentForm.permissionPackageId} onChange={e => setParentForm({...parentForm, permissionPackageId: e.target.value})} style={styles.select}>
                      <option value="">الصلاحيات العامة الحالية</option>
                      {parentPackages.map(pkg => <option key={pkg.id} value={pkg.id}>{pkg.name}</option>)}
@@ -694,7 +694,7 @@ const StudentManagement: React.FC<StudentManagementProps> = ({ onUpdate }) => {
         {/* خيارات التصفية */}
         <div style={{display: 'flex', gap: '15px', marginTop: '20px', flexWrap: 'wrap'}}>
           <div style={{flex: '1', minWidth: '200px'}}>
-            <label style={{display: 'block', marginBottom: '5px', fontSize: '14px', fontWeight: 'bold', color: '#475569'}}>👨‍🏫 تصفية بحسب المعلم</label>
+            <label style={{display: 'block', marginBottom: '5px', fontSize: '14px', fontWeight: 'bold', color: '#475569'}}>تصفية بحسب المعلم</label>
             <select 
               value={filterTeacherId} 
               onChange={e => setFilterTeacherId(e.target.value)}
@@ -710,7 +710,7 @@ const StudentManagement: React.FC<StudentManagementProps> = ({ onUpdate }) => {
           {activeTab === 'students' && (
             <>
               <div style={{flex: '1', minWidth: '200px'}}>
-                <label style={{display: 'block', marginBottom: '5px', fontSize: '14px', fontWeight: 'bold', color: '#475569'}}>👨‍👧‍👦 تصفية بحسب ولي الأمر</label>
+                <label style={{display: 'block', marginBottom: '5px', fontSize: '14px', fontWeight: 'bold', color: '#475569'}}>تصفية بحسب ولي الأمر</label>
                 <select 
                   value={filterParentId} 
                   onChange={e => setFilterParentId(e.target.value)}
@@ -724,7 +724,7 @@ const StudentManagement: React.FC<StudentManagementProps> = ({ onUpdate }) => {
               </div>
               
               <div style={{flex: '1', minWidth: '200px'}}>
-                <label style={{display: 'block', marginBottom: '5px', fontSize: '14px', fontWeight: 'bold', color: '#475569'}}>📚 تصفية بحسب الصف</label>
+                <label style={{display: 'block', marginBottom: '5px', fontSize: '14px', fontWeight: 'bold', color: '#475569'}}>تصفية بحسب الصف</label>
                 <select 
                   value={filterGrade} 
                   onChange={e => setFilterGrade(e.target.value)}
@@ -753,9 +753,9 @@ const StudentManagement: React.FC<StudentManagementProps> = ({ onUpdate }) => {
                 <th className="p-4">اسم المستخدم</th>
                 <th className="p-4">رقم الهوية</th>
                 <th className="p-4">{activeTab === 'students' ? 'الصف الأساسي' : 'رقم الجوال'}</th>
-                {activeTab === 'students' && <th className="p-4">👨‍👧‍👦 ولي الأمر</th>}
-                {activeTab === 'students' && <th className="p-4">👨‍🏫 المعلم</th>}
-                {activeTab === 'parents' && <th className="p-4">👨‍🏫 المعلم</th>}
+                {activeTab === 'students' && <th className="p-4">ولي الأمر</th>}
+                {activeTab === 'students' && <th className="p-4">المعلم</th>}
+                {activeTab === 'parents' && <th className="p-4">المعلم</th>}
                 {activeTab === 'parents' && <th className="p-4">الطلاب المرتبطين</th>}
                 <th className="p-4">الإجراءات</th>
               </tr>
@@ -866,14 +866,14 @@ const StudentManagement: React.FC<StudentManagementProps> = ({ onUpdate }) => {
                     <div className="min-w-0 flex-1">
                       <h3 className="dashboard-record-title">{item.name}</h3>
                       <span className="dashboard-badge">
-                        {activeTab === 'students' ? '👨‍🎓 طالب' : '👨‍👩‍👧 ولي أمر'}
+                        {activeTab === 'students' ? 'طالب' : 'ولي أمر'}
                       </span>
                     </div>
                   </header>
 
                   <dl className="dashboard-record-meta">
                     <div>
-                      <dt>👤 اسم المستخدم</dt>
+                      <dt>اسم المستخدم</dt>
                       <dd>{item.username || '-'}</dd>
                     </div>
                     <div>
@@ -881,7 +881,7 @@ const StudentManagement: React.FC<StudentManagementProps> = ({ onUpdate }) => {
                       <dd>{activeTab === 'students' ? (item.studentIdNumber || '-') : (item.id || '-')}</dd>
                     </div>
                     <div>
-                      <dt>{activeTab === 'students' ? '🎓 الصف الأساسي' : '📱 رقم الجوال'}</dt>
+                      <dt>{activeTab === 'students' ? 'الصف الأساسي' : 'رقم الجوال'}</dt>
                       <dd>
                         {activeTab === 'students'
                           ? (item.primaryGrade || item.grade || '-')
@@ -889,12 +889,12 @@ const StudentManagement: React.FC<StudentManagementProps> = ({ onUpdate }) => {
                       </dd>
                     </div>
                     <div>
-                      <dt>👨‍🏫 المعلم</dt>
+                      <dt>المعلم</dt>
                       <dd>{teacher?.name || item.createdByName || item.createdBy || 'غير محدد'}</dd>
                     </div>
                     {activeTab === 'students' && (
                       <div>
-                        <dt>👨‍👧‍👦 ولي الأمر</dt>
+                        <dt>ولي الأمر</dt>
                         <dd>{parent?.name || 'غير مرتبط'}</dd>
                       </div>
                     )}
@@ -920,20 +920,20 @@ const StudentManagement: React.FC<StudentManagementProps> = ({ onUpdate }) => {
                         onClick={() => handleResetStudentCounter(item as StudentInfo)}
                         className="dashboard-record-action bg-slate-100 text-slate-700 hover:bg-slate-200"
                       >
-                        ♻️ تصفير العداد
+                        تصفير العداد
                       </button>
                     )}
                     <button
                       onClick={() => activeTab === 'students' ? handleEditStudent(item) : handleEditParent(item)}
                       className="dashboard-record-action bg-blue-50 text-blue-700 hover:bg-blue-100"
                     >
-                      ✏️ تعديل
+                      تعديل
                     </button>
                     <button
                       onClick={() => activeTab === 'students' ? handleDeleteStudent(item.id) : handleDeleteParent(item.id)}
                       className="dashboard-record-action bg-red-50 text-red-700 hover:bg-red-100"
                     >
-                      🗑️ حذف
+                      حذف
                     </button>
                   </footer>
                 </article>

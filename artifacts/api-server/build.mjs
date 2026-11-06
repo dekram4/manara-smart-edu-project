@@ -66,6 +66,7 @@ async function buildAll() {
       path.resolve(artifactDir, "src/lib/solverPolicy.ts"),
       path.resolve(artifactDir, "src/lib/appSettings.ts"),
       path.resolve(artifactDir, "src/lib/passwords.ts"),
+      path.resolve(artifactDir, "src/lib/studentLogins.ts"),
     ],
     platform: "node",
     bundle: true,

@@ -220,7 +220,7 @@ const CardPermissions: React.FC<CardPermissionsProps> = ({ role, teacherId }) =>
           : { scope: 'student', studentId, cards: draft }),
       });
       playLamsaSound('success');
-      setNotice('✅ تم حفظ الصلاحيات، وتظهر للطالب عند فتحه التطبيق أو عودته إلى الواجهة.');
+      setNotice('تم حفظ الصلاحيات، وتظهر للطالب عند فتحه التطبيق أو عودته إلى الواجهة.');
       await load();
     } catch (err) {
       setNotice(`⚠️ ${err instanceof Error ? err.message : 'تعذر حفظ الصلاحيات'}`);
@@ -238,7 +238,7 @@ const CardPermissions: React.FC<CardPermissionsProps> = ({ role, teacherId }) =>
     try {
       await managementRequest(`/api/card-permissions/${encodeURIComponent(activeRule.id)}`, { method: 'DELETE' });
       playLamsaSound('pop');
-      setNotice('✅ تمت إعادة الضبط.');
+      setNotice('تمت إعادة الضبط.');
       await load();
     } catch (err) {
       setNotice(`⚠️ ${err instanceof Error ? err.message : 'تعذر إعادة الضبط'}`);
@@ -257,7 +257,7 @@ const CardPermissions: React.FC<CardPermissionsProps> = ({ role, teacherId }) =>
     <div className="dashboard-page dashboard-consistent-page animate-fadeIn" dir="rtl">
       <div className="dashboard-section-header">
         <div>
-          <h2 className="text-4xl font-black text-indigo-800">🔐 صلاحيات البطاقات</h2>
+          <h2 className="text-4xl font-black text-indigo-800">صلاحيات البطاقات</h2>
           <p className="mt-1 font-medium text-indigo-500">
             افتح أو أغلق كل بطاقة في تطبيق الطالب، لصفٍّ كامل أو لطالبٍ بعينه.
           </p>
@@ -266,19 +266,19 @@ const CardPermissions: React.FC<CardPermissionsProps> = ({ role, teacherId }) =>
           onClick={() => void load()}
           className="rounded-2xl bg-white px-5 py-3 font-black text-indigo-700 shadow hover:bg-indigo-50"
         >
-          🔄 تحديث
+          تحديث
         </button>
       </div>
 
       {error && (
         <div className="rounded-2xl border-2 border-red-200 bg-red-50 p-4 font-bold text-red-700">⚠️ {error}</div>
       )}
-      {loading && !data && <div className="p-10 text-center font-black text-indigo-700">⏳ جارٍ التحميل…</div>}
+      {loading && !data && <div className="p-10 text-center font-black text-indigo-700">جارٍ التحميل…</div>}
 
       {data && (
         <>
           <div className="flex flex-wrap gap-2 rounded-2xl bg-indigo-50 p-2">
-            {([['class', '🏫 صلاحيات صف كامل'], ['student', '👤 صلاحيات طالب']] as const).map(([value, label]) => (
+            {([['class', 'صلاحيات صف كامل'], ['student', 'صلاحيات طالب']] as const).map(([value, label]) => (
               <button
                 key={value}
                 onClick={() => setMode(value)}
@@ -294,7 +294,7 @@ const CardPermissions: React.FC<CardPermissionsProps> = ({ role, teacherId }) =>
               <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                 {role === 'admin' && (
                   <label className="block">
-                    <span className="mb-2 block text-sm font-black text-indigo-900">👨‍🏫 المعلم</span>
+                    <span className="mb-2 block text-sm font-black text-indigo-900">المعلم</span>
                     <select
                       value={classTeacher}
                       onChange={e => { setClassTeacher(e.target.value); setClassGrade(''); }}
@@ -306,7 +306,7 @@ const CardPermissions: React.FC<CardPermissionsProps> = ({ role, teacherId }) =>
                   </label>
                 )}
                 <label className="block">
-                  <span className="mb-2 block text-sm font-black text-indigo-900">🎓 الصف الدراسي</span>
+                  <span className="mb-2 block text-sm font-black text-indigo-900">الصف الدراسي</span>
                   <select
                     value={classGrade}
                     onChange={e => setClassGrade(e.target.value)}
@@ -321,7 +321,7 @@ const CardPermissions: React.FC<CardPermissionsProps> = ({ role, teacherId }) =>
             ) : (
               <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                 <label className="block">
-                  <span className="mb-2 block text-sm font-black text-indigo-900">🔎 بحث بالاسم أو الصف</span>
+                  <span className="mb-2 block text-sm font-black text-indigo-900">بحث بالاسم أو الصف</span>
                   <input
                     value={studentQuery}
                     onChange={e => setStudentQuery(e.target.value)}
@@ -330,7 +330,7 @@ const CardPermissions: React.FC<CardPermissionsProps> = ({ role, teacherId }) =>
                   />
                 </label>
                 <label className="block">
-                  <span className="mb-2 block text-sm font-black text-indigo-900">👤 الطالب</span>
+                  <span className="mb-2 block text-sm font-black text-indigo-900">الطالب</span>
                   <select
                     value={studentId}
                     onChange={e => setStudentId(e.target.value)}
@@ -347,7 +347,7 @@ const CardPermissions: React.FC<CardPermissionsProps> = ({ role, teacherId }) =>
                 {selectedStudent && (
                   <p className="text-sm font-bold text-indigo-600 md:col-span-2">
                     {studentRule
-                      ? '⭐ لهذا الطالب إعدادات خاصة تغلب إعدادات صفّه.'
+                      ? 'لهذا الطالب إعدادات خاصة تغلب إعدادات صفّه.'
                       : studentClassRule
                         ? 'يتبع هذا الطالب إعدادات صفّه حاليًا. أي حفظ هنا يجعل له إعدادات خاصة.'
                         : 'كل البطاقات مفتوحة لهذا الطالب حاليًا.'}
@@ -379,7 +379,7 @@ const CardPermissions: React.FC<CardPermissionsProps> = ({ role, teacherId }) =>
                     <span className="text-3xl">{CARD_ICONS[card.id] ?? '🗂️'}</span>
                     <span className="flex-1 font-black text-slate-800">{card.label}</span>
                     <span className={`rounded-full px-3 py-1 text-xs font-black ${open ? 'bg-emerald-500 text-white' : 'bg-slate-500 text-white'}`}>
-                      {open ? '✅ مفعّلة' : '🔒 معطّلة'}
+                      {open ? 'مفعّلة' : 'معطّلة'}
                     </span>
                   </button>
                 );
@@ -395,7 +395,7 @@ const CardPermissions: React.FC<CardPermissionsProps> = ({ role, teacherId }) =>
                 onClick={() => void save()}
                 className="flex-1 rounded-2xl bg-gradient-to-r from-indigo-500 to-violet-600 py-4 text-lg font-black text-white shadow-xl disabled:opacity-50"
               >
-                {saving ? '⏳ جارٍ الحفظ…' : '💾 حفظ الصلاحيات'}
+                {saving ? 'جارٍ الحفظ…' : 'حفظ الصلاحيات'}
               </button>
               {activeRule && (
                 <button
@@ -411,7 +411,7 @@ const CardPermissions: React.FC<CardPermissionsProps> = ({ role, teacherId }) =>
           </div>
 
           <div className="dashboard-surface border-indigo-100">
-            <h3 className="mb-3 text-xl font-black text-indigo-900">📋 البطاقات المعطّلة لكل طالب</h3>
+            <h3 className="mb-3 text-xl font-black text-indigo-900">البطاقات المعطّلة لكل طالب</h3>
             <div className="overflow-x-auto">
               <table className="w-full min-w-[520px] text-right text-sm">
                 <thead>

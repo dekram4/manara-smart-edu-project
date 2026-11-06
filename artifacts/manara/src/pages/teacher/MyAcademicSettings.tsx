@@ -100,7 +100,6 @@ const MyAcademicSettings: React.FC<MyAcademicSettingsProps> = ({ teacher: teache
           : 'تم تعديل الصلاحيات مؤخرًا؛ سجّل الخروج ثم ادخل مرة أخرى لتحديث الحساب.';
     return (
       <div className="flex min-h-[60vh] flex-col items-center justify-center text-center">
-        <div className="text-7xl opacity-50">🔒</div>
         <h2 className="mt-5 text-3xl font-black text-slate-800">لا توجد صلاحية</h2>
         <p className="mt-3 max-w-xl font-bold leading-8 text-slate-500">
           لا يملك هذا المعلم صلاحية إدارة الإعدادات الأكاديمية.
@@ -181,11 +180,11 @@ const MyAcademicSettings: React.FC<MyAcademicSettingsProps> = ({ teacher: teache
       ownedTreeArrived(teacherId, getRecordTeacherId),
     );
     if (outcome.ok === false) {
-      alert(`⚠️ لم يُحفظ التعديل في قاعدة البيانات: ${outcome.reason}\nهو في هذا الجهاز وحده الآن — أعد المحاولة من زر «حفظ وتثبيت» أعلى الصفحة.`);
+      alert(`لم يُحفظ التعديل في قاعدة البيانات: ${outcome.reason}\nهو في هذا الجهاز وحده الآن — أعد المحاولة من زر «حفظ وتثبيت» أعلى الصفحة.`);
       return;
     }
     if (!outcome.verified) {
-      alert('⚠️ أُرسل التعديل لكن تعذّر التأكّد من وصوله. اضغط «حفظ وتثبيت» أعلى الصفحة للتأكّد.');
+      alert('أُرسل التعديل لكن تعذّر التأكّد من وصوله. اضغط «حفظ وتثبيت» أعلى الصفحة للتأكّد.');
       return;
     }
     if (message) alert(message);
@@ -220,7 +219,7 @@ const MyAcademicSettings: React.FC<MyAcademicSettingsProps> = ({ teacher: teache
     
     setNewGrade('');
     loadSettings(teacherId);
-    void confirmSaved('✅ تم إضافة الصف بنجاح');
+    void confirmSaved('تم إضافة الصف بنجاح');
   };
 
   const handleAddSubject = () => {
@@ -253,7 +252,7 @@ const MyAcademicSettings: React.FC<MyAcademicSettingsProps> = ({ teacher: teache
     
     setNewSubject('');
     loadSettings(teacherId);
-    void confirmSaved('✅ تم إضافة المادة بنجاح');
+    void confirmSaved('تم إضافة المادة بنجاح');
   };
 
   const handleAddTerm = () => {
@@ -286,7 +285,7 @@ const MyAcademicSettings: React.FC<MyAcademicSettingsProps> = ({ teacher: teache
     
     setNewTerm('');
     loadSettings(teacherId);
-    void confirmSaved('✅ تم إضافة الفصل بنجاح');
+    void confirmSaved('تم إضافة الفصل بنجاح');
   };
 
   const handleAddUnit = () => {
@@ -319,7 +318,7 @@ const MyAcademicSettings: React.FC<MyAcademicSettingsProps> = ({ teacher: teache
     
     setNewUnit('');
     loadSettings(teacherId);
-    void confirmSaved('✅ تم إضافة الوحدة بنجاح');
+    void confirmSaved('تم إضافة الوحدة بنجاح');
   };
 
   // ========== DELETE FUNCTIONS ==========
@@ -343,7 +342,7 @@ const MyAcademicSettings: React.FC<MyAcademicSettingsProps> = ({ teacher: teache
     
     localStorage.setItem(STORAGE_KEYS.HIERARCHICAL_CONFIGS, JSON.stringify(updatedConfigs));
     loadSettings(teacherId);
-    void confirmSaved('✅ تم حذف الصف بنجاح');
+    void confirmSaved('تم حذف الصف بنجاح');
   };
 
   const handleDeleteSubject = (gradeName: string, subjectName: string) => {
@@ -367,7 +366,7 @@ const MyAcademicSettings: React.FC<MyAcademicSettingsProps> = ({ teacher: teache
         config.subjects = config.subjects.filter((s: any) => s.subject !== subjectName);
         localStorage.setItem(STORAGE_KEYS.HIERARCHICAL_CONFIGS, JSON.stringify(allConfigs));
         loadSettings(teacherId);
-        void confirmSaved('✅ تم حذف المادة بنجاح');
+        void confirmSaved('تم حذف المادة بنجاح');
       }
     }
   };
@@ -395,7 +394,7 @@ const MyAcademicSettings: React.FC<MyAcademicSettingsProps> = ({ teacher: teache
           subject.terms = subject.terms.filter((t: any) => t.term !== termName);
           localStorage.setItem(STORAGE_KEYS.HIERARCHICAL_CONFIGS, JSON.stringify(allConfigs));
           loadSettings(teacherId);
-          void confirmSaved('✅ تم حذف الفصل بنجاح');
+          void confirmSaved('تم حذف الفصل بنجاح');
         }
       }
     }
@@ -437,7 +436,7 @@ const MyAcademicSettings: React.FC<MyAcademicSettingsProps> = ({ teacher: teache
             }
             localStorage.setItem(STORAGE_KEYS.HIERARCHICAL_CONFIGS, JSON.stringify(allConfigs));
             loadSettings(teacherId);
-            void confirmSaved('✅ تم حذف الوحدة بنجاح');
+            void confirmSaved('تم حذف الوحدة بنجاح');
           }
         }
       }
@@ -609,7 +608,7 @@ const MyAcademicSettings: React.FC<MyAcademicSettingsProps> = ({ teacher: teache
       [...current, name],
     );
     setNewLesson('');
-    void confirmSaved('✅ تم إضافة الدرس بنجاح');
+    void confirmSaved('تم إضافة الدرس بنجاح');
   };
 
   /// يحفظ التعديل المكتوب في حقل التحرير الظاهر مكان الدرس.
@@ -689,7 +688,7 @@ const MyAcademicSettings: React.FC<MyAcademicSettingsProps> = ({ teacher: teache
     
     // التحقق إذا كان المعلم لديه بالفعل صف بنفس الاسم
     if (myConfigs.some(c => c.grade === config.grade)) {
-      alert('⚠️ لديك بالفعل صف بهذا الاسم في إعداداتك الخاصة!');
+      alert('لديك بالفعل صف بهذا الاسم في إعداداتك الخاصة!');
       return;
     }
     
@@ -709,7 +708,7 @@ const MyAcademicSettings: React.FC<MyAcademicSettingsProps> = ({ teacher: teache
     localStorage.setItem(STORAGE_KEYS.HIERARCHICAL_CONFIGS, JSON.stringify(allConfigs));
     
     loadSettings(teacherId);
-    void confirmSaved('✅ تم نسخ الإعداد إلى إعداداتك الخاصة! يمكنك الآن التعديل عليه');
+    void confirmSaved('تم نسخ الإعداد إلى إعداداتك الخاصة! يمكنك الآن التعديل عليه');
     setActiveTab('my');
   };
 
@@ -810,7 +809,7 @@ const MyAcademicSettings: React.FC<MyAcademicSettingsProps> = ({ teacher: teache
             ...(activeTab === 'my' ? styles.activeTab : {})
           }}
         >
-          📋 اعداداتي الأكاديمية
+          اعداداتي الأكاديمية
         </button>
         <button
           onClick={() => setActiveTab('general')}
@@ -819,7 +818,7 @@ const MyAcademicSettings: React.FC<MyAcademicSettingsProps> = ({ teacher: teache
             ...(activeTab === 'general' ? styles.activeTab : {})
           }}
         >
-          🌐 اعدادات أكاديمية عامة
+          اعدادات أكاديمية عامة
         </button>
       </div>
 
@@ -977,7 +976,7 @@ onChange={e => {
                   onChange={e => { setFilterGrade(e.target.value); setFilterSubject(''); }}
                   style={styles.treeFilterControl}
                 >
-                  <option value="">🏫 كل الصفوف</option>
+                  <option value="">كل الصفوف</option>
                   {Array.from(new Set(myConfigs.map(config => config.grade))).map(grade => (
                     <option key={grade} value={grade}>{grade}</option>
                   ))}
@@ -987,7 +986,7 @@ onChange={e => {
                   onChange={e => setFilterSubject(e.target.value)}
                   style={styles.treeFilterControl}
                 >
-                  <option value="">📚 كل المواد</option>
+                  <option value="">كل المواد</option>
                   {filterSubjectOptions.map(subject => (
                     <option key={subject} value={subject}>{subject}</option>
                   ))}
@@ -996,7 +995,7 @@ onChange={e => {
                   type="search"
                   value={treeSearch}
                   onChange={e => setTreeSearch(e.target.value)}
-                  placeholder="🔍 ابحث باسم صف أو مادة أو فصل أو وحدة أو درس"
+                  placeholder="ابحث باسم صف أو مادة أو فصل أو وحدة أو درس"
                   style={{ ...styles.treeFilterControl, flex: '2 1 200px' }}
                 />
                 <button onClick={() => setAllCollapsed(true)} style={styles.treeToolButton}>⊖ طيّ الكل</button>
@@ -1006,7 +1005,7 @@ onChange={e => {
                     onClick={() => { setFilterGrade(''); setFilterSubject(''); setTreeSearch(''); }}
                     style={styles.treeToolButton}
                   >
-                    ✖ مسح
+                    مسح
                   </button>
                 )}
               </div>
@@ -1027,7 +1026,7 @@ onChange={e => {
               gradeBadges={config =>
                 config.copiedFrom ? (
                   <span style={styles.copiedBadge}>
-                    📋 منسوخ من: {config.copiedFromName || 'المشرف'}
+                    منسوخ من: {config.copiedFromName || 'المشرف'}
                   </span>
                 ) : null
               }
@@ -1110,7 +1109,7 @@ onChange={e => {
                       onClick={() => handleCopyToMy(config)}
                       style={styles.copyButton}
                     >
-                      📋 نسخ إلى إعداداتي
+                      نسخ إلى إعداداتي
                     </button>
                   </div>
                   

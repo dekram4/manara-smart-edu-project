@@ -1,0 +1,1574 @@
+/* ==========================================================================
+   منصّات الويب الرسمية — المشرف والمعلم وولي الأمر
+   ==========================================================================
+
+   طبقةٌ واحدة تُحمَّل بعد index.css، ونطاقُها `.portal-shell` وحده: صفحات
+   الدخول واختيار الدور لها أصنافها (`.portal-*` خارج القشرة)، ولا يطال شيءٌ
+   من هذا واجهاتِ الطالب.
+
+   الألوان:
+     الأساسي   كحليٌّ مؤسّسي     #1f4e8c   (أزرار، روابط، المؤشّر)
+     الهوية    فيروزيُّ منارة    #0f766e   (لمسات، تقدّم)
+     الذهبي    للشهادات والجواهر #a77b26
+     المحايد   رماديٌّ بارد       الخلفية #f4f6f9، الخطوط #e3e8ef
+   بلا تدرّجات صارخة: لونٌ مصمت، وظلٌّ خفيف، وخطٌّ رفيع يفصل.            */
+
+:root {
+  --pt-bg: #f4f6f9;
+  --pt-surface: #ffffff;
+  --pt-surface-muted: #f8fafc;
+  --pt-line: #e3e8ef;
+  --pt-line-strong: #cfd8e3;
+  --pt-ink: #13243a;
+  --pt-text: #334155;
+  --pt-muted: #64748b;
+  --pt-subtle: #94a3b8;
+
+  --pt-primary: #1f4e8c;
+  --pt-primary-strong: #173d6e;
+  --pt-primary-soft: #eaf1f9;
+  --pt-primary-line: #c9daee;
+
+  --pt-accent: #0f766e;
+  --pt-accent-soft: #e6f4f2;
+  --pt-gold: #a77b26;
+  --pt-gold-soft: #faf3e3;
+  --pt-success: #15803d;
+  --pt-success-soft: #e8f5ec;
+  --pt-warning: #b45309;
+  --pt-warning-soft: #fdf3e6;
+  --pt-danger: #b91c1c;
+  --pt-danger-soft: #fdecec;
+
+  --pt-sidebar: #0f1f35;
+  --pt-sidebar-line: rgb(255 255 255 / 0.08);
+  --pt-sidebar-text: #b8c4d6;
+
+  --pt-radius: 12px;
+  --pt-radius-sm: 8px;
+  --pt-shadow: 0 1px 2px rgb(15 31 53 / 0.05), 0 1px 3px rgb(15 31 53 / 0.04);
+  --pt-shadow-raised: 0 4px 16px rgb(15 31 53 / 0.08);
+}
+
+/* ——— الألوان القديمة داخل اللوحات تتبع الكحليّ المؤسّسي ———
+   الشاشات الداخلية مكتوبةٌ بأصناف Tailwind (bg-purple-600, text-amber-700…)
+   وقد رُبطت كلُّها بـ`--enterprise-primary-*` في index.css. تغيير المرساة هنا
+   يُهدّئ كلَّ زرٍّ وعنوانٍ وحدٍّ فيها دفعةً واحدة. */
+.manara-enterprise {
+  --enterprise-primary-50: #eef4fb;
+  --enterprise-primary-100: #dbe7f5;
+  --enterprise-primary-200: #b8cfea;
+  --enterprise-primary-300: #8db1da;
+  --enterprise-primary-400: #5683c0;
+  --enterprise-primary-500: #2f63a8;
+  --enterprise-primary-600: #1f4e8c;
+  --enterprise-primary-700: #193f72;
+  --enterprise-primary-800: #15335c;
+  --enterprise-primary-900: #112947;
+  --enterprise-primary-950: #0b1b30;
+  --color-blue-50: var(--enterprise-primary-50);
+  --color-blue-100: var(--enterprise-primary-100);
+  --color-blue-200: var(--enterprise-primary-200);
+  --color-blue-300: var(--enterprise-primary-300);
+  --color-blue-400: var(--enterprise-primary-400);
+  --color-blue-500: var(--enterprise-primary-500);
+  --color-blue-600: var(--enterprise-primary-600);
+  --color-blue-700: var(--enterprise-primary-700);
+  --color-blue-800: var(--enterprise-primary-800);
+  --color-blue-900: var(--enterprise-primary-900);
+  --color-indigo-50: var(--enterprise-primary-50);
+  --color-indigo-100: var(--enterprise-primary-100);
+  --color-indigo-200: var(--enterprise-primary-200);
+  --color-indigo-300: var(--enterprise-primary-300);
+  --color-indigo-400: var(--enterprise-primary-400);
+  --color-indigo-500: var(--enterprise-primary-500);
+  --color-indigo-600: var(--enterprise-primary-600);
+  --color-indigo-700: var(--enterprise-primary-700);
+  --color-indigo-800: var(--enterprise-primary-800);
+  --color-indigo-900: var(--enterprise-primary-900);
+  --color-cyan-50: #e6f4f2;
+  --color-cyan-100: #ccebe6;
+  --color-cyan-500: #14958a;
+  --color-cyan-600: #0f766e;
+  --color-cyan-700: #0d5f59;
+  --color-teal-500: #14958a;
+  --color-teal-600: #0f766e;
+  font-family: 'Tajawal', system-ui, sans-serif;
+  color: var(--pt-text);
+}
+
+/* ==========================================================================
+   القشرة: قائمةٌ جانبية + شريطٌ علوي + محتوى
+   ========================================================================== */
+
+.portal-shell.dashboard-shell,
+.portal-shell .dashboard-main {
+  background: var(--pt-bg) !important;
+}
+
+.portal-shell .dashboard-sidebar {
+  background: var(--pt-sidebar) !important;
+  color: #fff;
+  border-inline-start: 1px solid rgb(255 255 255 / 0.04);
+  box-shadow: none !important;
+}
+
+.portal-sidebar-brand {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 1.25rem 1.25rem 1rem;
+  border-bottom: 1px solid var(--pt-sidebar-line);
+}
+
+.portal-sidebar-brand img {
+  width: 2.75rem;
+  height: 2.75rem;
+  object-fit: contain;
+  flex: 0 0 auto;
+}
+
+.portal-sidebar-brand strong {
+  display: block;
+  font-size: 0.95rem;
+  font-weight: 800;
+  line-height: 1.35;
+  color: #fff;
+}
+
+.portal-sidebar-brand span {
+  display: block;
+  margin-top: 0.15rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: #7dd3c8;
+  letter-spacing: 0.01em;
+}
+
+.portal-sidebar-close {
+  margin-inline-start: auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.25rem;
+  height: 2.25rem;
+  border-radius: var(--pt-radius-sm);
+  color: var(--pt-sidebar-text);
+  background: rgb(255 255 255 / 0.06);
+}
+
+@media (min-width: 1280px) {
+  .portal-sidebar-close {
+    display: none !important;
+  }
+}
+
+.portal-sidebar-user {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin: 1rem 1rem 0.5rem;
+  padding: 0.75rem;
+  border-radius: var(--pt-radius);
+  background: rgb(255 255 255 / 0.05);
+  border: 1px solid var(--pt-sidebar-line);
+}
+
+.portal-avatar {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  width: 2.5rem;
+  height: 2.5rem;
+  border-radius: 999px;
+  background: #1d3a5f;
+  color: #e2e8f0;
+  font-size: 0.95rem;
+  font-weight: 800;
+}
+
+.portal-sidebar-user p {
+  margin: 0;
+  min-width: 0;
+}
+
+.portal-sidebar-user .portal-user-name {
+  font-size: 0.92rem;
+  font-weight: 800;
+  color: #fff;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.portal-sidebar-user .portal-user-role {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--pt-sidebar-text);
+}
+
+.portal-nav-label {
+  padding: 0.75rem 1.25rem 0.25rem;
+  font-size: 0.7rem;
+  font-weight: 800;
+  color: #6b7f99;
+  letter-spacing: 0.04em;
+}
+
+.portal-shell .dashboard-nav {
+  gap: 0.125rem;
+  padding: 0.25rem 0.75rem 0.75rem;
+}
+
+.portal-shell .dashboard-sidebar .dashboard-menu-item {
+  position: relative;
+  min-height: 2.6rem;
+  gap: 0.7rem;
+  padding: 0.5rem 0.75rem;
+  border: 0;
+  border-radius: var(--pt-radius-sm);
+  color: var(--pt-sidebar-text) !important;
+  background: transparent !important;
+  font-size: 0.9rem;
+  font-weight: 600;
+  box-shadow: none !important;
+  transform: none !important;
+}
+
+.portal-shell .dashboard-sidebar .dashboard-menu-item svg {
+  flex: 0 0 auto;
+  width: 1.15rem;
+  height: 1.15rem;
+  opacity: 0.85;
+}
+
+.portal-shell .dashboard-sidebar .dashboard-menu-item:hover {
+  color: #fff !important;
+  background: rgb(255 255 255 / 0.05) !important;
+}
+
+.portal-shell .dashboard-sidebar .dashboard-menu-item.is-active {
+  color: #fff !important;
+  background: rgb(255 255 255 / 0.09) !important;
+  font-weight: 800;
+}
+
+.portal-shell .dashboard-sidebar .dashboard-menu-item.is-active::before {
+  content: '';
+  position: absolute;
+  inset-block: 0.5rem;
+  inset-inline-start: -0.75rem;
+  width: 3px;
+  border-radius: 0 3px 3px 0;
+  background: #5eead4;
+}
+
+.portal-shell .dashboard-sidebar .dashboard-menu-item.is-active svg {
+  opacity: 1;
+  color: #5eead4;
+}
+
+.portal-shell .dashboard-sidebar .dashboard-menu-item .portal-nav-badge {
+  margin-inline-start: auto;
+}
+
+.portal-shell .dashboard-sidebar .dashboard-menu-item.portal-logout:hover {
+  color: #fecaca !important;
+  background: rgb(185 28 28 / 0.16) !important;
+}
+
+.portal-shell .dashboard-sidebar-footer {
+  border-top: 1px solid var(--pt-sidebar-line);
+  padding: 0.75rem;
+}
+
+/* ——— الشريط العلوي ——— */
+.portal-topbar {
+  position: sticky;
+  top: 0;
+  z-index: 15;
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 0.75rem;
+  min-height: 3.75rem;
+  padding: 0.5rem 1.5rem;
+  padding-top: max(0.5rem, env(safe-area-inset-top));
+  background: rgb(255 255 255 / 0.96);
+  border-bottom: 1px solid var(--pt-line);
+  backdrop-filter: saturate(1.4) blur(6px);
+}
+
+.portal-topbar-menu {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  width: 2.5rem;
+  height: 2.5rem;
+  border-radius: var(--pt-radius-sm);
+  border: 1px solid var(--pt-line);
+  color: var(--pt-ink);
+  background: #fff;
+}
+
+@media (max-width: 1279px) {
+  .portal-topbar-menu {
+    display: inline-flex;
+  }
+}
+
+.portal-topbar-title {
+  min-width: 0;
+}
+
+.portal-topbar-title small {
+  display: block;
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--pt-muted);
+}
+
+.portal-topbar-title strong {
+  display: block;
+  font-size: 1rem;
+  font-weight: 800;
+  color: var(--pt-ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.portal-topbar-end {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-inline-start: auto;
+}
+
+.portal-topbar-user {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding-inline-start: 0.75rem;
+  border-inline-start: 1px solid var(--pt-line);
+}
+
+.portal-topbar-user .portal-avatar {
+  width: 2.1rem;
+  height: 2.1rem;
+  font-size: 0.85rem;
+  background: var(--pt-primary-soft);
+  color: var(--pt-primary);
+}
+
+.portal-topbar-user span {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--pt-ink);
+}
+
+@media (max-width: 639px) {
+  .portal-topbar {
+    padding-inline: 1rem;
+  }
+
+  .portal-topbar-user span {
+    display: none;
+  }
+}
+
+.portal-shell .dashboard-content-area {
+  padding: 1.5rem;
+}
+
+@media (max-width: 639px) {
+  .portal-shell .dashboard-content-area {
+    padding: 1rem;
+  }
+}
+
+/* ==========================================================================
+   مكوّنات الصفحة
+   ========================================================================== */
+
+.portal-page {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+  min-width: 0;
+}
+
+.portal-page-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 1rem;
+  padding: 1.25rem 1.5rem;
+  border-radius: var(--pt-radius);
+  border: 1px solid var(--pt-line);
+  background: var(--pt-surface);
+  box-shadow: var(--pt-shadow);
+}
+
+.portal-page-header-icon {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  width: 3rem;
+  height: 3rem;
+  border-radius: var(--pt-radius);
+  background: var(--pt-primary-soft);
+  color: var(--pt-primary);
+}
+
+.portal-page-header-icon svg {
+  width: 1.5rem;
+  height: 1.5rem;
+}
+
+.portal-page-header-text {
+  flex: 1 1 16rem;
+  min-width: 0;
+}
+
+.portal-page-header-text p.portal-eyebrow {
+  margin: 0 0 0.15rem;
+  font-size: 0.75rem;
+  font-weight: 800;
+  color: var(--pt-accent);
+}
+
+.portal-page-header-text h1 {
+  margin: 0;
+  font-size: 1.45rem;
+  font-weight: 800;
+  line-height: 1.35;
+  color: var(--pt-ink);
+}
+
+.portal-page-header-text p.portal-description {
+  margin: 0.25rem 0 0;
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: var(--pt-muted);
+  line-height: 1.7;
+}
+
+.portal-page-header-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+/* ——— الأزرار ——— */
+.portal-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem;
+  min-height: 2.5rem;
+  padding: 0.5rem 1rem;
+  border-radius: var(--pt-radius-sm);
+  border: 1px solid transparent;
+  font-size: 0.875rem;
+  font-weight: 700;
+  line-height: 1.2;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background-color 150ms ease, border-color 150ms ease, color 150ms ease, box-shadow 150ms ease;
+}
+
+.portal-btn svg {
+  width: 1.05rem;
+  height: 1.05rem;
+  flex: 0 0 auto;
+}
+
+.portal-btn:focus-visible {
+  outline: 3px solid rgb(31 78 140 / 0.35);
+  outline-offset: 2px;
+}
+
+.portal-btn-primary {
+  background: var(--pt-primary);
+  color: #fff;
+}
+
+.portal-btn-primary:hover {
+  background: var(--pt-primary-strong);
+}
+
+.portal-btn-secondary {
+  background: #fff;
+  color: var(--pt-ink);
+  border-color: var(--pt-line-strong);
+}
+
+.portal-btn-secondary:hover {
+  background: var(--pt-surface-muted);
+  border-color: var(--pt-primary-line);
+  color: var(--pt-primary);
+}
+
+.portal-btn-ghost {
+  background: transparent;
+  color: var(--pt-primary);
+}
+
+.portal-btn-ghost:hover {
+  background: var(--pt-primary-soft);
+}
+
+.portal-btn-sm {
+  min-height: 2rem;
+  padding: 0.3rem 0.7rem;
+  font-size: 0.8rem;
+}
+
+.portal-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+/* ——— بطاقات الأرقام ——— */
+.portal-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 12.5rem), 1fr));
+  gap: 1rem;
+}
+
+.portal-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  min-width: 0;
+  padding: 1rem 1.1rem;
+  border-radius: var(--pt-radius);
+  border: 1px solid var(--pt-line);
+  background: var(--pt-surface);
+  box-shadow: var(--pt-shadow);
+  text-align: start;
+}
+
+button.portal-stat {
+  cursor: pointer;
+  transition: border-color 150ms ease, box-shadow 150ms ease;
+}
+
+button.portal-stat:hover {
+  border-color: var(--pt-primary-line);
+  box-shadow: var(--pt-shadow-raised);
+}
+
+.portal-stat-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.portal-stat-label {
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: var(--pt-muted);
+}
+
+.portal-stat-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.1rem;
+  height: 2.1rem;
+  border-radius: var(--pt-radius-sm);
+  background: var(--tone-soft, var(--pt-primary-soft));
+  color: var(--tone, var(--pt-primary));
+}
+
+.portal-stat-icon svg {
+  width: 1.1rem;
+  height: 1.1rem;
+}
+
+.portal-stat-value {
+  font-size: 1.65rem;
+  font-weight: 800;
+  line-height: 1.1;
+  color: var(--pt-ink);
+  font-variant-numeric: tabular-nums;
+}
+
+.portal-stat-hint {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--pt-subtle);
+}
+
+.tone-primary { --tone: var(--pt-primary); --tone-soft: var(--pt-primary-soft); }
+.tone-accent { --tone: var(--pt-accent); --tone-soft: var(--pt-accent-soft); }
+.tone-gold { --tone: var(--pt-gold); --tone-soft: var(--pt-gold-soft); }
+.tone-success { --tone: var(--pt-success); --tone-soft: var(--pt-success-soft); }
+.tone-warning { --tone: var(--pt-warning); --tone-soft: var(--pt-warning-soft); }
+.tone-danger { --tone: var(--pt-danger); --tone-soft: var(--pt-danger-soft); }
+.tone-neutral { --tone: var(--pt-muted); --tone-soft: #eef1f5; }
+
+/* ——— اللوحات ——— */
+.portal-panel {
+  min-width: 0;
+  border-radius: var(--pt-radius);
+  border: 1px solid var(--pt-line);
+  background: var(--pt-surface);
+  box-shadow: var(--pt-shadow);
+}
+
+.portal-panel-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 1rem 1.25rem;
+  border-bottom: 1px solid var(--pt-line);
+}
+
+.portal-panel-head h2 {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 800;
+  color: var(--pt-ink);
+}
+
+.portal-panel-head h2 svg {
+  width: 1.1rem;
+  height: 1.1rem;
+  color: var(--pt-primary);
+}
+
+.portal-panel-head p {
+  margin: 0.15rem 0 0;
+  font-size: 0.8rem;
+  color: var(--pt-muted);
+}
+
+.portal-panel-body {
+  padding: 1.25rem;
+}
+
+.portal-panel-body.is-flush {
+  padding: 0;
+}
+
+.portal-grid-2 {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 22rem), 1fr));
+  gap: 1.25rem;
+}
+
+.portal-grid-3 {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 19rem), 1fr));
+  gap: 1rem;
+}
+
+/* ——— الجداول ——— */
+.portal-table-wrap {
+  overflow-x: auto;
+}
+
+.portal-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.875rem;
+}
+
+.portal-table th {
+  padding: 0.7rem 1rem;
+  background: var(--pt-surface-muted);
+  border-bottom: 1px solid var(--pt-line);
+  color: var(--pt-muted);
+  font-size: 0.76rem;
+  font-weight: 800;
+  text-align: start;
+  white-space: nowrap;
+}
+
+.portal-table td {
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid #eef1f5;
+  color: var(--pt-text);
+  vertical-align: middle;
+}
+
+.portal-table tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+.portal-table tbody tr:hover td {
+  background: #fafbfd;
+}
+
+.portal-table .is-num {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* ——— شاراتٌ وتقدّم ——— */
+.portal-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.15rem 0.55rem;
+  border-radius: 999px;
+  background: var(--tone-soft, var(--pt-primary-soft));
+  color: var(--tone, var(--pt-primary));
+  font-size: 0.74rem;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.portal-progress {
+  position: relative;
+  height: 0.45rem;
+  border-radius: 999px;
+  background: #e9eef4;
+  overflow: hidden;
+}
+
+.portal-progress > span {
+  position: absolute;
+  inset-block: 0;
+  inset-inline-start: 0;
+  border-radius: inherit;
+  background: var(--tone, var(--pt-accent));
+}
+
+.portal-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 2.5rem 1rem;
+  color: var(--pt-muted);
+  text-align: center;
+}
+
+.portal-empty svg {
+  width: 2rem;
+  height: 2rem;
+  color: var(--pt-subtle);
+}
+
+.portal-empty strong {
+  color: var(--pt-ink);
+  font-weight: 800;
+}
+
+/* ——— قوائم بسيطة ——— */
+.portal-list {
+  display: flex;
+  flex-direction: column;
+}
+
+.portal-list-item {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.75rem 1.25rem;
+  border-bottom: 1px solid #eef1f5;
+}
+
+.portal-list-item:last-child {
+  border-bottom: 0;
+}
+
+.portal-list-item .portal-list-main {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.portal-list-item .portal-list-main strong {
+  display: block;
+  font-size: 0.875rem;
+  font-weight: 700;
+  color: var(--pt-ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.portal-list-item .portal-list-main span {
+  display: block;
+  font-size: 0.76rem;
+  color: var(--pt-muted);
+}
+
+/* ==========================================================================
+   تنسيقٌ موحّد للشاشات الداخلية القديمة داخل اللوحات
+   ==========================================================================
+
+   الشاشات الداخلية (إدارة الحسابات، المحتوى، الاختبارات…) لم تُكتب بهذه
+   المكوّنات، فتُوحَّد هنا من الخارج: حقولٌ وجداول وأسطحٌ ولافتات بالمقاييس
+   نفسها، بلا تعديل منطقها. */
+
+.portal-shell .dashboard-page-banner {
+  background: var(--pt-surface) !important;
+  color: var(--pt-ink) !important;
+  border: 1px solid var(--pt-line) !important;
+  border-radius: var(--pt-radius) !important;
+  box-shadow: var(--pt-shadow) !important;
+  border-inline-start: 4px solid var(--pt-primary) !important;
+}
+
+.portal-shell .dashboard-page-banner :is(h1, h2, h3, p, span):not(.portal-badge) {
+  color: inherit;
+}
+
+.portal-shell .dashboard-page-banner :is(p, small) {
+  color: var(--pt-muted) !important;
+}
+
+.portal-shell .dashboard-page-banner button {
+  background: var(--pt-primary-soft) !important;
+  color: var(--pt-primary) !important;
+  backdrop-filter: none !important;
+}
+
+.portal-shell .dashboard-surface,
+.portal-shell .dashboard-table-surface,
+.portal-shell .dashboard-filter-surface,
+.portal-shell .dashboard-content-form-surface,
+.portal-shell .dashboard-content-table-surface,
+.portal-shell .dashboard-record-card,
+.portal-shell .dashboard-account-record,
+.portal-shell .dashboard-video-card,
+.portal-shell .dashboard-stat-card,
+.portal-shell .dashboard-result-card {
+  border-color: var(--pt-line) !important;
+  border-radius: var(--pt-radius) !important;
+  box-shadow: var(--pt-shadow) !important;
+  background-color: var(--pt-surface);
+}
+
+.portal-shell .dashboard-main :is(input:not([type='checkbox']):not([type='radio']):not([type='range']):not([type='file']), select, textarea) {
+  border-color: var(--pt-line-strong);
+  border-radius: var(--pt-radius-sm);
+  background-color: #fff;
+  color: var(--pt-ink);
+  font-weight: 600;
+}
+
+.portal-shell .dashboard-main :is(input, select, textarea):focus {
+  outline: none;
+  border-color: var(--pt-primary) !important;
+  box-shadow: 0 0 0 3px rgb(31 78 140 / 0.14) !important;
+}
+
+.portal-shell .dashboard-main label {
+  color: var(--pt-text);
+}
+
+.portal-shell .dashboard-main table:not(.portal-table) thead th {
+  background: var(--pt-surface-muted) !important;
+  color: var(--pt-muted) !important;
+  font-size: 0.78rem;
+  font-weight: 800;
+  border-bottom: 1px solid var(--pt-line);
+}
+
+.portal-shell .dashboard-main table:not(.portal-table) td {
+  border-color: #eef1f5;
+}
+
+/* أزرارُ التدرّج في الشاشات القديمة: لونٌ مصمت هادئ بدل التدرّج. */
+.portal-shell .dashboard-main button[class*='bg-gradient-to-'] {
+  background-image: none !important;
+  background-color: var(--pt-primary) !important;
+}
+
+.portal-shell .dashboard-main button[class*='bg-gradient-to-']:hover {
+  background-color: var(--pt-primary-strong) !important;
+}
+
+.portal-shell .dashboard-main [class*='animate-bounce'],
+.portal-shell .dashboard-main [class*='animate-float'],
+.portal-shell .dashboard-main [class*='animate-wiggle'] {
+  animation: none !important;
+}
+
+/* ==========================================================================
+   صفحات الدخول (خارج القشرة)
+   ========================================================================== */
+
+.portal-auth {
+  position: relative;
+  display: flex;
+  min-height: 100dvh;
+  width: 100%;
+  font-family: 'Tajawal', system-ui, sans-serif;
+  background: var(--pt-bg);
+  color: var(--pt-text);
+}
+
+/* ——— أزرار القشرة أمام القاعدة العامة لأزرار اللوحات ———
+   index.css يفرض على كل زرٍّ داخل `.manara-enterprise` حشوةً أفقية 1.25rem
+   وارتفاعاً أدنى (`button:not(…):not(…)`، نوعيّتها 0,3,1). فزرُّ القائمة
+   المربّع يختنق وتختفي أيقونته، وبطاقةُ الرقم تُمطّ كزرّ. القواعد هنا بالنوعيّة
+   نفسها وبعدها، فتغلب. */
+.manara-enterprise.portal-shell button.portal-topbar-menu,
+.manara-enterprise.portal-shell button.portal-sidebar-close {
+  min-height: 0;
+  padding: 0;
+}
+
+.manara-enterprise.portal-shell button.portal-btn {
+  min-height: 2.5rem;
+  padding: 0.5rem 1rem;
+}
+
+.manara-enterprise.portal-shell button.portal-btn-sm {
+  min-height: 2rem;
+  padding: 0.3rem 0.7rem;
+}
+
+.manara-enterprise.portal-shell button.portal-stat {
+  display: flex;
+  align-items: stretch;
+  justify-content: flex-start;
+  min-height: 0;
+  padding: 1rem 1.1rem;
+  white-space: normal;
+  line-height: 1.5;
+}
+
+@media (min-width: 1280px) {
+  .manara-enterprise.portal-shell button.portal-topbar-menu {
+    display: none;
+  }
+}
+
+.portal-stats {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 10.5rem), 1fr));
+}
+
+/* ——— بطاقة الابن (بوابة ولي الأمر) ——— */
+.portal-child-card {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  padding: 1.1rem 1.15rem;
+}
+
+.portal-child-head {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.portal-child-head h3 {
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 800;
+  color: var(--pt-ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.portal-child-head p {
+  margin: 0.1rem 0 0;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--pt-muted);
+}
+
+.portal-child-level {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.portal-mini-stats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin: 0;
+  border: 1px solid var(--pt-line);
+  border-radius: var(--pt-radius-sm);
+  overflow: hidden;
+}
+
+.portal-mini-stats > div {
+  padding: 0.6rem 0.7rem;
+  border-inline-start: 1px solid var(--pt-line);
+  border-top: 1px solid var(--pt-line);
+  min-width: 0;
+}
+
+.portal-mini-stats > div:nth-child(3n + 1) {
+  border-inline-start: 0;
+}
+
+.portal-mini-stats > div:nth-child(-n + 3) {
+  border-top: 0;
+}
+
+.portal-mini-stats dt {
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--pt-muted);
+}
+
+.portal-mini-stats dd {
+  margin: 0.1rem 0 0;
+  font-size: 1.05rem;
+  font-weight: 800;
+  color: var(--pt-ink);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.portal-child-actions {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: auto;
+}
+
+.portal-shell .dashboard-content-area {
+  background: var(--pt-bg) !important;
+}
+
+/* ==========================================================================
+   صفحة اختيار البوابة
+   ========================================================================== */
+
+.portal-roles {
+  flex-direction: column;
+  align-items: center;
+  overflow-x: hidden;
+}
+
+.portal-roles-band {
+  position: absolute;
+  inset: 0 0 auto;
+  height: 22rem;
+  background:
+    radial-gradient(ellipse 60% 80% at 85% 0%, rgb(15 118 110 / 0.28), transparent 70%),
+    linear-gradient(180deg, #0f1f35 0%, #15335c 100%);
+}
+
+.portal-roles-inner {
+  position: relative;
+  width: 100%;
+  max-width: 72rem;
+  padding: 1.25rem 1.5rem 2rem;
+  padding-top: max(1.25rem, env(safe-area-inset-top));
+}
+
+.portal-roles-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.portal-roles-brand {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+  color: #fff;
+}
+
+.portal-roles-brand img {
+  width: 3.5rem;
+  height: 3.5rem;
+  object-fit: contain;
+}
+
+.portal-roles-brand strong {
+  display: block;
+  font-size: 1.1rem;
+  font-weight: 800;
+}
+
+.portal-roles-brand span {
+  display: block;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #9fb3cc;
+}
+
+.portal-roles-apk-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.5rem 0.9rem;
+  border-radius: var(--pt-radius-sm);
+  border: 1px solid rgb(255 255 255 / 0.2);
+  color: #fff;
+  font-size: 0.85rem;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.portal-roles-apk-link svg {
+  width: 1rem;
+  height: 1rem;
+}
+
+.portal-roles-apk-link:hover {
+  background: rgb(255 255 255 / 0.08);
+}
+
+.portal-roles-hero {
+  padding: 3rem 0 2.25rem;
+  color: #fff;
+}
+
+.portal-roles-hero p {
+  margin: 0 0 0.4rem;
+  font-size: 0.85rem;
+  font-weight: 800;
+  color: #7dd3c8;
+}
+
+.portal-roles-hero h1 {
+  margin: 0;
+  font-size: clamp(1.6rem, 3.4vw, 2.3rem);
+  font-weight: 800;
+  line-height: 1.35;
+}
+
+.portal-roles-hero span {
+  display: block;
+  margin-top: 0.5rem;
+  font-size: 1rem;
+  color: #b8c4d6;
+}
+
+.portal-roles-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 18rem), 1fr));
+  gap: 1.25rem;
+}
+
+.portal-role-card {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.75rem;
+  padding: 1.6rem 1.5rem 1.4rem;
+  border-radius: 14px;
+  border: 1px solid var(--pt-line);
+  background: #fff;
+  box-shadow: 0 10px 30px rgb(15 31 53 / 0.1);
+  text-align: start;
+  color: var(--pt-text);
+  cursor: pointer;
+  transition: border-color 160ms ease, box-shadow 160ms ease, transform 160ms ease;
+}
+
+.portal-role-card:hover {
+  border-color: var(--tone);
+  box-shadow: 0 14px 34px rgb(15 31 53 / 0.14);
+  transform: translateY(-2px);
+}
+
+.portal-role-card:focus-visible {
+  outline: 3px solid rgb(31 78 140 / 0.4);
+  outline-offset: 3px;
+}
+
+.portal-role-icon {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  width: 3.25rem;
+  height: 3.25rem;
+  border-radius: 12px;
+  background: var(--tone-soft);
+  color: var(--tone);
+}
+
+.portal-role-icon svg {
+  width: 1.6rem;
+  height: 1.6rem;
+}
+
+.portal-role-title {
+  font-size: 1.3rem;
+  font-weight: 800;
+  color: var(--pt-ink);
+}
+
+.portal-role-description {
+  font-size: 0.92rem;
+  line-height: 1.7;
+  color: var(--pt-muted);
+}
+
+.portal-role-features {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  width: 100%;
+  padding: 0.85rem 0;
+  border-block: 1px solid #eef1f5;
+}
+
+.portal-role-features > span {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  font-size: 0.86rem;
+  font-weight: 600;
+  color: var(--pt-text);
+}
+
+.portal-role-features svg {
+  width: 0.95rem;
+  height: 0.95rem;
+  color: var(--tone);
+}
+
+.portal-role-cta {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin-top: 0.15rem;
+  font-size: 0.92rem;
+  font-weight: 800;
+  color: var(--tone);
+}
+
+.portal-role-cta svg {
+  width: 1.05rem;
+  height: 1.05rem;
+  transition: transform 160ms ease;
+}
+
+.portal-role-card:hover .portal-role-cta svg {
+  transform: translateX(-3px);
+}
+
+.portal-roles-apk {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 1rem;
+  margin-top: 1.25rem;
+  padding: 1rem 1.25rem;
+  border-radius: 14px;
+  border: 1px solid var(--pt-line);
+  background: #fff;
+  color: var(--pt-text);
+  text-decoration: none;
+  box-shadow: var(--pt-shadow);
+}
+
+.portal-roles-apk strong {
+  display: block;
+  font-size: 1rem;
+  font-weight: 800;
+  color: var(--pt-ink);
+}
+
+.portal-roles-apk span span,
+.portal-roles-apk .min-w-0 > span {
+  display: block;
+  font-size: 0.85rem;
+  color: var(--pt-muted);
+}
+
+.portal-roles-footer {
+  margin-top: 2rem;
+  text-align: center;
+  font-size: 0.8rem;
+  color: var(--pt-subtle);
+}
+
+@media (max-width: 639px) {
+  .portal-roles-inner {
+    padding-inline: 1rem;
+  }
+
+  .portal-roles-hero {
+    padding: 2rem 0 1.5rem;
+  }
+
+  .portal-roles-brand strong {
+    font-size: 0.95rem;
+  }
+}
+
+/* ==========================================================================
+   صفحات الدخول
+   ========================================================================== */
+
+.portal-login {
+  min-height: 100dvh;
+}
+
+.portal-login-aside {
+  position: relative;
+  display: flex;
+  flex: 0 0 42%;
+  max-width: 34rem;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 2rem;
+  padding: 2.5rem;
+  color: #fff;
+  background:
+    radial-gradient(ellipse 70% 50% at 100% 0%, rgb(15 118 110 / 0.3), transparent 70%),
+    linear-gradient(180deg, #0f1f35 0%, #15335c 100%);
+}
+
+.portal-login-brand {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+}
+
+.portal-login-brand img {
+  width: 3.5rem;
+  height: 3.5rem;
+  object-fit: contain;
+}
+
+.portal-login-brand strong {
+  display: block;
+  font-size: 1.05rem;
+  font-weight: 800;
+}
+
+.portal-login-brand span {
+  display: block;
+  font-size: 0.8rem;
+  color: #9fb3cc;
+}
+
+.portal-login-pitch-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 3.5rem;
+  height: 3.5rem;
+  border-radius: 14px;
+  background: rgb(255 255 255 / 0.08);
+  border: 1px solid rgb(255 255 255 / 0.12);
+  color: #5eead4;
+}
+
+.portal-login-pitch-icon svg {
+  width: 1.75rem;
+  height: 1.75rem;
+}
+
+.portal-login-pitch h2 {
+  margin: 1.25rem 0 1rem;
+  font-size: 2rem;
+  font-weight: 800;
+}
+
+.portal-login-pitch ul {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.portal-login-pitch li {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  font-size: 1rem;
+  font-weight: 600;
+  color: #d5deea;
+}
+
+.portal-login-pitch li svg {
+  width: 1.1rem;
+  height: 1.1rem;
+  color: #5eead4;
+  flex: 0 0 auto;
+}
+
+.portal-login-legal {
+  margin: 0;
+  font-size: 0.78rem;
+  color: #7f93ad;
+}
+
+.portal-login-main {
+  display: flex;
+  flex: 1 1 auto;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem 1.25rem;
+  padding-top: max(2rem, env(safe-area-inset-top));
+}
+
+.portal-login-card {
+  width: 100%;
+  max-width: 26rem;
+}
+
+.portal-login-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin-bottom: 2rem;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--pt-muted);
+  font-size: 0.88rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.portal-login-back:hover {
+  color: var(--pt-primary);
+}
+
+.portal-login-back svg {
+  width: 1rem;
+  height: 1rem;
+}
+
+.portal-login-mobile-brand {
+  display: none;
+  align-items: center;
+  gap: 0.6rem;
+  margin-bottom: 1.5rem;
+  font-weight: 800;
+  color: var(--pt-ink);
+}
+
+.portal-login-mobile-brand img {
+  width: 2.75rem;
+  height: 2.75rem;
+  object-fit: contain;
+}
+
+.portal-login-eyebrow {
+  margin: 0 0 0.25rem;
+  font-size: 0.85rem;
+  font-weight: 800;
+  color: var(--pt-accent);
+}
+
+.portal-login-card h1 {
+  margin: 0;
+  font-size: 1.75rem;
+  font-weight: 800;
+  color: var(--pt-ink);
+}
+
+.portal-login-subtitle {
+  margin: 0.4rem 0 0;
+  font-size: 0.92rem;
+  line-height: 1.7;
+  color: var(--pt-muted);
+}
+
+.portal-login-error {
+  margin-top: 1.25rem;
+  padding: 0.75rem 1rem;
+  border-radius: var(--pt-radius-sm);
+  border: 1px solid #f5c2c2;
+  background: var(--pt-danger-soft);
+  color: var(--pt-danger);
+  font-size: 0.9rem;
+  font-weight: 700;
+}
+
+.portal-login-form {
+  display: flex;
+  flex-direction: column;
+  gap: 1.1rem;
+  margin-top: 1.75rem;
+}
+
+.portal-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.portal-field-label {
+  font-size: 0.88rem;
+  font-weight: 700;
+  color: var(--pt-text);
+}
+
+.portal-field-hint {
+  font-size: 0.78rem;
+  color: var(--pt-muted);
+}
+
+.portal-input {
+  width: 100%;
+  min-height: 2.9rem;
+  padding: 0.6rem 0.9rem;
+  border-radius: var(--pt-radius-sm);
+  border: 1px solid var(--pt-line-strong);
+  background: #fff;
+  color: var(--pt-ink);
+  font: inherit;
+  font-size: 1rem;
+  font-weight: 600;
+  transition: border-color 150ms ease, box-shadow 150ms ease;
+}
+
+.portal-input:focus {
+  outline: none;
+  border-color: var(--pt-primary);
+  box-shadow: 0 0 0 3px rgb(31 78 140 / 0.15);
+}
+
+.portal-login .portal-btn-primary {
+  width: 100%;
+  min-height: 3rem;
+  margin-top: 0.4rem;
+  font-size: 1rem;
+}
+
+.manara-enterprise.portal-login button.portal-btn {
+  min-height: 3rem;
+}
+
+.portal-login-help {
+  margin-top: 1.5rem;
+  font-size: 0.82rem;
+  color: var(--pt-muted);
+  text-align: center;
+}
+
+@media (max-width: 899px) {
+  .portal-login-aside {
+    display: none;
+  }
+
+  .portal-login-mobile-brand {
+    display: flex;
+  }
+
+  .portal-login-main {
+    align-items: flex-start;
+    padding-top: max(2.5rem, env(safe-area-inset-top));
+  }
+}
+
+.manara-enterprise.portal-login button.portal-login-back {
+  min-height: 0;
+  padding: 0;
+}

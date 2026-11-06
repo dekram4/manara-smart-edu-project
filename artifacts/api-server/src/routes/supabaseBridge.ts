@@ -12,6 +12,7 @@ import {
 import { generateChallengeBank } from "../lib/geminiBank";
 import { refreshDuelDomainQuestions } from "../lib/duelDomainJob";
 import { canonicalTeacherConfigs, scopeKvForTeacher } from "../lib/teacherScope";
+import { keepLoginStats } from "../lib/studentLogins";
 
 const router = Router();
 
@@ -42,19 +43,22 @@ async function securePasswords(
 ): Promise<Record<string, unknown>[]> {
   if (!ACCOUNT_TABLES.has(table) || rows.length === 0) return rows;
   const ids = rows.map((row) => stringValue(row.id)).filter(Boolean);
-  const stored = new Map<string, unknown>();
+  const stored = new Map<string, Record<string, unknown>>();
   if (ids.length) {
     const list = ids.map((id) => `"${id.replace(/"/g, '\\"')}"`).join(",");
     for (const row of asRecords(await rest(config, `${table}?select=id,data&id=in.(${encodeURIComponent(list)})`))) {
       const data = row.data && typeof row.data === "object" ? (row.data as Record<string, unknown>) : {};
-      stored.set(stringValue(row.id), data.password);
+      stored.set(stringValue(row.id), data);
     }
   }
   return rows.map((row) => {
     const data = row.data && typeof row.data === "object" ? { ...(row.data as Record<string, unknown>) } : {};
-    const password = passwordToStore(data.password, stored.get(stringValue(row.id)));
+    const previous = stored.get(stringValue(row.id));
+    const password = passwordToStore(data.password, previous?.password);
     if (password) data.password = password;
     else delete data.password;
+    // ‏عدّادُ الدخول يكتبه الخادم وحده: نسخةُ المتصفّح الأقدم لا تُرجعه إلى الوراء.
+    if (table === "students") Object.assign(data, keepLoginStats(previous, data));
     return { ...row, data };
   });
 }

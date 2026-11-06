@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { Bell } from 'lucide-react';
 import { STORAGE_KEYS } from '../../constants';
 
 const VideoNotificationBadge: React.FC<{ onClick: () => void }> = ({ onClick }) => {
@@ -19,13 +20,15 @@ const VideoNotificationBadge: React.FC<{ onClick: () => void }> = ({ onClick }) 
 
   return (
     <button
+      type="button"
       onClick={onClick}
-      className="relative p-2 rounded-full hover:bg-purple-50 transition-all active:scale-95"
+      className="portal-btn portal-btn-secondary relative"
       title="إشعارات الفيديو"
+      aria-label={unreadCount > 0 ? `إشعارات الفيديو: ${unreadCount} غير مقروءة` : 'إشعارات الفيديو'}
     >
-      <span className="text-2xl">📢</span>
+      <Bell aria-hidden="true" />
       {unreadCount > 0 && (
-        <span className="absolute -top-1 -right-1 min-w-[20px] h-5 bg-red-500 text-white rounded-full text-xs font-black flex items-center justify-center px-1 animate-pulse">
+        <span className="absolute -top-1.5 -left-1.5 min-w-[20px] h-5 bg-red-600 text-white rounded-full text-[11px] font-black flex items-center justify-center px-1">
           {unreadCount}
         </span>
       )}

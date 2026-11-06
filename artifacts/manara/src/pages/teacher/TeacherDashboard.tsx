@@ -26,6 +26,24 @@ import { writeAuthSession } from '../../utils/authSession';
 import { refreshSupabaseSync } from '../../db/sync';
 import { clearLoggedOut, isLoggedOut } from '../../utils/logoutGuard';
 import { useDashboardPage } from '../../hooks/useDashboardPage';
+import PortalShell, { PortalNavItem } from '../../components/portal/PortalShell';
+import TeacherHome from './TeacherHome';
+import type { LucideIcon } from 'lucide-react';
+import {
+  Award,
+  BookOpenCheck,
+  ChartColumn,
+  ClipboardList,
+  Film,
+  LayoutDashboard,
+  MessageSquareText,
+  Package,
+  Settings2,
+  ShieldCheck,
+  Swords,
+  UserRound,
+  UsersRound,
+} from 'lucide-react';
 
 /**
  * هل تظهر صفحةُ القائمة لهذا المعلم؟ القائمةُ تُخفي ما لا يملكه، والصفحةُ
@@ -67,6 +85,22 @@ const isTeacherMenuAllowed = (
 
 const TEACHER_PAGES = Object.values(TeacherMenuType);
 
+/** اسمُ كل صفحةٍ وأيقونتها، في القائمة وفي الشريط العلوي. */
+const TEACHER_MENU: Record<TeacherMenuType, { label: string; icon: LucideIcon }> = {
+  [TeacherMenuType.DASHBOARD]: { label: 'الرئيسية', icon: LayoutDashboard },
+  [TeacherMenuType.ACADEMIC_SETTINGS]: { label: 'الإعدادات الأكاديمية', icon: Settings2 },
+  [TeacherMenuType.CONTENT_MANAGEMENT]: { label: 'إدارة المحتوى', icon: BookOpenCheck },
+  [TeacherMenuType.VIDEO_MANAGEMENT]: { label: 'فيديوهاتي', icon: Film },
+  [TeacherMenuType.QUIZ_MANAGEMENT]: { label: 'إدارة الاختبارات', icon: ClipboardList },
+  [TeacherMenuType.DUEL_QUESTIONS]: { label: 'أسئلة «تحدَّ زملاءك»', icon: Swords },
+  [TeacherMenuType.CARD_PERMISSIONS]: { label: 'صلاحيات البطاقات', icon: ShieldCheck },
+  [TeacherMenuType.ACCOUNT_MANAGEMENT]: { label: 'الطلاب وأولياء الأمور', icon: UsersRound },
+  [TeacherMenuType.PERMISSION_PACKAGES]: { label: 'إدارة الصلاحيات', icon: Package },
+  [TeacherMenuType.REPORTS]: { label: 'التقارير', icon: ChartColumn },
+  [TeacherMenuType.CERTIFICATES]: { label: 'الشهادات', icon: Award },
+  [TeacherMenuType.MY_ACCOUNT]: { label: 'حسابي', icon: UserRound },
+};
+
 interface TeacherDashboardProps {
   onLogout: () => void;
 }
@@ -77,7 +111,8 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onLogout }) => {
   // ‏الصفحةُ في العنوان: التحديثُ يُبقي المعلمَ حيث كان — انظر utils/dashboardRoute.
   const [storedMenu, setActiveMenu] = useDashboardPage('teacher', TEACHER_PAGES, TeacherMenuType.DASHBOARD);
   const [showChat, setShowChat] = useState(false);
-  const [mobileNavOpen, setMobileNavOpen] = useState(false);
+  /// يتغيّر مع كل قراءةٍ للبيانات، فتُعيد الصفحةُ الرئيسية حسابَ ما تعرضه.
+  const [refreshToken, setRefreshToken] = useState(0);
   const [dashboardStats, setDashboardStats] = useState({
     parentsCount: 0,
     studentsCount: 0,
@@ -155,6 +190,7 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onLogout }) => {
       ),
     );
 
+    setRefreshToken((token) => token + 1);
     setDashboardStats({
       parentsCount: teacherParents.length,
       studentsCount: teacherStudents.length,
@@ -186,7 +222,8 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onLogout }) => {
     }
   })();
   const effectiveTeacher = latestStoredTeacher;
-  const activeMenu = isTeacherMenuAllowed(storedMenu, getTeacherPermissions(effectiveTeacher))
+  const teacherPermissions = getTeacherPermissions(effectiveTeacher);
+  const activeMenu = isTeacherMenuAllowed(storedMenu, teacherPermissions)
     ? storedMenu
     : TeacherMenuType.DASHBOARD;
 
@@ -201,156 +238,15 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onLogout }) => {
     switch (activeMenu) {
       case TeacherMenuType.DASHBOARD:
         return (
-          <div className="dashboard-page dashboard-content-fluid">
-            {/* Header */}
-            <div className="dashboard-page-banner bg-gradient-to-r from-amber-500 to-orange-500 border border-amber-200/70">
-              <div className="flex min-w-0 flex-col items-start justify-between gap-4 md:flex-row md:items-center">
-                <div className="min-w-0">
-                  <h1 className="text-2xl sm:text-4xl font-black mb-2 break-words">👋 مرحباً {currentTeacher.name}</h1>
-                  <p className="text-amber-100 text-sm sm:text-lg font-medium break-words">مرحباً بك في منصة التعليم الذكي. استخدم القائمة الجانبية للوصول إلى جميع الأدوات.</p>
-                </div>
-                <div className="hidden sm:block text-4xl sm:text-6xl opacity-20">🏠</div>
-              </div>
-            </div>
-
-            {/* Statistics Cards */}
-              <div className="dashboard-stats-grid">
-              {/* Parents Card */}
-              <div className="dashboard-stat-card hover:shadow-md transition-all cursor-pointer"
-                   onClick={() => setActiveMenu(TeacherMenuType.ACCOUNT_MANAGEMENT)}>
-                <div className="dashboard-stat-heading">
-                  <h3 className="text-lg font-black text-purple-900">أولياء الأمور</h3>
-                  <div className="text-3xl">👨‍👩‍👧‍👦</div>
-                </div>
-                <p className="dashboard-stat-value text-purple-700">{dashboardStats.parentsCount}</p>
-                <p className="text-purple-600 text-sm font-medium">إجمالي المسجلين</p>
-              </div>
-
-              {/* Students Card */}
-              <div className="dashboard-stat-card hover:shadow-md transition-all cursor-pointer"
-                   onClick={() => setActiveMenu(TeacherMenuType.ACCOUNT_MANAGEMENT)}>
-                <div className="dashboard-stat-heading">
-                  <h3 className="text-lg font-black text-blue-900">الطلاب</h3>
-                  <div className="text-3xl">👨‍🎓</div>
-                </div>
-                <p className="dashboard-stat-value text-amber-600">{dashboardStats.studentsCount}</p>
-                <p className="text-amber-500 text-sm font-medium">إجمالي المسجلين</p>
-              </div>
-
-              {/* Lessons Card */}
-              <div className="dashboard-stat-card hover:shadow-md transition-all cursor-pointer"
-                   onClick={() => setActiveMenu(TeacherMenuType.CONTENT_MANAGEMENT)}>
-                <div className="dashboard-stat-heading">
-                  <h3 className="text-lg font-black text-green-900">المحتوى التعليمي</h3>
-                  <div className="text-3xl">📚</div>
-                </div>
-                <p className="dashboard-stat-value text-green-700">{dashboardStats.lessonsCount}</p>
-                <p className="text-green-600 text-sm font-medium">إجمالي الدروس</p>
-              </div>
-
-              {/* Academic Settings Card */}
-              <div className="dashboard-stat-card hover:shadow-md transition-all cursor-pointer"
-                   onClick={() => setActiveMenu(TeacherMenuType.ACADEMIC_SETTINGS)}>
-                <div className="dashboard-stat-heading">
-                  <h3 className="text-lg font-black text-orange-900">الإعدادات الأكاديمية</h3>
-                  <div className="text-3xl">⚙️</div>
-                </div>
-                <p className="dashboard-stat-value text-orange-700">
-                  {hydrating ? '…' : dashboardStats.academicSettingsCount}
-                </p>
-                <p className="text-orange-600 text-sm font-medium">
-                  {hydrating
-                    ? 'جارٍ التحميل من الخادم'
-                    : `${dashboardStats.academicSettingsCount} صف · ${dashboardStats.academicSubjectsCount} مادة`}
-                </p>
-              </div>
-            </div>
-
-            {/* Quick Actions */}
-            <div className="dashboard-surface">
-              <h2 className="text-xl font-black text-slate-800 mb-4 flex items-center gap-3">
-                <span className="text-2xl">⚡</span>
-                إجراءات سريعة
-              </h2>
-              <div className="dashboard-actions-grid">
-                <button
-                  onClick={() => setActiveMenu(TeacherMenuType.ACCOUNT_MANAGEMENT)}
-                  className="bg-gradient-to-r from-purple-500 to-purple-600 hover:from-purple-600 hover:to-purple-700 text-white font-bold transition-all shadow-sm flex items-center justify-center gap-3 active:scale-95"
-                >
-                  <span className="text-3xl">➕</span>
-                  <span>إضافة ولي أمر / طالب</span>
-                </button>
-
-                <button
-                  onClick={() => setActiveMenu(TeacherMenuType.CONTENT_MANAGEMENT)}
-                  className="bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white font-bold transition-all shadow-sm flex items-center justify-center gap-3 active:scale-95"
-                >
-                  <span className="text-3xl">📖</span>
-                  <span>إضافة محتوى تعليمي</span>
-                </button>
-
-                <button
-                  onClick={() => setActiveMenu(TeacherMenuType.ACADEMIC_SETTINGS)}
-                  className="bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white font-bold transition-all shadow-sm flex items-center justify-center gap-3 active:scale-95"
-                >
-                  <span className="text-3xl">🔧</span>
-                  <span>إدارة الإعدادات</span>
-                </button>
-
-                <button
-                  onClick={() => setActiveMenu(TeacherMenuType.REPORTS)}
-                  className="bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white font-bold transition-all shadow-sm flex items-center justify-center gap-3 active:scale-95"
-                >
-                  <span className="text-3xl">📊</span>
-                  <span>عرض التقارير</span>
-                </button>
-
-                <button
-                  onClick={() => setActiveMenu(TeacherMenuType.MY_ACCOUNT)}
-                  className="bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-orange-700 text-white font-bold transition-all shadow-sm flex items-center justify-center gap-3 active:scale-95"
-                >
-                  <span className="text-3xl">👤</span>
-                  <span>إعدادات الحساب</span>
-                </button>
-
-                <button
-                  onClick={loadDashboardStats}
-                  className="bg-gradient-to-r from-orange-400 to-amber-500 hover:from-orange-500 hover:to-amber-600 text-white font-bold transition-all shadow-sm flex items-center justify-center gap-3 active:scale-95"
-                >
-                  <span className="text-3xl">🔄</span>
-                  <span>تحديث البيانات</span>
-                </button>
-              </div>
-            </div>
-
-            {/* Welcome Message */}
-            <div className="dashboard-surface bg-amber-50/70 border-amber-200">
-              <div className="flex items-start gap-4">
-                <div className="shrink-0 rounded-xl bg-amber-100 p-2.5 text-2xl">💡</div>
-                <div>
-                  <h3 className="text-xl font-black text-amber-800 mb-3">نصائح للبداية</h3>
-                  <ul className="space-y-2 text-amber-700 font-medium">
-                    <li className="flex items-start gap-2">
-                      <span className="text-amber-500 font-black">1.</span>
-                      <span>ابدأ بإنشاء الإعدادات الأكاديمية (الصفوف والمواد والفصول)</span>
-                    </li>
-                    <li className="flex items-start gap-2">
-                      <span className="text-amber-500 font-black">2.</span>
-                      <span>أضف أولياء الأمور وربطهم بالطلاب</span>
-                    </li>
-                    <li className="flex items-start gap-2">
-                      <span className="text-amber-500 font-black">3.</span>
-                      <span>أنشئ المحتوى التعليمي والاختبارات</span>
-                    </li>
-                    <li className="flex items-start gap-2">
-                      <span className="text-amber-500 font-black">4.</span>
-                      <span>تابع تقدم الطلاب من خلال التقارير</span>
-                    </li>
-                  </ul>
-                </div>
-              </div>
-            </div>
-          </div>
+          <TeacherHome
+            teacher={currentTeacher}
+            refreshToken={refreshToken}
+            hydrating={hydrating}
+            academic={{ grades: dashboardStats.academicSettingsCount, subjects: dashboardStats.academicSubjectsCount }}
+            canOpen={(menu) => isTeacherMenuAllowed(menu, teacherPermissions)}
+            onNavigate={setActiveMenu}
+            onRefresh={loadDashboardStats}
+          />
         );
       case TeacherMenuType.ACADEMIC_SETTINGS:
         return <MyAcademicSettings teacher={effectiveTeacher} />;
@@ -388,119 +284,30 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onLogout }) => {
     }
   };
 
+  const nav: PortalNavItem[] = TEACHER_PAGES
+    .filter((menu) => isTeacherMenuAllowed(menu, teacherPermissions))
+    .map((menu) => ({
+      id: menu,
+      label: TEACHER_MENU[menu].label,
+      icon: TEACHER_MENU[menu].icon,
+      active: activeMenu === menu,
+      onSelect: () => setActiveMenu(menu),
+    }));
+
   return (
-    <div dir="rtl" className="dashboard-shell manara-enterprise animate-fadeIn">
-      {/* Sidebar */}
-       {mobileNavOpen && (
-         <button
-           type="button"
-           className="dashboard-sidebar-overlay lg:hidden"
-           onClick={() => setMobileNavOpen(false)}
-           aria-label="إغلاق القائمة الجانبية"
-         />
-       )}
-       <aside className={`dashboard-sidebar ${mobileNavOpen ? 'dashboard-sidebar--open' : 'dashboard-sidebar--closed'} flex transform flex-col bg-gradient-to-b from-amber-800 to-amber-900 text-white p-4 pb-[calc(1rem+env(safe-area-inset-bottom))] pt-[calc(1rem+env(safe-area-inset-top))] sm:p-6 shadow-2xl transition-transform duration-300 lg:translate-x-0`}>
-         <div className="dashboard-sidebar-header">
-           <button type="button" onClick={() => setMobileNavOpen(false)} className="mb-3 self-start rounded-xl bg-white/10 px-3 py-2 text-sm font-bold lg:hidden">✕ إغلاق</button>
-          <ManaraBrand variant="sidebar" className="text-white" />
-        </div>
-         <div className="dashboard-sidebar-profile">
-          <div className="flex items-center gap-3 mb-2">
-            <div className="w-16 h-16 bg-white rounded-full flex items-center justify-center text-4xl animate-float">
-              👨‍🏫
-            </div>
-            <div>
-              <h2 className="text-xl font-black">{currentTeacher.name}</h2>
-              <p className="text-blue-200 text-sm">معلم</p>
-            </div>
-          </div>
-        </div>
+    <>
+      <PortalShell
+        portalName="بوابة المعلم"
+        userName={currentTeacher.name}
+        userRole={currentTeacher.subject ? `معلم ${currentTeacher.subject}` : 'معلم'}
+        nav={nav}
+        secondaryNav={[{ id: 'chat', label: 'الدردشة والدعم', icon: MessageSquareText, onSelect: () => setShowChat(true) }]}
+        onLogout={handleLogout}
+        pageTitle={TEACHER_MENU[activeMenu].label}
+      >
+        {renderContent()}
+      </PortalShell>
 
-         <nav className="dashboard-nav">
-          {Object.values(TeacherMenuType).map((menu) => {
-            // فحص الصلاحيات
-            const permissions = getTeacherPermissions(effectiveTeacher);
-            
-            if (!isTeacherMenuAllowed(menu, permissions)) return null;
-
-            const icons: Record<TeacherMenuType, string> = {
-              [TeacherMenuType.DASHBOARD]: '🏠',
-              [TeacherMenuType.ACADEMIC_SETTINGS]: '⚙️',
-              [TeacherMenuType.CONTENT_MANAGEMENT]: '📚',
-              [TeacherMenuType.VIDEO_MANAGEMENT]: '🎬',
-              [TeacherMenuType.QUIZ_MANAGEMENT]: '📝',
-              [TeacherMenuType.DUEL_QUESTIONS]: '⚔️',
-              [TeacherMenuType.CARD_PERMISSIONS]: '🔐',
-              [TeacherMenuType.ACCOUNT_MANAGEMENT]: '👥',
-              [TeacherMenuType.PERMISSION_PACKAGES]: '📦',
-              [TeacherMenuType.REPORTS]: '📊',
-              [TeacherMenuType.CERTIFICATES]: '🏆',
-              [TeacherMenuType.MY_ACCOUNT]: '👤'
-            };
-
-            const labels: Record<TeacherMenuType, string> = {
-              [TeacherMenuType.DASHBOARD]: 'الصفحة الرئيسية',
-              [TeacherMenuType.ACADEMIC_SETTINGS]: 'الإعدادات الأكاديمية',
-              [TeacherMenuType.CONTENT_MANAGEMENT]: 'إدارة المحتوى',
-              [TeacherMenuType.VIDEO_MANAGEMENT]: 'فيديوهاتي',
-              [TeacherMenuType.QUIZ_MANAGEMENT]: 'إدارة الاختبارات',
-              [TeacherMenuType.DUEL_QUESTIONS]: 'أسئلة «تحدَّ زملاءك»',
-              [TeacherMenuType.CARD_PERMISSIONS]: 'صلاحيات البطاقات',
-              [TeacherMenuType.ACCOUNT_MANAGEMENT]: 'إدارة الحسابات',
-              [TeacherMenuType.PERMISSION_PACKAGES]: 'إدارة الصلاحيات',
-              [TeacherMenuType.REPORTS]: 'التقارير',
-              [TeacherMenuType.CERTIFICATES]: 'الشهادات',
-              [TeacherMenuType.MY_ACCOUNT]: 'حسابي'
-            };
-
-            return (
-              <button
-                key={menu}
-                 onClick={() => { setActiveMenu(menu); setMobileNavOpen(false); }}
-                 className={`dashboard-menu-item rounded-xl px-4 py-3 font-bold text-sm sm:text-base transition-all hover:translate-x-[-2px] active:scale-95 ${
-                  activeMenu === menu
-                    ? 'bg-white text-amber-800 shadow-lg'
-                    : 'hover:bg-white/10'
-                }`}
-              >
-                 <span aria-hidden="true">{icons[menu]}</span>
-                 <span>{labels[menu]}</span>
-              </button>
-            );
-          })}
-          
-          {/* زر الدردشة */}
-          <button
-            onClick={() => { setShowChat(true); setMobileNavOpen(false); }}
-            className="dashboard-menu-item rounded-xl px-4 py-3 font-bold text-sm sm:text-base transition-all hover:bg-white/10 hover:translate-x-[-2px] active:scale-95"
-          >
-            <span aria-hidden="true">💬</span>
-            <span>الدردشة والدعم</span>
-          </button>
-        </nav>
-
-         <div className="dashboard-sidebar-footer">
-           <button
-             onClick={handleLogout}
-             className="dashboard-menu-item shrink-0 bg-red-500 hover:bg-red-600 text-white rounded-xl px-4 py-3 font-bold text-sm sm:text-base transition-all hover:scale-[1.02] active:scale-95"
-           >
-             <span aria-hidden="true">🚪</span>
-             <span>تسجيل الخروج</span>
-           </button>
-         </div>
-      </aside>
-
-      {/* Main Content */}
-        <main className="dashboard-main flex flex-col">
-          <div className="dashboard-mobile-toolbar safe-area-top safe-area-x lg:hidden">
-            <button type="button" onClick={() => setMobileNavOpen(true)} className="dashboard-mobile-menu-trigger bg-amber-800 px-3 py-2 text-white" aria-label="فتح القائمة">☰ القائمة</button>
-          </div>
-          <div className="dashboard-content-area min-w-0 flex-1 safe-area-x safe-area-bottom">
-            {renderContent()}
-          </div>
-      </main>
-
-      {/* Private Chat */}
       {showChat && currentTeacher && (
         <PrivateChat
           currentUserId={currentTeacher.id}
@@ -509,7 +316,7 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onLogout }) => {
           onClose={() => setShowChat(false)}
         />
       )}
-    </div>
+    </>
   );
 };
 

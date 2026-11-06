@@ -167,7 +167,7 @@ const EntertainmentManagement: React.FC = () => {
     <div className="dashboard-page dashboard-consistent-page animate-fadeIn">
       <div className="dashboard-section-header">
         <div>
-          <h2 className="text-4xl font-black text-violet-900">🎮 الترفيه والألعاب</h2>
+          <h2 className="text-4xl font-black text-violet-900">الترفيه والألعاب</h2>
           <p className="mt-1 font-medium text-violet-500">
             ألعابٌ تظهر في «عالم الترفيه» لطلاب المعلم المسند إليه فقط
           </p>
@@ -184,7 +184,7 @@ const EntertainmentManagement: React.FC = () => {
           }}
           className="rounded-2xl bg-gradient-to-r from-violet-500 to-fuchsia-500 px-6 py-3 font-black text-white shadow-xl transition-all hover:scale-105 active:scale-95"
         >
-          {showForm ? (editing ? '↩ إلغاء التعديل والعودة للقائمة' : '❌ إلغاء') : '➕ لعبة جديدة'}
+          {showForm ? (editing ? '↩ إلغاء التعديل والعودة للقائمة' : 'إلغاء') : 'لعبة جديدة'}
         </button>
       </div>
 
@@ -204,7 +204,7 @@ const EntertainmentManagement: React.FC = () => {
         >
           <div className="border-b border-violet-100 pb-4">
             <h3 className="text-2xl font-black text-violet-900">
-              {editing ? (editing.builtin ? '⭐ تعديل لعبة أساسية' : '✏️ تعديل لعبة') : '🎮 إضافة لعبة إلى «عالم الترفيه»'}
+              {editing ? (editing.builtin ? 'تعديل لعبة أساسية' : 'تعديل لعبة') : 'إضافة لعبة إلى «عالم الترفيه»'}
             </h3>
             <p className="mt-1 text-sm font-bold text-violet-500">
               {editing?.builtin
@@ -216,7 +216,7 @@ const EntertainmentManagement: React.FC = () => {
           <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
             <div>
               <label htmlFor="game-title" className="mb-2 block text-sm font-black text-violet-900">
-                🏷️ عنوان / اسم اللعبة <span className="text-red-600">*</span>
+                عنوان / اسم اللعبة <span className="text-red-600">*</span>
               </label>
               <input
                 id="game-title"
@@ -231,7 +231,7 @@ const EntertainmentManagement: React.FC = () => {
             </div>
             <div>
               <label htmlFor="game-teacher" className="mb-2 block text-sm font-black text-violet-900">
-                👨‍🏫 المعلم المسؤول {!editing?.builtin && <span className="text-red-600">*</span>}
+                المعلم المسؤول {!editing?.builtin && <span className="text-red-600">*</span>}
               </label>
               <select
                 id="game-teacher"
@@ -244,7 +244,7 @@ const EntertainmentManagement: React.FC = () => {
                 onInvalid={e => e.currentTarget.setCustomValidity('يرجى اختيار المعلم المسؤول عن اللعبة')}
                 className={inputClass}
               >
-                <option value="">{editing?.builtin ? '🌐 جميع الطلاب (الفهرس الأساسي)' : 'اختر المعلم'}</option>
+                <option value="">{editing?.builtin ? 'جميع الطلاب (الفهرس الأساسي)' : 'اختر المعلم'}</option>
                 {teachers.map(teacher => (
                   <option key={teacher.id} value={teacher.id}>👨‍🏫 {teacher.name}</option>
                 ))}
@@ -257,7 +257,7 @@ const EntertainmentManagement: React.FC = () => {
 
           <div>
             <label htmlFor="game-url" className="mb-2 block text-sm font-black text-violet-900">
-              🔗 رابط اللعبة المباشر أو المضمن <span className="text-red-600">*</span>
+              رابط اللعبة المباشر أو المضمن <span className="text-red-600">*</span>
             </label>
             {editing?.builtin ? (
               <p id="game-url" dir="ltr" className={`${inputClass} text-left text-slate-500`}>
@@ -292,7 +292,7 @@ const EntertainmentManagement: React.FC = () => {
 
           <div>
             <label htmlFor="game-description" className="mb-2 block text-sm font-black text-violet-900">
-              📝 وصف مختصر
+              وصف مختصر
             </label>
             <textarea
               id="game-description"
@@ -313,7 +313,7 @@ const EntertainmentManagement: React.FC = () => {
               className="h-6 w-6 accent-violet-600"
             />
             <span className="font-black text-violet-900">
-              {formData.isActive ? '✅ مفعّلة — تظهر للطلاب' : '⏸️ معطّلة — مخفية عن الطلاب'}
+              {formData.isActive ? 'مفعّلة — تظهر للطلاب' : 'معطّلة — مخفية عن الطلاب'}
             </span>
           </label>
 
@@ -322,7 +322,7 @@ const EntertainmentManagement: React.FC = () => {
             disabled={saving}
             className="w-full rounded-2xl bg-gradient-to-r from-violet-500 to-fuchsia-500 py-4 text-xl font-black text-white shadow-xl transition-all hover:-translate-y-0.5 active:scale-95 disabled:opacity-60"
           >
-            {saving ? '⏳ جارٍ الحفظ…' : editing ? '💾 حفظ التعديل' : '💾 حفظ ونشر اللعبة'}
+            {saving ? 'جارٍ الحفظ…' : editing ? 'حفظ التعديل' : 'حفظ ونشر اللعبة'}
           </button>
         </form>
       )}
@@ -345,7 +345,7 @@ const EntertainmentManagement: React.FC = () => {
                   onChange={e => setTeacherFilter(e.target.value)}
                   className="rounded-xl border-2 border-violet-200 bg-white p-3 font-bold text-violet-900"
                 >
-                  <option value="">👨‍🏫 كل المعلمين</option>
+                  <option value="">كل المعلمين</option>
                   {teachers.map(teacher => <option key={teacher.id} value={teacher.id}>{teacher.name}</option>)}
                 </select>
               </div>
@@ -363,7 +363,7 @@ const EntertainmentManagement: React.FC = () => {
                   <div className="min-w-0 flex-1">
                     <h3 className="break-words text-xl font-black text-violet-950">{game.title}</h3>
                     {game.builtin && (
-                      <span className="mt-1 inline-block rounded-lg bg-amber-100 px-2 py-0.5 text-xs font-black text-amber-700">⭐ لعبة أساسية</span>
+                      <span className="mt-1 inline-block rounded-lg bg-amber-100 px-2 py-0.5 text-xs font-black text-amber-700">لعبة أساسية</span>
                     )}
                     {game.description && <p className="mt-1 line-clamp-2 text-sm font-medium text-violet-600">{game.description}</p>}
                   </div>
@@ -372,28 +372,27 @@ const EntertainmentManagement: React.FC = () => {
                   {game.embedUrl}
                 </p>
                 <div className="flex flex-wrap gap-2">
-                  <span className="rounded-lg bg-orange-100 px-2 py-1 text-xs font-bold text-orange-700">{game.teacherId ? `👨‍🏫 ${game.teacherName || game.teacherId}` : '🌐 جميع الطلاب'}</span>
+                  <span className="rounded-lg bg-orange-100 px-2 py-1 text-xs font-bold text-orange-700">{game.teacherId ? `👨‍🏫 ${game.teacherName || game.teacherId}` : 'جميع الطلاب'}</span>
                   <span className={`rounded-lg px-2 py-1 text-xs font-bold ${game.isActive ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-600'}`}>
-                    {game.isActive ? '✅ مفعّلة' : '⏸️ معطّلة'}
+                    {game.isActive ? 'مفعّلة' : 'معطّلة'}
                   </span>
                 </div>
                 <div className="mt-auto flex gap-2">
-                  <button onClick={() => beginEditing(game)} className="flex-1 rounded-xl bg-violet-100 py-2 text-sm font-bold text-violet-700 transition-all hover:bg-violet-200">✏️ تعديل</button>
+                  <button onClick={() => beginEditing(game)} className="flex-1 rounded-xl bg-violet-100 py-2 text-sm font-bold text-violet-700 transition-all hover:bg-violet-200">تعديل</button>
                   <button onClick={() => void toggleActive(game)} className="flex-1 rounded-xl bg-sky-100 py-2 text-sm font-bold text-sky-700 transition-all hover:bg-sky-200">
-                    {game.isActive ? '⏸️ إخفاء' : '▶️ إظهار'}
+                    {game.isActive ? 'إخفاء' : '▶️ إظهار'}
                   </button>
-                  <button onClick={() => void handleDelete(game)} className="flex-1 rounded-xl bg-red-100 py-2 text-sm font-bold text-red-600 transition-all hover:bg-red-200">{game.builtin ? '↺ الأصل' : '❌ حذف'}</button>
+                  <button onClick={() => void handleDelete(game)} className="flex-1 rounded-xl bg-red-100 py-2 text-sm font-bold text-red-600 transition-all hover:bg-red-200">{game.builtin ? '↺ الأصل' : 'حذف'}</button>
                 </div>
               </article>
             ))}
             {!loading && visibleGames.length === 0 && (
               <div className="col-span-full rounded-[40px] border-2 border-dashed border-violet-300 bg-violet-50 p-16 text-center animate-popIn">
-                <div className="mb-6 text-7xl">🎮</div>
                 <h3 className="mb-3 text-2xl font-black text-violet-800">لا توجد ألعاب بعد</h3>
                 <p className="font-bold text-violet-600">أضف لعبة وأسندها إلى معلّم لتظهر لطلابه في «عالم الترفيه».</p>
               </div>
             )}
-            {loading && <div className="col-span-full p-10 text-center font-black text-violet-700">⏳ جارٍ تحميل الألعاب…</div>}
+            {loading && <div className="col-span-full p-10 text-center font-black text-violet-700">جارٍ تحميل الألعاب…</div>}
           </div>
         </>
       )}

@@ -37,7 +37,7 @@ const PermissionsSettings: React.FC<PermissionsSettingsProps> = ({ onUpdate }) =
   const handleSave = () => {
     localStorage.setItem(STORAGE_KEYS.PERMISSIONS, JSON.stringify(permissions));
     setHasChanges(false);
-    alert('✅ تم حفظ الصلاحيات بنجاح!');
+    alert('تم حفظ الصلاحيات بنجاح!');
     if (onUpdate) onUpdate();
   };
 
@@ -51,30 +51,30 @@ const PermissionsSettings: React.FC<PermissionsSettingsProps> = ({ onUpdate }) =
   const getPermissionLabel = (key: string): string => {
     const labels: Record<string, string> = {
       // صلاحيات المعلمين
-      canManageAcademicSettings: '📚 إدارة الإعدادات الأكاديمية',
-      canEditGeneralSettings: '⚙️ تعديل الإعدادات العامة',
-      canManageContent: '📝 إدارة المحتوى التعليمي',
-      canManageVideos: '🎬 إدارة الفيديوهات',
-      canCreateParents: '👨‍👦 إنشاء أولياء أمور',
-      canEditParents: '✏️ تعديل أولياء أمور',
-      canDeleteParents: '🗑️ حذف أولياء أمور',
-      canManageParentPermissions: '🔐 منح صلاحيات مخصصة لولي الأمر',
-      canCreatePermissionPackages: '🔐 إنشاء بكجات صلاحيات',
-      canCreateStudents: '👨‍🎓 إنشاء طلاب',
-      canEditStudents: '✏️ تعديل طلاب',
-      canDeleteStudents: '🗑️ حذف طلاب',
-      canViewReports: '📊 عرض التقارير',
-      canManageQuizzes: '📝 إدارة الاختبارات',
+      canManageAcademicSettings: 'إدارة الإعدادات الأكاديمية',
+      canEditGeneralSettings: 'تعديل الإعدادات العامة',
+      canManageContent: 'إدارة المحتوى التعليمي',
+      canManageVideos: 'إدارة الفيديوهات',
+      canCreateParents: 'إنشاء أولياء أمور',
+      canEditParents: 'تعديل أولياء أمور',
+      canDeleteParents: 'حذف أولياء أمور',
+      canManageParentPermissions: 'منح صلاحيات مخصصة لولي الأمر',
+      canCreatePermissionPackages: 'إنشاء بكجات صلاحيات',
+      canCreateStudents: 'إنشاء طلاب',
+      canEditStudents: 'تعديل طلاب',
+      canDeleteStudents: 'حذف طلاب',
+      canViewReports: 'عرض التقارير',
+      canManageQuizzes: 'إدارة الاختبارات',
       // صلاحيات أولياء الأمور
-      canResetStudentPassword: '🔑 إعادة تعيين كلمة مرور الأبناء',
-      canChangeGrade: '🔄 تغيير الصف للطالب',
-      canChatWithSupport: '💬 التواصل مع الدعم',
+      canResetStudentPassword: 'إعادة تعيين كلمة مرور الأبناء',
+      canChangeGrade: 'تغيير الصف للطالب',
+      canChatWithSupport: 'التواصل مع الدعم',
       // صلاحيات الطلاب
-      canAccessChat: '💬 الوصول للدردشة',
-      canAccessLiveMeeting: '🎥 الوصول للقاءات المباشرة',
-      canRetakeQuiz: '🔄 إعادة الاختبار',
-      canViewSolutions: '📖 عرض الحلول',
-      canDownloadCertificates: '📜 تحميل الشهادات',
+      canAccessChat: 'الوصول للدردشة',
+      canAccessLiveMeeting: 'الوصول للقاءات المباشرة',
+      canRetakeQuiz: 'إعادة الاختبار',
+      canViewSolutions: 'عرض الحلول',
+      canDownloadCertificates: 'تحميل الشهادات',
     };
     return labels[key] || key;
   };
@@ -139,9 +139,9 @@ const PermissionsSettings: React.FC<PermissionsSettingsProps> = ({ onUpdate }) =
   const renderPermissionCard = (role: 'teacher' | 'parent' | 'student') => {
     const rolePermissions = permissions[role];
     const roleLabels = {
-      teacher: '👨‍🏫 صلاحيات المعلمين',
-      parent: '👨‍👦 صلاحيات أولياء الأمور',
-      student: '👨‍🎓 صلاحيات الطلاب',
+      teacher: 'صلاحيات المعلمين',
+      parent: 'صلاحيات أولياء الأمور',
+      student: 'صلاحيات الطلاب',
     };
 
     return (
@@ -183,7 +183,7 @@ const PermissionsSettings: React.FC<PermissionsSettingsProps> = ({ onUpdate }) =
     return (
       <div style={styles.limitsSection}>
         <div style={styles.limitsHeader}>
-          <h3 style={styles.limitsTitle}>📏 الحدود العددية والمساحة</h3>
+          <h3 style={styles.limitsTitle}>الحدود العددية والمساحة</h3>
           <p style={styles.limitsHint}>القيمة -1 تعني غير محدود</p>
         </div>
         <div style={styles.limitsGrid}>
@@ -210,12 +210,12 @@ const PermissionsSettings: React.FC<PermissionsSettingsProps> = ({ onUpdate }) =
       <div className="dashboard-page dashboard-consistent-page dashboard-permissions-page" style={styles.container}>
        <div className="dashboard-section-header" style={styles.header}>
         <div>
-          <h1 style={styles.title}>🔐 إدارة الصلاحيات</h1>
+          <h1 style={styles.title}>إدارة الصلاحيات</h1>
           <p style={styles.subtitle}>تحكم في صلاحيات المعلمين وأولياء الأمور والطلاب</p>
         </div>
         <div style={styles.headerActions}>
           <button onClick={handleReset} style={styles.resetButton}>
-            🔄 إعادة تعيين
+            إعادة تعيين
           </button>
           <button
             onClick={handleSave}
@@ -225,7 +225,7 @@ const PermissionsSettings: React.FC<PermissionsSettingsProps> = ({ onUpdate }) =
             }}
             title={hasChanges ? 'حفظ التعديلات في قاعدة البيانات' : 'لا توجد تعديلات جديدة'}
           >
-            💾 حفظ التغييرات
+            حفظ التغييرات
           </button>
         </div>
       </div>
@@ -248,7 +248,7 @@ const PermissionsSettings: React.FC<PermissionsSettingsProps> = ({ onUpdate }) =
             ...(activeTab === 'teacher' ? styles.activeTab : {})
           }}
         >
-          👨‍🏫 المعلمين
+          المعلمين
         </button>
         <button
           onClick={() => setActiveTab('parent')}
@@ -257,7 +257,7 @@ const PermissionsSettings: React.FC<PermissionsSettingsProps> = ({ onUpdate }) =
             ...(activeTab === 'parent' ? styles.activeTab : {})
           }}
         >
-          👨‍👦 أولياء الأمور
+          أولياء الأمور
         </button>
         <button
           onClick={() => setActiveTab('student')}
@@ -266,7 +266,7 @@ const PermissionsSettings: React.FC<PermissionsSettingsProps> = ({ onUpdate }) =
             ...(activeTab === 'student' ? styles.activeTab : {})
           }}
         >
-          👨‍🎓 الطلاب
+          الطلاب
         </button>
       </div>
 

@@ -243,7 +243,7 @@ const VideoManagement: React.FC<VideoManagementProps> = ({ teacherId, teacherNam
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!canManageVideos) {
-      alert(`⚠️ ليس لديك صلاحية ${editingVideo ? 'إدارة' : 'إضافة'} الفيديوهات`);
+      alert(`ليس لديك صلاحية ${editingVideo ? 'إدارة' : 'إضافة'} الفيديوهات`);
       return;
     }
     if (!ownerId) {
@@ -304,7 +304,7 @@ const VideoManagement: React.FC<VideoManagementProps> = ({ teacherId, teacherNam
           return;
         }
         if (!isAdmin && isLimitReached(videos.length + videosToCreate.length, permissions.maxVideos)) {
-          alert(`⚠️ ستتجاوز الحد الأقصى المسموح به (${permissions.maxVideos}) من الفيديوهات`);
+          alert(`ستتجاوز الحد الأقصى المسموح به (${permissions.maxVideos}) من الفيديوهات`);
           return;
         }
         for (const draft of videosToCreate) {
@@ -321,7 +321,7 @@ const VideoManagement: React.FC<VideoManagementProps> = ({ teacherId, teacherNam
             notifs.push({
               id: `${Date.now()}-${video.id}`,
               type: 'new_video',
-              message: `🎬 أضاف المعلم ${ownerName} فيديو جديد: "${video.title}" (${formData.gradeId})`,
+              message: `أضاف المعلم ${ownerName} فيديو جديد: "${video.title}" (${formData.gradeId})`,
               teacherId: ownerId,
               teacherName: ownerName,
               videoId: video.id,
@@ -347,7 +347,7 @@ const VideoManagement: React.FC<VideoManagementProps> = ({ teacherId, teacherNam
 
   const handleDelete = async (video: CinemaVideo) => {
     if (!canManageVideos) {
-      alert('⚠️ ليس لديك صلاحية حذف الفيديوهات');
+      alert('ليس لديك صلاحية حذف الفيديوهات');
       return;
     }
     if (!confirm('هل أنت متأكد من حذف هذا الفيديو؟')) return;
@@ -376,7 +376,7 @@ const VideoManagement: React.FC<VideoManagementProps> = ({ teacherId, teacherNam
      <div className="dashboard-page dashboard-consistent-page dashboard-video-page animate-fadeIn">
        <div className="dashboard-section-header">
         <div>
-           <h2 className="text-4xl font-black text-amber-800">🎬 إدارة سينما منارة</h2>
+           <h2 className="text-4xl font-black text-amber-800">إدارة سينما منارة</h2>
            <p className="text-amber-500 font-medium mt-1">
              {isAdmin ? 'فيديوهات لكل صف دراسي، مسندة إلى المعلم المسؤول' : 'أضف فيديوهات لطلابك في كل صف دراسي'}
            </p>
@@ -395,7 +395,7 @@ const VideoManagement: React.FC<VideoManagementProps> = ({ teacherId, teacherNam
            }}
           className="px-6 py-3 bg-gradient-to-r from-amber-400 to-orange-500 text-white rounded-2xl font-black shadow-xl hover:scale-105 transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
         >
-          {showForm ? '❌ إلغاء' : '➕ فيديو جديد'}
+          {showForm ? 'إلغاء' : 'فيديو جديد'}
         </button>
       </div>
 
@@ -408,7 +408,7 @@ const VideoManagement: React.FC<VideoManagementProps> = ({ teacherId, teacherNam
 
        <div className="dashboard-filter-surface border-amber-200 bg-amber-50/80">
          <div className="mb-3 flex flex-col items-stretch gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <h3 className="text-lg font-black text-amber-800">🔎 فلترة الفيديوهات</h3>
+          <h3 className="text-lg font-black text-amber-800">فلترة الفيديوهات</h3>
           <button
             onClick={() => setFilters({ grade: '', teacher: '' })}
              className="min-h-11 rounded-lg bg-white px-3 py-2 text-xs font-bold text-amber-700 hover:bg-amber-100 sm:min-h-0 sm:py-1"
@@ -418,12 +418,12 @@ const VideoManagement: React.FC<VideoManagementProps> = ({ teacherId, teacherNam
         </div>
          <div className="dashboard-filter-grid">
           <select value={filters.grade} onChange={(e) => setFilters({ ...filters, grade: e.target.value })} className="rounded-xl border-2 border-amber-200 bg-white p-3 font-bold text-amber-900">
-            <option value="">🎓 كل الصفوف</option>
+            <option value="">كل الصفوف</option>
             {filterGrades.map(grade => <option key={grade} value={grade}>{grade}</option>)}
           </select>
           {isAdmin && (
             <select value={filters.teacher} onChange={(e) => setFilters({ ...filters, teacher: e.target.value })} className="rounded-xl border-2 border-amber-200 bg-white p-3 font-bold text-amber-900">
-              <option value="">👨‍🏫 كل المعلمين</option>
+              <option value="">كل المعلمين</option>
               {filterTeachers.map(([id, name]) => <option key={id} value={id}>{name}</option>)}
             </select>
           )}
@@ -435,7 +435,7 @@ const VideoManagement: React.FC<VideoManagementProps> = ({ teacherId, teacherNam
           <div className="flex flex-col gap-2 border-b border-amber-100 pb-4 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <h3 className="text-2xl font-black text-amber-900">
-                {editingVideo ? '✏️ تعديل فيديو سينما منارة' : '🎬 إضافة فيديوهات إلى سينما منارة'}
+                {editingVideo ? 'تعديل فيديو سينما منارة' : 'إضافة فيديوهات إلى سينما منارة'}
               </h3>
               <p className="mt-1 text-sm font-bold text-amber-600">
                 الفيديو يظهر لكل طلاب المعلم المسؤول في الصف المختار، أيّاً كان الدرس الذي يتصفّحونه.
@@ -451,7 +451,7 @@ const VideoManagement: React.FC<VideoManagementProps> = ({ teacherId, teacherNam
           <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
             <div>
               <label htmlFor="cinema-teacher" className="mb-2 block text-sm font-black text-amber-900">
-                👨‍🏫 المعلم المسؤول <span className="text-red-600">*</span>
+                المعلم المسؤول <span className="text-red-600">*</span>
               </label>
               {isAdmin ? (
                 <select
@@ -481,7 +481,7 @@ const VideoManagement: React.FC<VideoManagementProps> = ({ teacherId, teacherNam
             </div>
             <div>
               <label htmlFor="cinema-grade" className="mb-2 block text-sm font-black text-amber-900">
-                🎓 الصف الدراسي <span className="text-red-600">*</span>
+                الصف الدراسي <span className="text-red-600">*</span>
               </label>
               <select
                 id="cinema-grade"
@@ -523,14 +523,14 @@ const VideoManagement: React.FC<VideoManagementProps> = ({ teacherId, teacherNam
                       onClick={() => setFormData({ ...formData, sourceType: 'embed', url: formData.sourceType === 'mp4' ? '' : formData.url, file: null })}
                       className={`flex-1 rounded-xl px-3 py-3 text-sm font-black ${formData.sourceType === 'embed' ? 'bg-amber-500 text-white shadow-md' : 'text-amber-700'}`}
                     >
-                      🔗 رابط مضمن
+                      رابط مضمن
                     </button>
                     <button
                       type="button"
                       onClick={() => setFormData({ ...formData, sourceType: 'mp4', url: '' })}
                       className={`flex-1 rounded-xl px-3 py-3 text-sm font-black ${formData.sourceType === 'mp4' ? 'bg-amber-500 text-white shadow-md' : 'text-amber-700'}`}
                     >
-                      📁 رفع MP4
+                      رفع MP4
                     </button>
                   </div>
                   {formData.sourceType === 'embed' ? (
@@ -556,7 +556,7 @@ const VideoManagement: React.FC<VideoManagementProps> = ({ teacherId, teacherNam
               ) : (
                 <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
                   <div className="space-y-2">
-                    <label className="block text-sm font-black text-amber-800">🔗 رابط مضمن</label>
+                    <label className="block text-sm font-black text-amber-800">رابط مضمن</label>
                     <input
                       type="url"
                       placeholder="https://www.youtube.com/watch?v=..."
@@ -566,7 +566,7 @@ const VideoManagement: React.FC<VideoManagementProps> = ({ teacherId, teacherNam
                     />
                   </div>
                   <div className="space-y-2">
-                    <label className="block text-sm font-black text-amber-800">📁 ملف فيديو MP4</label>
+                    <label className="block text-sm font-black text-amber-800">ملف فيديو MP4</label>
                     <label className="block cursor-pointer rounded-2xl border-[3px] border-dashed border-amber-300 bg-amber-50 p-4 text-center font-bold text-amber-700 transition hover:bg-amber-100">
                       <span>{formData.file?.name || 'اختر ملف MP4 بحد أقصى 500MB'}</span>
                       <input
@@ -596,14 +596,14 @@ const VideoManagement: React.FC<VideoManagementProps> = ({ teacherId, teacherNam
               onClick={addCinemaVideo}
               className="w-full rounded-2xl border-2 border-amber-300 bg-amber-100 px-4 py-4 text-lg font-black text-amber-800 transition hover:bg-amber-200 active:scale-[.99]"
             >
-              ➕ إضافة هذا الفيديو إلى القائمة
+              إضافة هذا الفيديو إلى القائمة
             </button>
           )}
 
           {formData.pendingVideos.length > 0 && (
             <div className="space-y-3 rounded-3xl border-2 border-amber-200 bg-amber-50/70 p-4">
               <div className="flex items-center justify-between gap-3">
-                <p className="font-black text-amber-900">🎬 فيديوهات هذه الإضافة</p>
+                <p className="font-black text-amber-900">فيديوهات هذه الإضافة</p>
                 <span className="text-xs font-bold text-amber-600">ستُحفظ كلها لنفس الصف والمعلم</span>
               </div>
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
@@ -635,7 +635,7 @@ const VideoManagement: React.FC<VideoManagementProps> = ({ teacherId, teacherNam
             disabled={saving}
             className="w-full bg-gradient-to-r from-amber-400 to-orange-500 py-4 text-xl font-black text-white rounded-2xl shadow-xl transition-all hover:scale-[1.02] hover:-translate-y-0.5 active:scale-95 disabled:opacity-60"
           >
-            {saving ? '⏳ جارٍ الحفظ…' : editingVideo ? '💾 حفظ التعديل' : '💾 حفظ ونشر فيديوهات السينما'}
+            {saving ? 'جارٍ الحفظ…' : editingVideo ? 'حفظ التعديل' : 'حفظ ونشر فيديوهات السينما'}
           </button>
         </form>
       )}
@@ -666,24 +666,23 @@ const VideoManagement: React.FC<VideoManagementProps> = ({ teacherId, teacherNam
                   {(video.teacherName || video.teacherId) && (
                     <span className="px-2 py-1 bg-orange-100 text-orange-700 rounded-lg text-xs font-bold">👨‍🏫 {video.teacherName || video.teacherId}</span>
                   )}
-                  {video.createdBy === 'admin' && <span className="px-2 py-1 bg-sky-100 text-sky-700 rounded-lg text-xs font-bold">🛡️ أضافه المشرف</span>}
+                  {video.createdBy === 'admin' && <span className="px-2 py-1 bg-sky-100 text-sky-700 rounded-lg text-xs font-bold">أضافه المشرف</span>}
                 </div>
                 <div className="flex gap-2">
-                  <button disabled={!canManageVideos} onClick={() => beginEditingVideo(video)} className="flex-1 py-2 bg-amber-100 text-amber-700 rounded-xl font-bold hover:bg-amber-200 transition-all text-sm disabled:opacity-50">✏️ تعديل</button>
-                  <button disabled={!canManageVideos} onClick={() => void handleDelete(video)} className="flex-1 py-2 bg-red-100 text-red-600 rounded-xl font-bold hover:bg-red-200 transition-all text-sm disabled:opacity-50">❌ حذف</button>
+                  <button disabled={!canManageVideos} onClick={() => beginEditingVideo(video)} className="flex-1 py-2 bg-amber-100 text-amber-700 rounded-xl font-bold hover:bg-amber-200 transition-all text-sm disabled:opacity-50">تعديل</button>
+                  <button disabled={!canManageVideos} onClick={() => void handleDelete(video)} className="flex-1 py-2 bg-red-100 text-red-600 rounded-xl font-bold hover:bg-red-200 transition-all text-sm disabled:opacity-50">حذف</button>
                 </div>
               </div>
             </div>
         ))}
         {!loading && filteredVideos.length === 0 && (
           <div className="col-span-full p-16 bg-amber-50 rounded-[40px] border-2 border-dashed border-amber-300 text-center animate-popIn">
-            <div className="text-7xl mb-6">🎬</div>
             <h3 className="text-2xl font-black text-amber-800 mb-3">لا توجد فيديوهات مطابقة للفلاتر</h3>
-            <p className="text-amber-600 font-bold">جرّب تغيير الفلاتر أو أضف فيديو جديد ✓</p>
+            <p className="text-amber-600 font-bold">جرّب تغيير الفلاتر أو أضف فيديو جديد</p>
           </div>
         )}
         {loading && (
-          <div className="col-span-full p-10 text-center font-black text-amber-700">⏳ جارٍ تحميل الفيديوهات…</div>
+          <div className="col-span-full p-10 text-center font-black text-amber-700">جارٍ تحميل الفيديوهات…</div>
         )}
       </div>
     </div>
