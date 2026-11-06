@@ -17,6 +17,11 @@ export const ART = {
   girl: '/illustrations/girl.webp',
   reader: '/illustrations/reader.webp',
   robot: '/illustrations/robot.webp',
+  lighthouse: '/illustrations/lighthouse.webp',
+  board: '/illustrations/board.webp',
+  kidsRun: '/illustrations/kids-run.webp',
+  /** خامةُ الخلفية: الفصلُ الدراسي، يُعرض باهتاً تحت الكحلي. */
+  classroom: '/illustrations/classroom.webp',
 } as const;
 
 /** صورةُ المادة من اسمها: القرآن والنورانية، الرياضيات، العلوم، الإنجليزية، العربية. */

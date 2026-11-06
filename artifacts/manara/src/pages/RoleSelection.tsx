@@ -30,7 +30,7 @@ const roles: RoleCard[] = [
     features: ['الدروس والاختبارات', 'تقارير الطلاب وأولياء الأمور', 'إصدار الشهادات'],
     icon: Presentation,
     tone: 'primary',
-    art: ART.books,
+    art: ART.board,
   },
   {
     id: 'parent',
@@ -39,7 +39,7 @@ const roles: RoleCard[] = [
     features: ['الدرجات ونتائج الاختبارات', 'المستوى والنشاط والجواهر', 'التقارير والشهادات للطباعة'],
     icon: UsersRound,
     tone: 'accent',
-    art: ART.kids,
+    art: ART.kidsRun,
   },
   {
     id: 'admin',
@@ -81,10 +81,10 @@ const RoleSelection: React.FC<RoleSelectionProps> = (props) => {
   return (
     <div className="portal-auth portal-roles" dir="rtl">
       <div className="portal-roles-band" aria-hidden="true">
-        {/* ‏أشياءُ المنصّة تطفو في الشريط: كرةٌ أرضية وكتبٌ والمساعد الذكي. */}
+        {/* ‏المنارةُ رمزُ المنصّة في طرف الشريط، والكرةُ الأرضية تطفو بجانبها؛
+            وتحتهما خامةُ الفصل الدراسي باهتةً تحت الكحلي (portal.css). */}
+        <img className="portal-roles-lighthouse" src={ART.lighthouse} alt="" />
         <img className="portal-float portal-float-globe" src={ART.globe} alt="" />
-        <img className="portal-float portal-float-books" src={ART.booksStack} alt="" />
-        <img className="portal-float portal-float-robot" src={ART.robot} alt="" />
       </div>
       <div className="portal-roles-inner">
         <header className="portal-roles-header">
