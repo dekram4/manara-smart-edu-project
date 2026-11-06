@@ -20,17 +20,7 @@ import { readStorageArray } from '../../utils/storage';
 import { getRecordTeacherId, getTeacherParents, getTeacherStudents, normalizeScopeValue } from '../../utils/scope';
 import { getQuizResultPercentage } from '../../utils/quizScoring';
 import { getStudentProgressSummary } from '../../utils/studentProgress';
-import {
-  Badge,
-  EmptyState,
-  PageHeader,
-  Panel,
-  ProgressBar,
-  StatCard,
-  relativeDay,
-  scoreLabel,
-  scoreTone,
-} from '../../components/portal/PortalUI';
+import { Badge, EmptyState, PageHeader, Panel, ProgressBar, StatCard, relativeDay, scoreLabel, scoreTone, ART } from '../../components/portal/PortalUI';
 import { ActivityArea, ScoreDonut } from '../../components/portal/PortalCharts';
 
 interface TeacherHomeProps {
@@ -173,6 +163,7 @@ const TeacherHome: React.FC<TeacherHomeProps> = ({
         title={`مرحباً، ${teacher.name}`}
         description="ملخّص فصولك وطلابك اليوم، ومن يحتاج متابعتك."
         icon={School}
+        art={ART.books}
         actions={
           <>
             {canOpen(TeacherMenuType.ACCOUNT_MANAGEMENT) && (

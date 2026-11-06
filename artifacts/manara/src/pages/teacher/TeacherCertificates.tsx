@@ -8,7 +8,7 @@ import { normalizeQuizType } from '../../utils/quizTypes';
 import { Award, Eye, GraduationCap, Pencil, Plus, Star, Trash2, Trophy } from 'lucide-react';
 import { CERTIFICATE_TYPES, certificateDocument, certificateNumber, issuerOf } from '../../utils/officialDocuments';
 import DocumentPreview from '../../components/portal/DocumentPreview';
-import { Badge, EmptyState, PageHeader, Panel, StatCard, relativeDay, scoreTone } from '../../components/portal/PortalUI';
+import { Badge, EmptyState, PageHeader, Panel, StatCard, relativeDay, scoreTone, ART } from '../../components/portal/PortalUI';
 
 interface TeacherCertificatesProps {
   /** معرّفُ المعلم — وفي وضع المشرف يُترك فارغاً. */
@@ -248,6 +248,7 @@ const TeacherCertificates: React.FC<TeacherCertificatesProps> = ({ teacherId, te
           ? 'إصدار الشهادات لطلاب المنصّة، ومعاينتها وطباعتها بتنسيقٍ رسمي.'
           : 'إصدار شهادات التفوّق والتقدير والمشاركة لطلابك، ومعاينتها وطباعتها بتنسيقٍ رسمي.'}
         icon={Award}
+        art={ART.reader}
         actions={isAdmin ? (
           <label className="flex items-center gap-2 text-sm font-bold text-slate-600">
             يُوقَّع باسم

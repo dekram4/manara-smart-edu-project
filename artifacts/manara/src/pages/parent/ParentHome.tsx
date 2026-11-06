@@ -38,18 +38,7 @@ import { CERTIFICATE_TYPES, certificateNumber, studentReportDocument } from '../
 import DocumentPreview from '../../components/portal/DocumentPreview';
 import { ActivityArea } from '../../components/portal/PortalCharts';
 import { initialOf } from '../../components/portal/PortalShell';
-import {
-  Badge,
-  EmptyState,
-  PageHeader,
-  Panel,
-  ProgressBar,
-  StatCard,
-  type PortalTone,
-  relativeDay,
-  scoreLabel,
-  scoreTone,
-} from '../../components/portal/PortalUI';
+import { Badge, EmptyState, PageHeader, Panel, ProgressBar, StatCard, type PortalTone, relativeDay, scoreLabel, scoreTone, ART, studentArt, subjectArt } from '../../components/portal/PortalUI';
 
 interface ParentHomeProps {
   parent: ParentInfo;
@@ -86,17 +75,10 @@ const lastSeen = (child: StudentInfo): string | undefined => {
 
 const ChildAvatar: React.FC<{ child: StudentInfo; index: number; large?: boolean }> = ({ child, index, large }) => (
   <span
-    className={`portal-avatar tone-${AVATAR_TONES[index % AVATAR_TONES.length]}`}
-    style={{
-      background: 'var(--tone-soft)',
-      color: 'var(--tone)',
-      width: large ? '3.5rem' : '2.75rem',
-      height: large ? '3.5rem' : '2.75rem',
-      fontSize: large ? '1.35rem' : '1.05rem',
-    }}
+    className={`portal-child-avatar tone-${AVATAR_TONES[index % AVATAR_TONES.length]}${large ? ' is-large' : ''}`}
     aria-hidden="true"
   >
-    {initialOf(child.name)}
+    <img src={studentArt(child.gender)} alt="" loading="lazy" />
   </span>
 );
 
@@ -179,6 +161,7 @@ const ParentHome: React.FC<ParentHomeProps> = (props) => {
         title={`مرحباً، ${parent.name}`}
         description="متابعةُ أبنائك في مكانٍ واحد: الدرجات والنشاط والمستوى والشهادات."
         icon={UsersRound}
+        art={ART.kids}
         actions={
           props.canAddChild ? (
             <button type="button" className="portal-btn portal-btn-primary" onClick={props.onAddChild}>
@@ -454,7 +437,12 @@ const ChildReport: React.FC<
               <tbody>
                 {subjectRows.map((item) => (
                   <tr key={item.subject}>
-                    <td className="font-bold text-slate-800">{item.subject}</td>
+                    <td>
+                      <span className="flex items-center gap-2.5 font-bold text-slate-800">
+                        <img className="portal-subject-art" src={subjectArt(item.subject)} alt="" aria-hidden="true" loading="lazy" />
+                        {item.subject}
+                      </span>
+                    </td>
                     <td className="is-num">{item.count}</td>
                     <td>
                       {item.average === null ? (

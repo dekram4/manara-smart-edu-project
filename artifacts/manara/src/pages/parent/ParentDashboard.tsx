@@ -15,7 +15,7 @@ import { formatAcademicPath, pathCell, quizResultPath } from '../../utils/academ
 import { getParentChildren, getParentTeacherId, getRecordTeacherId, getStudentTeacherScope } from '../../utils/scope';
 import PortalShell, { PortalNavItem } from '../../components/portal/PortalShell';
 import DocumentPreview from '../../components/portal/DocumentPreview';
-import { Badge, EmptyState, PageHeader, Panel } from '../../components/portal/PortalUI';
+import { Badge, EmptyState, PageHeader, Panel, ART } from '../../components/portal/PortalUI';
 import ParentHome from './ParentHome';
 import { CERTIFICATE_TYPES, certificateDocument, certificateNumber } from '../../utils/officialDocuments';
 import type { LucideIcon } from 'lucide-react';
@@ -1167,6 +1167,7 @@ const ParentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
               title="الشهادات"
               description="معاينة شهادات أبنائك وطباعتها بتنسيقٍ رسمي جاهز للتعليق والحفظ."
               icon={Award}
+              art={ART.reader}
             />
             <Panel
               title={`${filteredCertificates.length} شهادة`}
