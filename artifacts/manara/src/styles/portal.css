@@ -3444,11 +3444,30 @@ button.portal-stat:hover,
   height: 1rem;
 }
 
-/* ‏على اللمس لا مرور: النقرةُ تفتح البوابة مباشرة، فلا منبثقة ولا تلميح. */
+/* ‏على اللمس لا مرور: النقرةُ الأولى تفتح المنبثقة (`.is-open`)، وزرُّ
+   «الدخول» يفتح البوابة. والتلميحُ يقول «اضغط» بدل «مرّر». */
+.portal-role-card.is-open > .portal-role-popover {
+  opacity: 1;
+  visibility: visible;
+  transform: none;
+  pointer-events: auto;
+  transition:
+    opacity 260ms ease,
+    transform 360ms cubic-bezier(0.22, 1, 0.36, 1),
+    visibility 0s;
+}
+
+.portal-role-hint .when-touch {
+  display: none;
+}
+
 @media (hover: none) {
-  .portal-role-card > .portal-role-popover,
-  .portal-role-hint {
+  .portal-role-hint .when-hover {
     display: none;
+  }
+
+  .portal-role-hint .when-touch {
+    display: inline;
   }
 }
 
