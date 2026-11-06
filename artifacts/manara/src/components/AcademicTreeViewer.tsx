@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { Check, Pencil, Trash2, Undo2 } from 'lucide-react';
 
 /**
  * شجرة الإعدادات الأكاديمية: مكوّن واحد تعرضه لوحة المشرف ولوحة المعلم.
@@ -155,9 +156,9 @@ const AcademicTreeViewer: React.FC<AcademicTreeViewerProps> = ({
           }}
           style={styles.nodeInput}
         />
-        <button onClick={commit} style={styles.tinyEditButton} title="حفظ">✅</button>
-        <button onClick={() => setEditingNode(null)} style={styles.tinyDeleteButton} title="إلغاء">
-          ↩️
+        <button onClick={commit} className="portal-tree-btn is-tiny" title="حفظ"><Check aria-hidden="true" /></button>
+        <button onClick={() => setEditingNode(null)} className="portal-tree-btn is-danger is-tiny" title="إلغاء">
+          <Undo2 aria-hidden="true" />
         </button>
       </span>
     );
@@ -204,18 +205,18 @@ const AcademicTreeViewer: React.FC<AcademicTreeViewerProps> = ({
               <div style={{ display: 'flex', gap: '8px' }}>
                 <button
                   onClick={() => openEdit(gradeKey, config.grade)}
-                  style={styles.editButton}
+                  className="portal-tree-btn"
                   title="تعديل الصف"
                 >
-                  ✏️
+                  <Pencil aria-hidden="true" />
                 </button>
                 <button
                   onClick={() => onDeleteGrade(gradeNode)}
-                  style={deletable ? styles.deleteButton : styles.deleteButtonDisabled}
+                  className="portal-tree-btn is-danger"
                   disabled={!deletable}
                   title={deletable ? 'حذف الصف' : 'هذا الصف ليس من إعداداتك'}
                 >
-                  🗑️
+                  <Trash2 aria-hidden="true" />
                 </button>
               </div>
             </div>
@@ -239,17 +240,17 @@ const AcademicTreeViewer: React.FC<AcademicTreeViewerProps> = ({
                       <div style={{ display: 'flex', gap: '6px' }}>
                         <button
                           onClick={() => openEdit(subjectKey, subject.subject)}
-                          style={styles.smallEditButton}
+                          className="portal-tree-btn is-small"
                           title="تعديل المادة"
                         >
-                          ✏️
+                          <Pencil aria-hidden="true" />
                         </button>
                         <button
                           onClick={() => onDeleteSubject(subjectNode)}
-                          style={styles.smallDeleteButton}
+                          className="portal-tree-btn is-danger is-small"
                           title="حذف المادة"
                         >
-                          🗑️
+                          <Trash2 aria-hidden="true" />
                         </button>
                       </div>
                     </div>
@@ -271,17 +272,17 @@ const AcademicTreeViewer: React.FC<AcademicTreeViewerProps> = ({
                               <div style={{ display: 'flex', gap: '6px' }}>
                                 <button
                                   onClick={() => openEdit(termKey, term.term)}
-                                  style={styles.smallEditButton}
+                                  className="portal-tree-btn is-small"
                                   title="تعديل الفصل"
                                 >
-                                  ✏️
+                                  <Pencil aria-hidden="true" />
                                 </button>
                                 <button
                                   onClick={() => onDeleteTerm(termNode)}
-                                  style={styles.smallDeleteButton}
+                                  className="portal-tree-btn is-danger is-small"
                                   title="حذف الفصل"
                                 >
-                                  🗑️
+                                  <Trash2 aria-hidden="true" />
                                 </button>
                               </div>
                             </div>
@@ -310,17 +311,17 @@ const AcademicTreeViewer: React.FC<AcademicTreeViewerProps> = ({
                                         )}
                                         <button
                                           onClick={() => openEdit(unitKey, unit)}
-                                          style={styles.tinyEditButton}
+                                          className="portal-tree-btn is-tiny"
                                           title="تعديل الوحدة"
                                         >
-                                          ✏️
+                                          <Pencil aria-hidden="true" />
                                         </button>
                                         <button
                                           onClick={() => onDeleteUnit(unitNode)}
-                                          style={styles.tinyDeleteButton}
+                                          className="portal-tree-btn is-danger is-tiny"
                                           title="حذف الوحدة"
                                         >
-                                          🗑️
+                                          <Trash2 aria-hidden="true" />
                                         </button>
                                       </div>
 
@@ -371,17 +372,17 @@ const AcademicTreeViewer: React.FC<AcademicTreeViewerProps> = ({
                                                 />
                                                 <button
                                                   onClick={commitLesson}
-                                                  style={styles.tinyEditButton}
+                                                  className="portal-tree-btn is-tiny"
                                                   title="حفظ"
                                                 >
-                                                  ✅
+                                                  <Check aria-hidden="true" />
                                                 </button>
                                                 <button
                                                   onClick={() => setEditingLesson(null)}
-                                                  style={styles.tinyDeleteButton}
+                                                  className="portal-tree-btn is-danger is-tiny"
                                                   title="إلغاء"
                                                 >
-                                                  ↩️
+                                                  <Undo2 aria-hidden="true" />
                                                 </button>
                                               </div>
                                             ) : (
@@ -395,17 +396,17 @@ const AcademicTreeViewer: React.FC<AcademicTreeViewerProps> = ({
                                                       value: lesson,
                                                     })
                                                   }
-                                                  style={styles.tinyEditButton}
+                                                  className="portal-tree-btn is-tiny"
                                                   title="تعديل الدرس"
                                                 >
-                                                  ✏️
+                                                  <Pencil aria-hidden="true" />
                                                 </button>
                                                 <button
                                                   onClick={() => onDeleteLesson(lessonNode)}
-                                                  style={styles.tinyDeleteButton}
+                                                  className="portal-tree-btn is-danger is-tiny"
                                                   title="حذف الدرس"
                                                 >
-                                                  🗑️
+                                                  <Trash2 aria-hidden="true" />
                                                 </button>
                                               </div>
                                             );

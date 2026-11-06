@@ -2070,21 +2070,18 @@ button.portal-stat:hover,
   border-radius: var(--pt-radius-sm) !important;
 }
 
-.portal-shell .dashboard-main button[class*="bg-red-5"],
-.portal-shell .dashboard-main button[class*="bg-red-6"] {
+/* ‏الألوانُ المصمتة للأزرار الداكنة وحدها (`-500`/`-600`). كان المُحدِّدُ
+   `[class*="bg-red-5"]` يطابق `bg-red-50` الفاتح أيضاً، فيصير الزرُّ الفاتح
+   كتلةً بلون نصّه وأيقونته فتختفيان — فصارت المطابقةُ على الصنف كاملاً. */
+.portal-shell .dashboard-main button:is([class~="bg-red-500"], [class~="bg-red-600"]) {
   background-color: var(--pt-danger) !important;
 }
 
-.portal-shell .dashboard-main button[class*="bg-green-5"],
-.portal-shell .dashboard-main button[class*="bg-green-6"],
-.portal-shell .dashboard-main button[class*="bg-emerald-5"],
-.portal-shell .dashboard-main button[class*="bg-emerald-6"] {
+.portal-shell .dashboard-main button:is([class~="bg-green-500"], [class~="bg-green-600"], [class~="bg-emerald-500"], [class~="bg-emerald-600"]) {
   background-color: var(--pt-success) !important;
 }
 
-.portal-shell .dashboard-main button[class*="bg-yellow-5"],
-.portal-shell .dashboard-main button[class*="bg-amber-5"],
-.portal-shell .dashboard-main button[class*="bg-indigo-5"] {
+.portal-shell .dashboard-main button:is([class~="bg-yellow-500"], [class~="bg-amber-500"], [class~="bg-indigo-500"]) {
   background-color: var(--pt-primary) !important;
 }
 
@@ -3552,4 +3549,147 @@ button.portal-stat:hover,
   .portal-roles.is-sky .portal-roles-brand span {
     display: none;
   }
+}
+
+/* ==========================================================================
+   أزرارُ الإجراءات في كل الجداول والبطاقات
+   القاعدةُ القديمة `.manara-enterprise button:not(…):not(…)` تفرض على كل زرّ
+   حشوةً أفقية 20 بكسل وارتفاعاً 44؛ فالزرُّ الأيقوني المربّع (44) لا يبقى
+   لأيقونته إلا 4 بكسل، واستثناؤه القديم أضعفُ منها فلا يعمل. هنا بنفس
+   قوّتها وبعدها، فيغلبها.
+   ========================================================================== */
+
+/* ——— الزرُّ الأيقوني المربّع (البطاقات: تفعيل، تعديل، حذف…) ——— */
+.manara-enterprise.portal-shell button.dashboard-icon-button {
+  width: 2.4rem;
+  height: 2.4rem;
+  min-height: 0;
+  padding: 0;
+  gap: 0;
+  border-radius: 11px;
+  border: 1px solid rgb(15 31 53 / 0.08);
+  font-size: 1rem;
+}
+
+.manara-enterprise.portal-shell button.dashboard-icon-button svg {
+  width: 1.1rem;
+  height: 1.1rem;
+  flex: 0 0 auto;
+}
+
+/* ——— زرُّ إجراءٍ بنصٍّ وأيقونة (جداول المحتوى وأشباهها) ——— */
+.manara-enterprise.portal-shell button.portal-action-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  min-height: 2.15rem;
+  padding: 0.3rem 0.8rem;
+  border-radius: var(--pt-radius-sm);
+  border: 1px solid var(--pt-line);
+  background: #fff;
+  color: var(--pt-primary);
+  font-size: 0.82rem;
+  font-weight: 700;
+  line-height: 1.2;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background-color 150ms ease, border-color 150ms ease, color 150ms ease;
+}
+
+.manara-enterprise.portal-shell button.portal-action-btn svg {
+  width: 0.95rem;
+  height: 0.95rem;
+  flex: 0 0 auto;
+}
+
+.manara-enterprise.portal-shell button.portal-action-btn:hover {
+  border-color: var(--pt-primary-line);
+  background: var(--pt-primary-soft);
+}
+
+.manara-enterprise.portal-shell button.portal-action-btn.is-danger {
+  color: var(--pt-danger);
+}
+
+.manara-enterprise.portal-shell button.portal-action-btn.is-danger:hover {
+  border-color: color-mix(in srgb, var(--pt-danger) 30%, transparent);
+  background: var(--pt-danger-soft);
+}
+
+.manara-enterprise.portal-shell button.portal-action-btn:focus-visible,
+.manara-enterprise.portal-shell button.dashboard-icon-button:focus-visible {
+  outline: 3px solid rgb(31 78 140 / 0.3);
+  outline-offset: 2px;
+}
+
+/* ——— أزرارُ الخلايا القديمة (`td button`): حشوةٌ متّزنة لا تُمطّ ——— */
+.manara-enterprise.portal-shell .dashboard-main td button:not(.portal-icon-btn):not(.portal-action-btn):not(.portal-link):not(.dashboard-icon-button) {
+  min-height: 2.15rem;
+  padding: 0.3rem 0.85rem;
+  border-radius: var(--pt-radius-sm);
+  font-size: 0.82rem;
+}
+
+.manara-enterprise.portal-shell .dashboard-main td button svg {
+  flex: 0 0 auto;
+}
+
+/* ——— أزرارُ شجرة الإعدادات الأكاديمية (تعديل / حذف / حفظ / إلغاء) ——— */
+.manara-enterprise.portal-shell button.portal-tree-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.25rem;
+  height: 2.25rem;
+  min-height: 0;
+  padding: 0;
+  gap: 0;
+  border-radius: 10px;
+  border: 1px solid var(--pt-primary-line);
+  background: #fff;
+  color: var(--pt-primary);
+  cursor: pointer;
+  transition: background-color 150ms ease, border-color 150ms ease, color 150ms ease;
+}
+
+.manara-enterprise.portal-shell button.portal-tree-btn svg {
+  width: 1.05rem;
+  height: 1.05rem;
+  flex: 0 0 auto;
+}
+
+.manara-enterprise.portal-shell button.portal-tree-btn:hover {
+  background: var(--pt-primary-soft);
+}
+
+.manara-enterprise.portal-shell button.portal-tree-btn.is-danger {
+  border-color: color-mix(in srgb, var(--pt-danger) 28%, transparent);
+  color: var(--pt-danger);
+}
+
+.manara-enterprise.portal-shell button.portal-tree-btn.is-danger:hover {
+  background: var(--pt-danger-soft);
+}
+
+.manara-enterprise.portal-shell button.portal-tree-btn.is-small {
+  width: 2rem;
+  height: 2rem;
+}
+
+.manara-enterprise.portal-shell button.portal-tree-btn.is-tiny {
+  width: 1.75rem;
+  height: 1.75rem;
+  border-radius: 8px;
+}
+
+.manara-enterprise.portal-shell button.portal-tree-btn.is-tiny svg {
+  width: 0.9rem;
+  height: 0.9rem;
+}
+
+.manara-enterprise.portal-shell button.portal-tree-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  background: #fff;
 }

@@ -6,7 +6,7 @@ import { QuizQuestion, QuizType, LessonConfig, CreatedQuiz } from '../../types';
 import { STORAGE_KEYS, QUIZ_TYPES } from '../../constants';
 import { getRecordTeacherId, normalizeScopeValue } from '../../utils/scope';
 import { getPeriodicQuizLabel, getQuizTypeLabel, normalizeCreatedQuiz, normalizeQuizType } from '../../utils/quizTypes';
-import { Check as IconCheck, Pencil as IconPencil, Trash2 as IconTrash2, TriangleAlert as IconTriangleAlert } from 'lucide-react';
+import { Check as IconCheck, Pencil as IconPencil, Power as IconPower, PowerOff as IconPowerOff, Trash2 as IconTrash2, TriangleAlert as IconTriangleAlert } from 'lucide-react';
 
 interface QuizManagementProps {
   onUpdate: () => void;
@@ -1534,7 +1534,7 @@ const QuizManagement: React.FC<QuizManagementProps> = ({ onUpdate, teacherId, te
                       title={quiz.isActive ? 'تعطيل' : 'تفعيل'}
                       aria-label={quiz.isActive ? 'تعطيل الاختبار' : 'تفعيل الاختبار'}
                     >
-                      {quiz.isActive ? '🔴' : '🟢'}
+                      {quiz.isActive ? <IconPowerOff aria-hidden="true" /> : <IconPower aria-hidden="true" />}
                     </button>
                     <button
                       onClick={() => handleEdit(quiz)}

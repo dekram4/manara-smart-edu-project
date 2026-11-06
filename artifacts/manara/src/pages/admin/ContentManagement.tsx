@@ -1075,9 +1075,15 @@ const ContentManagement: React.FC<ContentManagementProps> = ({ onUpdate, teacher
                 <td className="px-6 py-5">
                   {l.liveMeetingUrl ? <span className="bg-purple-100 text-purple-600 px-3 py-1 rounded-lg text-xs font-black">موجود</span> : <span className="bg-purple-100 text-purple-400 px-3 py-1 rounded-lg text-xs font-black">غير موجود</span>}
                 </td>
-                <td className="px-6 py-5 space-x-2 space-x-reverse">
-                   <button onClick={() => handleEdit(l)} className="dashboard-content-table-edit">تعديل</button>
-                   <button onClick={() => handleDelete(l.id)} className="dashboard-content-table-delete">حذف</button>
+                <td className="px-6 py-5">
+                   <div className="portal-row-actions">
+                     <button type="button" onClick={() => handleEdit(l)} className="portal-action-btn" title="تعديل المحتوى">
+                       <IconPencil aria-hidden="true" /> تعديل
+                     </button>
+                     <button type="button" onClick={() => handleDelete(l.id)} className="portal-action-btn is-danger" title="حذف المحتوى">
+                       <IconTrash2 aria-hidden="true" /> حذف
+                     </button>
+                   </div>
                 </td>
               </tr>
             ))}
