@@ -136,6 +136,7 @@ const RoleSelection: React.FC<RoleSelectionProps> = (props) => {
               <span>تعليمٌ ذكي، معرفة، ومستقبلٌ مشرق</span>
             </div>
           </div>
+          {/* ‏زرُّ التحميل الوحيد في الصفحة: أعلى اليسار، بلا شريطٍ سفلي. */}
           {apkUrl && (
             <a
               href={apkUrl}
@@ -146,7 +147,8 @@ const RoleSelection: React.FC<RoleSelectionProps> = (props) => {
               onClick={() => GameAudioEngine.play('uiSelect')}
             >
               <Smartphone aria-hidden="true" />
-              تطبيق الطالب
+              تحميل تطبيق الطالب
+              <Download aria-hidden="true" className="is-trailing" />
             </a>
           )}
         </header>
@@ -213,21 +215,6 @@ const RoleSelection: React.FC<RoleSelectionProps> = (props) => {
             );
           })}
         </div>
-
-        {apkUrl && (
-          <a href={apkUrl} target="_blank" rel="noopener noreferrer" className="portal-roles-apk" onClick={() => GameAudioEngine.play('uiSelect')}>
-            <span className="portal-role-icon tone-success" aria-hidden="true">
-              <Smartphone />
-            </span>
-            <span className="min-w-0 flex-1">
-              <strong>تطبيق الطالب</strong>
-              <span>يتعلّم الطالب من تطبيقه على الهاتف أو الجهاز اللوحي — أندرويد.</span>
-            </span>
-            <span className="portal-btn portal-btn-secondary">
-              <Download aria-hidden="true" /> تحميل التطبيق
-            </span>
-          </a>
-        )}
 
         <footer className="portal-roles-footer">
           © {new Date().getFullYear()} منصة منارة المعرفة التعليمية · جميع الحقوق محفوظة

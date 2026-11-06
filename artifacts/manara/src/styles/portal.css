@@ -3487,3 +3487,69 @@ button.portal-stat:hover,
 .portal-shell .dashboard-main table.portal-table td:last-child {
   max-width: none;
 }
+
+/* ——— زرُّ «تحميل تطبيق الطالب» أعلى اليسار ——— */
+.portal-roles.is-sky .portal-roles-apk-link {
+  gap: 0.5rem;
+  padding: 0.55rem 1rem;
+  border-radius: 999px;
+  border: 1px solid rgb(255 255 255 / 0.85);
+  background: rgb(255 255 255 / 0.82);
+  -webkit-backdrop-filter: blur(10px);
+  backdrop-filter: blur(10px);
+  color: var(--pt-accent);
+  font-size: 0.9rem;
+  font-weight: 800;
+  box-shadow: 0 0 0 1px rgb(15 118 110 / 0.18), 0 8px 20px rgb(15 31 53 / 0.12);
+  transition: transform 220ms ease, box-shadow 220ms ease, background-color 220ms ease, color 220ms ease;
+}
+
+.portal-roles.is-sky .portal-roles-apk-link:hover,
+.portal-roles.is-sky .portal-roles-apk-link:focus-visible {
+  transform: translateY(-2px);
+  background: var(--pt-accent);
+  color: #fff;
+  box-shadow: 0 12px 26px rgb(15 118 110 / 0.3);
+}
+
+.portal-roles-apk-link svg.is-trailing {
+  width: 0.95rem;
+  height: 0.95rem;
+  opacity: 0.8;
+}
+
+@media (max-width: 479px) {
+  .portal-roles.is-sky .portal-roles-apk-link {
+    padding: 0.5rem 0.75rem;
+    font-size: 0.8rem;
+  }
+
+  .portal-roles-apk-link svg.is-trailing {
+    display: none;
+  }
+}
+
+.portal-roles.is-sky .portal-roles-apk-link {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+
+.portal-roles.is-sky .portal-roles-brand {
+  min-width: 0;
+}
+
+@media (max-width: 479px) {
+  .portal-roles.is-sky .portal-roles-brand img {
+    width: 2.6rem;
+    height: 2.6rem;
+  }
+
+  .portal-roles.is-sky .portal-roles-brand strong {
+    font-size: 0.82rem;
+    line-height: 1.35;
+  }
+
+  .portal-roles.is-sky .portal-roles-brand span {
+    display: none;
+  }
+}
