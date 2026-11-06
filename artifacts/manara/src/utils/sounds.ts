@@ -142,7 +142,17 @@ export const playWelcomeStudentOnRefresh = () => {
   });
 };
 
+/**
+ * ترحيبُ الدخول مرّةً واحدة: دخولٌ يتكرّر في اللحظة نفسها (نقرٌ مزدوج، أو
+ * لوحتان تفتحان معاً) لا يُطلق عبارتين متراكبتين.
+ */
+const WELCOME_GAP_MS = 8000;
+let lastWelcomeAt = 0;
+
 export const playWelcomeAdult = () => {
+  const now = Date.now();
+  if (now - lastWelcomeAt < WELCOME_GAP_MS) return;
+  lastWelcomeAt = now;
   playAudioWithGain('/audio/welcome-adult.mp3', 2.0, 'WelcomeAdult');
   playToneJsChime('welcome');
 };

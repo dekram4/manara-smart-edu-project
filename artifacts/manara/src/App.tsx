@@ -222,6 +222,28 @@ const purgeRoleStorage = () => {
   }
 };
 
+/** تفضيلاتٌ تخصّ حساباً بعينه: تُمحى بخروجه فلا يجدها مَن يدخل بعده. */
+const ACCOUNT_PREFERENCE_KEYS = ['manara_admin_certificate_signatory'];
+
+/**
+ * جلسةٌ انتهت بلا خروجٍ صريح — أُغلق التبويب، أو انتهت صلاحيتُها في الخادم —
+ * تترك في المتصفّح علاماتِها ونسخةَ بياناتها بنطاق حسابها. فعند العودة إلى
+ * شاشة الأدوار تُمحى كلُّها، فيبدأ الدخولُ التالي — أيّاً كان دورُه — نظيفاً.
+ * ويبقى طابورُ المزامنة وحده: موسومٌ بنطاق حسابه ولا يُرسَل تحت غيره.
+ */
+const purgeAbandonedSession = () => {
+  purgeRoleStorage();
+  clearAuthSessions();
+  clearSyncedCache({ keepPending: true });
+};
+
+/**
+ * علاماتُ الجلسة التي تتغيّر بدخولٍ أو خروج في تبويبٍ آخر من المتصفّح نفسه.
+ * تبويبٌ يبقى على لوحة المشرف بعد أن دخل تبويبٌ آخر معلماً كان يعمل بكعكة
+ * المعلم وهو يعرض بياناتِ المشرف — فيُعاد تحميلُه ليتبع الجلسةَ الحاضرة.
+ */
+const CROSS_TAB_SESSION_KEYS = ['smartEdu_authSession', 'smartEdu_activeRole', 'smartEdu_loggedOut'];
+
 /** الدورُ الذي يحمله المتصفّح كما يراه الخادم، أو `undefined` إن تعذّر السؤال. */
 const fetchServerRole = async (): Promise<'admin' | 'teacher' | 'parent' | null | undefined> => {
   try {
@@ -267,6 +289,9 @@ const App: React.FC = () => {
     removeSessionValue(SESSION_KEYS.ACTIVE_ROLE);
     removeSessionValue(SESSION_KEYS.ADMIN_SESSION);
     purgeRoleStorage();
+    for (const key of ACCOUNT_PREFERENCE_KEYS) {
+      try { window.localStorage.removeItem(key); } catch { /* تخزينٌ محجوب */ }
+    }
     // ‏خروجٌ صريح: لا لوحةَ تفتح بعده إلا بكلمة مرور، ولو بقيت كعكةٌ في
     // ‏المتصفّح لأن طلبَ الخروج لم يصل. انظر utils/logoutGuard.
     markLoggedOut();
@@ -309,9 +334,11 @@ const App: React.FC = () => {
       if (restoredRole !== savedRole) {
         writeSessionValue(SESSION_KEYS.ACTIVE_ROLE, restoredRole);
       }
-    } else if (savedRole) {
-      // A stale role marker must never mount a dashboard by itself.
-      removeSessionValue(SESSION_KEYS.ACTIVE_ROLE);
+    } else {
+      // A stale role marker must never mount a dashboard by itself — and the
+      // data it left behind must not greet whoever signs in next.
+      if (savedRole) removeSessionValue(SESSION_KEYS.ACTIVE_ROLE);
+      purgeAbandonedSession();
     }
     setSessionReady(true);
     // The role selector and local data must remain usable even when the
@@ -384,8 +411,7 @@ const App: React.FC = () => {
       setMainView((current) => {
         if (current === 'role' || current === serverRole) return current;
         clearActiveSessions();
-        clearAuthSessions();
-        purgeRoleStorage();
+        purgeAbandonedSession();
         return 'role';
       });
     });
@@ -393,6 +419,31 @@ const App: React.FC = () => {
       cancelled = true;
     };
   }, [sessionReady]);
+
+  // ‏دخولٌ أو خروجٌ في تبويبٍ آخر: هذا التبويب يُعاد تحميلُه فيتبع الجلسةَ الحاضرة
+  // ‏(لوحتُها، أو شاشةُ الأدوار) بدل أن يبقى على حسابٍ لم يعد حسابَ المتصفّح.
+  // ‏وشاشةُ الأدوار لا تحمل حساباً فلا تتبع شيئاً؛ وحدٌّ لإعادة التحميل (ثلاثٌ في
+  // ‏عشر ثوانٍ) يمنع تبويبين من أن يُعيد كلٌّ منهما تحميلَ الآخر بلا نهاية.
+  useEffect(() => {
+    if (mainView === 'role') return;
+    const onStorage = (event: StorageEvent) => {
+      if (event.storageArea !== window.localStorage) return;
+      if (event.key !== null && !CROSS_TAB_SESSION_KEYS.includes(event.key)) return;
+      if (event.key !== null && event.oldValue === event.newValue) return;
+      try {
+        const now = Date.now();
+        const recent = (JSON.parse(window.sessionStorage.getItem('manara_crossTabReloads') || '[]') as number[])
+          .filter((at) => now - at < 10000);
+        if (recent.length >= 3) return;
+        window.sessionStorage.setItem('manara_crossTabReloads', JSON.stringify([...recent, now]));
+      } catch {
+        // تخزينُ الجلسة محجوب: يُعاد التحميل بلا عدّاد.
+      }
+      window.location.reload();
+    };
+    window.addEventListener('storage', onStorage);
+    return () => window.removeEventListener('storage', onStorage);
+  }, [mainView]);
 
   const renderView = () => {
     switch (mainView) {
