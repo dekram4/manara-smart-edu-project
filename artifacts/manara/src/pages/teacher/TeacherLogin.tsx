@@ -4,7 +4,8 @@ import { TeacherInfo } from '../../types';
 import { STORAGE_KEYS } from '../../constants';
 import { hashPassword } from '../../utils/password';
 import { KeyRound, Presentation } from 'lucide-react';
-import { PortalField, PortalLoginLayout } from '../../components/portal/PortalLogin';
+import { PortalField, PortalLoginLayout, PortalSubmitButton } from '../../components/portal/PortalLogin';
+import { useSubmitLock } from '../../hooks/useSubmitLock';
 import { readStorageArray, writeActiveSession } from '../../utils/storage';
 
 interface TeacherLoginProps {
@@ -20,9 +21,15 @@ const TeacherLogin: React.FC<TeacherLoginProps> = ({ onLoginSuccess, onBack }) =
   const [showChangePassword, setShowChangePassword] = useState(false);
   const [currentTeacher, setCurrentTeacher] = useState<TeacherInfo | null>(null);
   const [error, setError] = useState('');
+  // ‏ضغطةٌ واحدة تمرّ حتى يعود ردُّ الخادم: لا طلبين ولا جلستين ولا ترحيبين.
+  const { busy, run } = useSubmitLock();
 
-  const handleLogin = async (e: React.FormEvent) => {
+  const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
+    void run(() => login());
+  };
+
+  const login = async () => {
     setError('');
 
     const normalizedUsername = username.trim();
@@ -99,8 +106,12 @@ const TeacherLogin: React.FC<TeacherLoginProps> = ({ onLoginSuccess, onBack }) =
     }
   };
 
-  const handleChangePassword = async (e: React.FormEvent) => {
+  const handleChangePassword = (e: React.FormEvent) => {
     e.preventDefault();
+    void run(() => changePassword());
+  };
+
+  const changePassword = async () => {
     setError('');
 
     if (!newPassword.trim() || !confirmPassword.trim()) {
@@ -191,7 +202,7 @@ const TeacherLogin: React.FC<TeacherLoginProps> = ({ onLoginSuccess, onBack }) =
               required
             />
           </PortalField>
-          <button type="submit" className="portal-btn portal-btn-primary">حفظ والمتابعة</button>
+          <PortalSubmitButton busy={busy} label="حفظ والمتابعة" busyLabel="جارٍ الحفظ…" />
         </form>
       </PortalLoginLayout>
     );
@@ -232,7 +243,7 @@ const TeacherLogin: React.FC<TeacherLoginProps> = ({ onLoginSuccess, onBack }) =
             required
           />
         </PortalField>
-        <button type="submit" className="portal-btn portal-btn-primary">تسجيل الدخول</button>
+        <PortalSubmitButton busy={busy} label="تسجيل الدخول" />
       </form>
       <p className="portal-login-help">للدعم الفني، تواصل مع مشرف المنصّة.</p>
     </PortalLoginLayout>

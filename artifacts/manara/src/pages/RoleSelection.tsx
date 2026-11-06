@@ -1,6 +1,6 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import type { LucideIcon } from 'lucide-react';
-import { ArrowLeft, Check, Cog, Download, Info, Presentation, Settings, Smartphone, UsersRound } from 'lucide-react';
+import { ArrowLeft, Check, Cog, Download, Info, Loader2, Presentation, Settings, Smartphone, UsersRound } from 'lucide-react';
 import { GameAudioEngine } from '../utils/gameAudioEngine';
 import { fetchStudentApk } from '../utils/studentApk';
 import { ART } from '../components/portal/PortalUI';
@@ -100,12 +100,23 @@ const RoleSelection: React.FC<RoleSelectionProps> = (props) => {
     return () => document.removeEventListener('pointerdown', close);
   }, [openRole]);
 
+  // ‏اختيارٌ واحد: ضغطةٌ ثانية قبل أن تُفتح البوابة تُتجاهَل، فلا يتكرّر الصوت
+  // ‏ولا الانتقال. القفلُ في `useRef` يُقرأ فوراً، و`entering` للرسم: البطاقاتُ
+  // ‏تتعطّل، وزرُّ البطاقة المختارة يُظهر مؤشّر تحميل حتى تُحمَّل اللوحة.
+  const leaving = useRef(false);
+  const [entering, setEntering] = useState<RoleCard['id'] | null>(null);
+
   const enter = (id: RoleCard['id']) => {
+    if (leaving.current) return;
+    leaving.current = true;
+    setEntering(id);
+    setOpenRole(null);
     GameAudioEngine.play('uiSelect');
     handlers[id]();
   };
 
   const onCardClick = (id: RoleCard['id'], event: React.MouseEvent<HTMLButtonElement>) => {
+    if (leaving.current) return;
     if (!isTouch()) {
       enter(id);
       return;
@@ -166,7 +177,9 @@ const RoleSelection: React.FC<RoleSelectionProps> = (props) => {
               <button
                 key={role.id}
                 type="button"
-                className={`portal-role-card tone-${role.tone}${openRole === role.id ? ' is-open' : ''}`}
+                className={`portal-role-card tone-${role.tone}${openRole === role.id ? ' is-open' : ''}${entering === role.id ? ' is-entering' : ''}`}
+                disabled={entering !== null}
+                aria-busy={entering === role.id}
                 aria-describedby={`role-info-${role.id}`}
                 aria-expanded={openRole === role.id}
                 onClick={(event) => onCardClick(role.id, event)}
@@ -187,7 +200,15 @@ const RoleSelection: React.FC<RoleSelectionProps> = (props) => {
                 <span className="portal-role-title">{role.title}</span>
                 <span className="portal-role-tagline">{role.tagline}</span>
                 <span className="portal-role-cta">
-                  الدخول <ArrowLeft aria-hidden="true" />
+                  {entering === role.id ? (
+                    <>
+                      <Loader2 className="portal-spin" aria-hidden="true" /> جارٍ الفتح…
+                    </>
+                  ) : (
+                    <>
+                      الدخول <ArrowLeft aria-hidden="true" />
+                    </>
+                  )}
                 </span>
                 <span className="portal-role-hint" aria-hidden="true">
                   <Info /> <span className="when-hover">مرّر للتفاصيل</span><span className="when-touch">اضغط للتفاصيل</span>
