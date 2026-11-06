@@ -3740,3 +3740,32 @@ button.portal-stat:hover,
     animation-duration: 1600ms;
   }
 }
+
+/* ——— زرُّ حفظٍ مشغول (utils/actionGuard): مؤشّرٌ قبل النص، ولا استجابة ——— */
+:is(.portal-shell, .portal-dialog-backdrop, [role="dialog"]) :is(button, a[role="button"]).is-busy {
+  cursor: progress;
+  opacity: 0.78;
+}
+
+:is(.portal-shell, .portal-dialog-backdrop, [role="dialog"]) :is(button, a[role="button"]).is-busy::before {
+  content: "";
+  display: inline-block;
+  flex: 0 0 auto;
+  width: 0.95em;
+  height: 0.95em;
+  margin-inline-end: 0.35em;
+  border: 2px solid currentColor;
+  border-inline-end-color: transparent;
+  border-radius: 999px;
+  vertical-align: -0.15em;
+  animation: portalSpin 800ms linear infinite;
+}
+
+/* ‏الأزرارُ الأيقونية: المؤشّرُ مكانَ الأيقونة. */
+:is(.portal-icon-btn, .dashboard-icon-button, .portal-tree-btn).is-busy svg {
+  display: none;
+}
+
+:is(.portal-icon-btn, .dashboard-icon-button, .portal-tree-btn).is-busy::before {
+  margin-inline-end: 0;
+}
