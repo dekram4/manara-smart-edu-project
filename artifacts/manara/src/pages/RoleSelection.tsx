@@ -85,6 +85,42 @@ const RoleSelection: React.FC<RoleSelectionProps> = (props) => {
     admin: props.onSelectAdmin,
   };
 
+  // ‏على اللمس لا مرور: النقرةُ الأولى على البطاقة تفتح منبثقتها، وزرُّ
+  // ‏«الدخول» يفتح البوابة. والنقرُ خارج البطاقات يغلقها.
+  const [openRole, setOpenRole] = useState<RoleCard['id'] | null>(null);
+  const isTouch = () =>
+    typeof window !== 'undefined' && window.matchMedia?.('(hover: none)').matches;
+
+  useEffect(() => {
+    if (!openRole) return;
+    const close = (event: PointerEvent) => {
+      if (!(event.target as Element | null)?.closest?.('.portal-role-card')) setOpenRole(null);
+    };
+    document.addEventListener('pointerdown', close);
+    return () => document.removeEventListener('pointerdown', close);
+  }, [openRole]);
+
+  const enter = (id: RoleCard['id']) => {
+    GameAudioEngine.play('uiSelect');
+    handlers[id]();
+  };
+
+  const onCardClick = (id: RoleCard['id'], event: React.MouseEvent<HTMLButtonElement>) => {
+    if (!isTouch()) {
+      enter(id);
+      return;
+    }
+    const target = event.target as Element;
+    if (target.closest('.portal-role-cta, .portal-role-popover-cta')) {
+      enter(id);
+      return;
+    }
+    // ‏نقرةٌ داخل المنبثقة المفتوحة تُبقيها؛ وفي غيرها تفتح أو تغلق.
+    if (openRole === id && target.closest('.portal-role-popover')) return;
+    GameAudioEngine.play('uiSelect');
+    setOpenRole(openRole === id ? null : id);
+  };
+
   return (
     <div className="portal-auth portal-roles is-sky" dir="rtl">
       <div className="portal-roles-sky" aria-hidden="true" />
@@ -128,12 +164,10 @@ const RoleSelection: React.FC<RoleSelectionProps> = (props) => {
               <button
                 key={role.id}
                 type="button"
-                className={`portal-role-card tone-${role.tone}`}
+                className={`portal-role-card tone-${role.tone}${openRole === role.id ? ' is-open' : ''}`}
                 aria-describedby={`role-info-${role.id}`}
-                onClick={() => {
-                  GameAudioEngine.play('uiSelect');
-                  handlers[role.id]();
-                }}
+                aria-expanded={openRole === role.id}
+                onClick={(event) => onCardClick(role.id, event)}
               >
                 <span className="portal-role-stage" aria-hidden="true">
                   {role.art ? (
@@ -154,7 +188,7 @@ const RoleSelection: React.FC<RoleSelectionProps> = (props) => {
                   الدخول <ArrowLeft aria-hidden="true" />
                 </span>
                 <span className="portal-role-hint" aria-hidden="true">
-                  <Info /> مرّر للتفاصيل
+                  <Info /> <span className="when-hover">مرّر للتفاصيل</span><span className="when-touch">اضغط للتفاصيل</span>
                 </span>
 
                 {/* ‏البطاقةُ المنبثقة: تعلو من أسفل البطاقة عند المرور أو التركيز،
