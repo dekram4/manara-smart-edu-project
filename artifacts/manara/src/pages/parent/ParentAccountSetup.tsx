@@ -2,7 +2,8 @@
 import React, { useState } from 'react';
 import { ParentInfo } from '../../types';
 import { KeyRound } from 'lucide-react';
-import { PortalField, PortalLoginLayout } from '../../components/portal/PortalLogin';
+import { PortalField, PortalLoginLayout, PortalSubmitButton } from '../../components/portal/PortalLogin';
+import { useSubmitLock } from '../../hooks/useSubmitLock';
 import { passwordsMatch } from '../../utils/password';
 
 interface ParentAccountSetupProps {
@@ -16,10 +17,14 @@ const ParentAccountSetup: React.FC<ParentAccountSetupProps> = ({ parent, onPassw
   const [confirmPassword, setConfirmPassword] = useState('');
   const [error, setError] = useState('');
 
-  const [saving, setSaving] = useState(false);
+  const { busy, run } = useSubmitLock();
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    void run(() => save());
+  };
+
+  const save = async () => {
     setError('');
 
     if (!passwordsMatch(currentPassword, parent.password)) {
@@ -39,9 +44,7 @@ const ParentAccountSetup: React.FC<ParentAccountSetupProps> = ({ parent, onPassw
       return;
     }
 
-    setSaving(true);
     const saveError = await onPasswordChange(currentPassword, newPassword);
-    setSaving(false);
     if (saveError) {
       setError(saveError);
       return;
@@ -68,9 +71,7 @@ const ParentAccountSetup: React.FC<ParentAccountSetupProps> = ({ parent, onPassw
         <PortalField label="تأكيد كلمة المرور">
           <input type="password" value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} className="portal-input" autoComplete="new-password" required />
         </PortalField>
-        <button disabled={saving} type="submit" className="portal-btn portal-btn-primary">
-          {saving ? 'جارٍ الحفظ…' : 'تحديث كلمة المرور والدخول'}
-        </button>
+        <PortalSubmitButton busy={busy} label="تحديث كلمة المرور والدخول" busyLabel="جارٍ الحفظ…" />
       </form>
     </PortalLoginLayout>
   );

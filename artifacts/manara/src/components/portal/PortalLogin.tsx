@@ -1,6 +1,6 @@
 import React from 'react';
 import type { LucideIcon } from 'lucide-react';
-import { ArrowRight, Check } from 'lucide-react';
+import { ArrowRight, Check, Loader2 } from 'lucide-react';
 import { ART } from './PortalUI';
 
 interface PortalLoginLayoutProps {
@@ -86,6 +86,26 @@ export const PortalLoginLayout: React.FC<PortalLoginLayoutProps> = ({
       </div>
     </main>
   </div>
+);
+
+/**
+ * زرُّ الإرسال في صفحات الدخول: يتعطّل فور الضغط ويُظهر مؤشّر تحميل خفيفاً
+ * حتى يعود ردُّ الخادم (انظر `useSubmitLock`).
+ */
+export const PortalSubmitButton: React.FC<{
+  busy: boolean;
+  label: string;
+  busyLabel?: string;
+}> = ({ busy, label, busyLabel = 'جارٍ التحقق…' }) => (
+  <button type="submit" disabled={busy} aria-busy={busy} className="portal-btn portal-btn-primary portal-submit">
+    {busy ? (
+      <>
+        <Loader2 className="portal-spin" aria-hidden="true" /> {busyLabel}
+      </>
+    ) : (
+      label
+    )}
+  </button>
 );
 
 export const PortalField: React.FC<{

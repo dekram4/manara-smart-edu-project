@@ -3693,3 +3693,50 @@ button.portal-stat:hover,
   cursor: not-allowed;
   background: #fff;
 }
+
+/* ==========================================================================
+   منعُ تكرار الضغط: زرٌّ مشغول ومؤشّرُ تحميل
+   ========================================================================== */
+
+@keyframes portalSpin {
+  to { transform: rotate(360deg); }
+}
+
+.portal-spin {
+  width: 1.05rem;
+  height: 1.05rem;
+  flex: 0 0 auto;
+  animation: portalSpin 800ms linear infinite;
+}
+
+.portal-btn.portal-submit:disabled {
+  cursor: progress;
+  opacity: 0.85;
+}
+
+/* ‏بطاقاتُ البوابات أثناء فتح إحداها: المختارةُ تبقى بارزة بمؤشّرها، والأخريان
+   تخفتان ولا تستجيبان. */
+.portal-role-card:disabled {
+  cursor: progress;
+}
+
+.portal-role-card:disabled:not(.is-entering) {
+  opacity: 0.55;
+  filter: saturate(0.7);
+}
+
+.portal-role-card:disabled > .portal-role-popover {
+  opacity: 0;
+  visibility: hidden;
+}
+
+.portal-roles.is-sky .portal-role-card.is-entering .portal-role-cta {
+  background: var(--tone);
+  color: #fff;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .portal-spin {
+    animation-duration: 1600ms;
+  }
+}

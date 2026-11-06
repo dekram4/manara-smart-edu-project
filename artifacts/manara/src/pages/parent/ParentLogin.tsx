@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { UsersRound } from 'lucide-react';
-import { PortalField, PortalLoginLayout } from '../../components/portal/PortalLogin';
+import { PortalField, PortalLoginLayout, PortalSubmitButton } from '../../components/portal/PortalLogin';
+import { useSubmitLock } from '../../hooks/useSubmitLock';
 
 interface ParentLoginProps {
   onLogin: (username: string, password: string) => Promise<string | null>;
@@ -11,19 +12,15 @@ const ParentLogin: React.FC<ParentLoginProps> = ({ onLogin, onBack }) => {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
-  const [submitting, setSubmitting] = useState(false);
+  const { busy, run } = useSubmitLock();
 
-  const handleSubmit = async (event: React.FormEvent) => {
+  const handleSubmit = (event: React.FormEvent) => {
     event.preventDefault();
-    if (submitting) return;
-    setError('');
-    setSubmitting(true);
-    try {
+    void run(async () => {
+      setError('');
       const message = await onLogin(username.trim(), password);
       if (message) setError(message);
-    } finally {
-      setSubmitting(false);
-    }
+    });
   };
 
   return (
@@ -61,9 +58,7 @@ const ParentLogin: React.FC<ParentLoginProps> = ({ onLogin, onBack }) => {
             required
           />
         </PortalField>
-        <button type="submit" disabled={submitting} className="portal-btn portal-btn-primary">
-          {submitting ? 'جارٍ التحقق…' : 'دخول'}
-        </button>
+        <PortalSubmitButton busy={busy} label="دخول" />
       </form>
       <p className="portal-login-help">نسيت كلمة المرور؟ تواصل مع معلم ابنك.</p>
     </PortalLoginLayout>
