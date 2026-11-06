@@ -3,6 +3,7 @@ import type { LucideIcon } from 'lucide-react';
 import { ArrowLeft, Check, Download, Presentation, ShieldCheck, Smartphone, UsersRound } from 'lucide-react';
 import { GameAudioEngine } from '../utils/gameAudioEngine';
 import { fetchStudentApk } from '../utils/studentApk';
+import { ART } from '../components/portal/PortalUI';
 
 interface RoleSelectionProps {
   onSelectAdmin: () => void;
@@ -17,6 +18,8 @@ interface RoleCard {
   features: string[];
   icon: LucideIcon;
   tone: 'primary' | 'accent' | 'gold';
+  /** رسمٌ من رسوم المنصّة يملأ زاوية البطاقة. */
+  art: string;
 }
 
 const roles: RoleCard[] = [
@@ -27,6 +30,7 @@ const roles: RoleCard[] = [
     features: ['الدروس والاختبارات', 'تقارير الطلاب وأولياء الأمور', 'إصدار الشهادات'],
     icon: Presentation,
     tone: 'primary',
+    art: ART.books,
   },
   {
     id: 'parent',
@@ -35,6 +39,7 @@ const roles: RoleCard[] = [
     features: ['الدرجات ونتائج الاختبارات', 'المستوى والنشاط والجواهر', 'التقارير والشهادات للطباعة'],
     icon: UsersRound,
     tone: 'accent',
+    art: ART.kids,
   },
   {
     id: 'admin',
@@ -43,6 +48,7 @@ const roles: RoleCard[] = [
     features: ['المعلمون والحسابات', 'الإعدادات الأكاديمية والمحتوى', 'الصلاحيات وإعدادات النظام'],
     icon: ShieldCheck,
     tone: 'gold',
+    art: ART.school,
   },
 ];
 
@@ -74,7 +80,12 @@ const RoleSelection: React.FC<RoleSelectionProps> = (props) => {
 
   return (
     <div className="portal-auth portal-roles" dir="rtl">
-      <div className="portal-roles-band" aria-hidden="true" />
+      <div className="portal-roles-band" aria-hidden="true">
+        {/* ‏أشياءُ المنصّة تطفو في الشريط: كرةٌ أرضية وكتبٌ والمساعد الذكي. */}
+        <img className="portal-float portal-float-globe" src={ART.globe} alt="" />
+        <img className="portal-float portal-float-books" src={ART.booksStack} alt="" />
+        <img className="portal-float portal-float-robot" src={ART.robot} alt="" />
+      </div>
       <div className="portal-roles-inner">
         <header className="portal-roles-header">
           <div className="portal-roles-brand">
@@ -118,6 +129,7 @@ const RoleSelection: React.FC<RoleSelectionProps> = (props) => {
                   handlers[role.id]();
                 }}
               >
+                <img className="portal-role-art" src={role.art} alt="" aria-hidden="true" />
                 <span className="portal-role-icon" aria-hidden="true">
                   <Icon />
                 </span>

@@ -15,17 +15,7 @@ import { STORAGE_KEYS } from '../../constants';
 import { readStorageArray } from '../../utils/storage';
 import { getTeacherParents, getTeacherStudents } from '../../utils/scope';
 import { getQuizResultPercentage } from '../../utils/quizScoring';
-import {
-  Badge,
-  EmptyState,
-  PageHeader,
-  Panel,
-  ProgressBar,
-  StatCard,
-  relativeDay,
-  scoreLabel,
-  scoreTone,
-} from '../../components/portal/PortalUI';
+import { Badge, EmptyState, PageHeader, Panel, ProgressBar, StatCard, relativeDay, scoreLabel, scoreTone, ART } from '../../components/portal/PortalUI';
 import { ActivityArea, ScoreDonut } from '../../components/portal/PortalCharts';
 
 interface DashboardHomeProps {
@@ -83,6 +73,7 @@ const DashboardHome: React.FC<DashboardHomeProps> = ({ stats, onRefresh }) => {
         title="نظرة عامة على المنصّة"
         description="أرقام المنصّة التعليمية وأداء المعلمين وطلابهم."
         icon={Layers}
+        art={ART.school}
         actions={
           <button type="button" className="portal-btn portal-btn-secondary" onClick={onRefresh}>
             <RefreshCw aria-hidden="true" /> تحديث البيانات

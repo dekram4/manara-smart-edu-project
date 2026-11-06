@@ -11,7 +11,7 @@ import { resetGamificationForStudent } from '../../utils/gamification';
 import { getStudentEmoji, STUDENT_GENDER_OPTIONS, StudentGender } from '../../utils/studentAppearance';
 import { useRevealForm } from '../../hooks/useRevealForm';
 import { filterAccounts } from '../../utils/accountFilters';
-import { Badge, EmptyState, PageHeader, Panel, StatCard, relativeDay } from '../../components/portal/PortalUI';
+import { Badge, EmptyState, PageHeader, Panel, StatCard, relativeDay, ART, studentArt } from '../../components/portal/PortalUI';
 import { initialOf } from '../../components/portal/PortalShell';
 import { GraduationCap, Link2Off, Pencil, RotateCcw, Search, ShieldCheck, Trash2, UserPlus, UsersRound, X } from 'lucide-react';
 import { X as IconX } from 'lucide-react';
@@ -531,6 +531,7 @@ const ParentStudentManagement: React.FC<ParentStudentManagementProps> = ({ teach
         title="الطلاب وأولياء الأمور"
         description="إنشاء حسابات أولياء الأمور والطلاب وربطها، وإدارتها من جدولٍ واحد."
         icon={UsersRound}
+        art={ART.kids}
         actions={!showParentForm && !showStudentForm ? (
           <>
             {permissions.canCreateStudents && (
@@ -726,7 +727,7 @@ const ParentStudentManagement: React.FC<ParentStudentManagementProps> = ({ teach
                           <tr key={student.id}>
                             <td>
                               <div className="flex items-center gap-2.5">
-                                <span className="portal-avatar" style={{ width: '2.1rem', height: '2.1rem', fontSize: '0.85rem', background: 'var(--pt-primary-soft)', color: 'var(--pt-primary)' }} aria-hidden="true">{initialOf(student.name)}</span>
+                                <img className="portal-avatar-img" src={studentArt(student.gender)} alt="" aria-hidden="true" loading="lazy" />
                                 <div className="min-w-0">
                                   <p className="font-bold text-slate-800">{student.name}</p>
                                   {student.username && <p className="text-xs text-slate-500" dir="ltr">{student.username}</p>}

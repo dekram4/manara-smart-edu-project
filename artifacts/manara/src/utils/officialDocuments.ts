@@ -99,7 +99,7 @@ body { font-family: 'Tajawal', sans-serif; color: #13243a; -webkit-print-color-a
 .rule::before, .rule::after { content: ''; width: 34mm; height: 0.35mm; background: #b08d3c; }
 .lead { font-size: 13pt; font-weight: 500; color: #475569; }
 .name { margin: 3mm 0 3.5mm; padding: 0 10mm 1.5mm; font-size: 27pt; font-weight: 900; color: #13243a; border-bottom: 0.4mm solid #d9c79a; }
-.message { max-width: 205mm; font-size: 13.5pt; font-weight: 500; line-height: 2; color: #334155; }
+.message { max-width: 210mm; margin-top: 2mm; font-size: 14.5pt; font-weight: 500; line-height: 2; color: #334155; }
 .message b { font-weight: 800; color: #15335c; }
 .note { margin-top: 2mm; max-width: 190mm; font-size: 12pt; font-weight: 700; color: #8a6a24; }
 .facts { display: flex; gap: 0; margin-top: 6mm; border: 0.3mm solid #dfe5ec; border-radius: 2mm; overflow: hidden; }
@@ -138,12 +138,6 @@ body { font-family: 'Tajawal', sans-serif; color: #13243a; -webkit-print-color-a
     <p class="name">${cert.studentName}</p>
     <p class="message">${certificateMessage(cert)}</p>
     ${cert.note ? html`<p class="note">${cert.note}</p>` : ''}
-    <div class="facts">
-      <div><small>المادة</small><strong>${cert.subject || '—'}</strong></div>
-      <div><small>الصف</small><strong>${cert.grade || '—'}</strong></div>
-      <div><small>الفصل الدراسي</small><strong>${cert.term || '—'}</strong></div>
-      ${typeof cert.average === 'number' && Number.isFinite(cert.average) ? html`<div><small>المعدّل</small><strong>${Math.round(cert.average)}%</strong></div>` : ''}
-    </div>
     <div class="footer">
       <div class="sign"><strong>${issuerOf(cert).name}</strong><div class="line"></div><span>${issuerOf(cert).role}</span></div>
       <div class="seal"><div><img src="${logoUrl()}" alt=""><span>منارة المعرفة</span></div></div>
