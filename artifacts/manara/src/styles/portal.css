@@ -2523,11 +2523,74 @@ button.portal-stat:hover,
   text-shadow: 0 1px 2px rgb(255 255 255 / 0.7);
 }
 
+/* ‏زجاجٌ شفاف فوق السماء: أبيضُ بنسبة ٨٠٪ تقريباً وتضبيبٌ ناعم، وحافّةٌ
+   رفيعة تلمع من الأعلى (ظلٌّ داخليّ أبيض) وتحيط بها هالةٌ كحلية خفيفة؛
+   وعند المرور ترتفع البطاقة قليلاً وتصير الهالةُ فيروزية والظلُّ أعمق. */
 .portal-roles.is-sky .portal-role-card {
-  background: rgb(255 255 255 / 0.94);
-  backdrop-filter: blur(6px);
+  background:
+    linear-gradient(160deg, rgb(255 255 255 / 0.86) 0%, rgb(255 255 255 / 0.72) 55%, rgb(240 248 255 / 0.68) 100%);
+  -webkit-backdrop-filter: blur(16px) saturate(1.4);
+  backdrop-filter: blur(16px) saturate(1.4);
+  border: 1px solid rgb(255 255 255 / 0.7);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.95),
+    inset 0 0 0 1px rgb(255 255 255 / 0.25),
+    0 0 0 1px rgb(31 78 140 / 0.12),
+    0 14px 34px rgb(15 31 53 / 0.14);
+  transition:
+    transform 320ms cubic-bezier(0.22, 1, 0.36, 1),
+    box-shadow 320ms cubic-bezier(0.22, 1, 0.36, 1),
+    background 320ms ease,
+    border-color 320ms ease;
+}
+
+.portal-roles.is-sky .portal-role-card:hover,
+.portal-roles.is-sky .portal-role-card:focus-visible {
+  transform: translateY(-6px);
   border-color: rgb(255 255 255 / 0.9);
-  box-shadow: 0 18px 40px rgb(15 31 53 / 0.16);
+  background:
+    linear-gradient(160deg, rgb(255 255 255 / 0.92) 0%, rgb(255 255 255 / 0.8) 55%, rgb(236 248 246 / 0.76) 100%);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 1),
+    inset 0 0 0 1px rgb(255 255 255 / 0.35),
+    0 0 0 1px rgb(15 118 110 / 0.3),
+    0 24px 48px rgb(15 31 53 / 0.2),
+    0 6px 14px rgb(15 118 110 / 0.1);
+}
+
+.portal-roles.is-sky .portal-role-card:active {
+  transform: translateY(-2px);
+  transition-duration: 120ms;
+}
+
+/* ‏المسرحُ والفواصلُ شفّافةٌ هي الأخرى، فلا تبقى كتلةٌ بيضاء داخل الزجاج. */
+.portal-roles.is-sky .portal-role-stage {
+  background:
+    radial-gradient(ellipse 70% 85% at 50% 100%, var(--tone-soft), transparent 75%),
+    linear-gradient(180deg, rgb(255 255 255 / 0.45) 0%, rgb(255 255 255 / 0.15) 100%);
+  border: 1px solid rgb(255 255 255 / 0.55);
+}
+
+.portal-roles.is-sky .portal-role-features,
+.portal-roles.is-sky .portal-role-cta {
+  border-color: rgb(31 78 140 / 0.1);
+}
+
+.portal-roles.is-sky .portal-role-description {
+  color: #475569;
+}
+
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .portal-roles.is-sky .portal-role-card {
+    background: rgb(255 255 255 / 0.93);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .portal-roles.is-sky .portal-role-card,
+  .portal-roles.is-sky .portal-role-card:hover {
+    transform: none;
+  }
 }
 
 /* ——— مسرحُ الشخصية في البطاقة ——— */
