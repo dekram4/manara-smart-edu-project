@@ -1,106 +1,169 @@
-
-import React from 'react';
-import { SystemStats } from '../../types';
-import { COLORS } from '../../constants';
+import React, { useMemo } from 'react';
+import {
+  Activity,
+  BookOpenCheck,
+  ClipboardList,
+  Clock,
+  GraduationCap,
+  Layers,
+  RefreshCw,
+  School,
+  UsersRound,
+} from 'lucide-react';
+import { ParentInfo, QuizResult, StudentInfo, SystemStats, TeacherInfo } from '../../types';
+import { STORAGE_KEYS } from '../../constants';
+import { readStorageArray } from '../../utils/storage';
+import { getTeacherParents, getTeacherStudents } from '../../utils/scope';
+import { getQuizResultPercentage } from '../../utils/quizScoring';
+import {
+  Badge,
+  EmptyState,
+  PageHeader,
+  Panel,
+  ProgressBar,
+  StatCard,
+  relativeDay,
+  scoreLabel,
+  scoreTone,
+} from '../../components/portal/PortalUI';
 
 interface DashboardHomeProps {
   stats: SystemStats;
   onRefresh: () => void;
 }
 
+/**
+ * الصفحةُ الرئيسية للمشرف: أرقامُ المنصّة، ثم المعلمون بطلابهم ومعدّلاتهم،
+ * ثم آخرُ نشاط. والمعلمون يُقرؤون هنا من التخزين نفسه الذي تقرأ منه
+ * `refreshStats`، ويُعاد حسابهم كلما تغيّرت [stats] (كل خمس ثوانٍ).
+ */
 const DashboardHome: React.FC<DashboardHomeProps> = ({ stats, onRefresh }) => {
-  const cards = [
-    { label: 'إجمالي الطلاب', value: stats.totalStudents, icon: '👨‍🎓', color: 'bg-blue-50 text-blue-600' },
-    { label: 'طلاب نشطون خلال 7 أيام', value: stats.activeStudents, icon: '⚡', color: 'bg-cyan-50 text-cyan-600' },
-    { label: 'أولياء الأمور', value: stats.totalParents, icon: '👨‍👩‍👧‍👦', color: 'bg-green-50 text-green-600' },
-    { label: 'الدروس المضافة', value: stats.lessonsCount, icon: '📚', color: 'bg-purple-50 text-purple-600' },
-    { label: 'الاختبارات المنجزة', value: stats.totalQuizzesTaken, icon: '📝', color: 'bg-orange-50 text-orange-600' },
-  ];
+  const teachers = useMemo(() => {
+    const allStudents = readStorageArray<StudentInfo>(STORAGE_KEYS.STUDENTS);
+    const allParents = readStorageArray<ParentInfo>(STORAGE_KEYS.PARENTS);
+    const results = readStorageArray<QuizResult>(STORAGE_KEYS.QUIZ_RESULTS);
+    return readStorageArray<TeacherInfo>(STORAGE_KEYS.TEACHERS).map((teacher) => {
+      const parents = getTeacherParents(allParents, teacher.id);
+      const students = getTeacherStudents(allStudents, teacher.id, parents);
+      const ids = new Set(students.map((student) => student.id));
+      const own = results.filter((result) => ids.has(result.studentId));
+      const average = own.length
+        ? Math.round(own.reduce((sum, result) => sum + getQuizResultPercentage(result), 0) / own.length)
+        : null;
+      return { teacher, students: students.length, parents: parents.length, quizzes: own.length, average };
+    });
+  }, [stats]);
+
+  const average = Math.round(stats.averageQuizScore);
+  const hasResults = stats.totalQuizzesTaken > 0;
 
   return (
-    <div className="dashboard-page animate-fadeIn">
-      <div className="flex flex-wrap items-center justify-between gap-4">
-        <div>
-          <h1 className="text-3xl sm:text-4xl font-black text-purple-900">نظرة عامة</h1>
-          <p className="text-purple-500 mt-2">إليك ملخص سريع لأداء المنصة التعليمية اليوم</p>
-        </div>
-        <button 
-          onClick={onRefresh}
-          className="bg-white border p-3 rounded-xl hover:bg-purple-50 transition-colors shadow-sm text-purple-600 font-bold flex items-center gap-2"
-        >
-          <span>🔄</span>
-          تحديث البيانات
-        </button>
+    <div className="portal-page">
+      <PageHeader
+        eyebrow="لوحة المشرف"
+        title="نظرة عامة على المنصّة"
+        description="أرقام المنصّة التعليمية وأداء المعلمين وطلابهم."
+        icon={Layers}
+        actions={
+          <button type="button" className="portal-btn portal-btn-secondary" onClick={onRefresh}>
+            <RefreshCw aria-hidden="true" /> تحديث البيانات
+          </button>
+        }
+      />
+
+      <div className="portal-stats">
+        <StatCard label="الطلاب" value={stats.totalStudents} hint={`${stats.activeStudents} نشطون خلال ٧ أيام`} icon={GraduationCap} />
+        <StatCard label="المعلمون" value={teachers.length} hint="حسابات المعلمين" icon={School} tone="accent" />
+        <StatCard label="أولياء الأمور" value={stats.totalParents} hint="حسابات مرتبطة" icon={UsersRound} tone="neutral" />
+        <StatCard label="الدروس" value={stats.lessonsCount} hint={`${stats.gradesCount} صف · ${stats.subjectsCount} مادة`} icon={BookOpenCheck} tone="success" />
+        <StatCard label="الاختبارات المنجزة" value={stats.totalQuizzesTaken} hint="كل المحاولات" icon={ClipboardList} tone="gold" />
+        <StatCard
+          label="متوسط النتائج"
+          value={hasResults ? `${average}%` : '—'}
+          hint={hasResults ? scoreLabel(average) : 'لا نتائج بعد'}
+          icon={Activity}
+          tone={hasResults ? scoreTone(average) : 'neutral'}
+        />
       </div>
 
-      <div className="dashboard-stats-grid">
-        {cards.map((card, i) => (
-          <div key={i} className="dashboard-stat-card">
-            <div className="dashboard-stat-heading">
-              <p className="text-base font-black text-purple-800">{card.label}</p>
-              <div className={`flex h-12 w-12 items-center justify-center rounded-xl ${card.color} text-3xl`}>
-              {card.icon}
-              </div>
-            </div>
-            <p className="dashboard-stat-value text-purple-900">{card.value}</p>
+      <Panel title="المعلمون" subtitle="الطلاب وأولياء الأمور والمعدّل لكل معلم" icon={School} flush>
+        {teachers.length === 0 ? (
+          <EmptyState title="لا معلمين بعد" description="أضف المعلمين من «إدارة المعلمين»." />
+        ) : (
+          <div className="portal-table-wrap">
+            <table className="portal-table">
+              <thead>
+                <tr>
+                  <th>المعلم</th>
+                  <th>المادة</th>
+                  <th>الطلاب</th>
+                  <th>أولياء الأمور</th>
+                  <th>الاختبارات</th>
+                  <th style={{ minWidth: '10rem' }}>معدّل الطلاب</th>
+                  <th>آخر نشاط</th>
+                </tr>
+              </thead>
+              <tbody>
+                {teachers.map((row) => (
+                  <tr key={row.teacher.id}>
+                    <td className="font-bold text-slate-800">{row.teacher.name}</td>
+                    <td>{row.teacher.subject || '—'}</td>
+                    <td className="is-num">{row.students}</td>
+                    <td className="is-num">{row.parents}</td>
+                    <td className="is-num">{row.quizzes}</td>
+                    <td>
+                      {row.average === null ? (
+                        <span className="text-slate-400">لا نتائج</span>
+                      ) : (
+                        <div className="flex items-center gap-2">
+                          <div className="flex-1">
+                            <ProgressBar value={row.average} tone={scoreTone(row.average)} label={`معدل طلاب ${row.teacher.name}`} />
+                          </div>
+                          <span className="is-num text-xs font-bold text-slate-600">{row.average}%</span>
+                        </div>
+                      )}
+                    </td>
+                    <td className="is-num text-slate-500">{relativeDay(row.teacher.lastActivity)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
-        ))}
-      </div>
+        )}
+      </Panel>
 
-      <div className="grid grid-cols-1 gap-5 lg:grid-cols-2 lg:gap-8">
-         <div className="dashboard-surface">
-           <h3 className="text-xl font-bold mb-6 flex items-center gap-2">
-             <span>🚀</span> التوزيع الأكاديمي
-           </h3>
-           <div className="space-y-4">
-              <div className="flex justify-between items-center p-4 bg-purple-50 rounded-2xl">
-                 <span className="font-bold">الصفوف الدراسية</span>
-                 <span className="bg-white px-3 py-1 rounded-lg border font-black">{stats.gradesCount}</span>
-              </div>
-              <div className="flex justify-between items-center p-4 bg-purple-50 rounded-2xl">
-                 <span className="font-bold">المواد المسجلة</span>
-                 <span className="bg-white px-3 py-1 rounded-lg border font-black">{stats.subjectsCount}</span>
-              </div>
-           </div>
-        </div>
-
-           <div className="dashboard-surface bg-purple-800 text-white border-purple-700">
-           <div className="relative z-10">
-             <h3 className="text-xl font-bold mb-2">متوسط النتائج</h3>
-             <p className="text-purple-300 text-sm mb-6">معدل نجاح الطلاب في جميع الاختبارات</p>
-             <div className="text-6xl font-black">{stats.averageQuizScore.toFixed(1)}%</div>
-           </div>
-           <div className="absolute -bottom-10 -right-10 text-[180px] opacity-10 pointer-events-none">📊</div>
-        </div>
-      </div>
-
-         <div className="dashboard-surface">
-         <div className="flex items-center justify-between mb-6">
-           <h3 className="text-xl font-bold flex items-center gap-2">
-             <span>🕘</span> آخر نشاط للطلاب
-           </h3>
-           <span className="text-xs font-bold text-purple-400">آخر 6 أنشطة</span>
-         </div>
-         {stats.recentActivities.length > 0 ? (
-           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-             {stats.recentActivities.map((activity, index) => (
-               <div key={`${activity.studentName}-${activity.time}-${index}`} className="flex items-center justify-between gap-4 p-4 bg-purple-50 rounded-2xl">
-                 <div className="min-w-0">
-                   <p className="font-black text-purple-900 truncate">{activity.studentName}</p>
-                   <p className="text-xs text-purple-500">{activity.activity} · الصف {activity.grade}</p>
-                 </div>
-                 <time className="text-[11px] text-purple-400 shrink-0" dateTime={activity.time}>
-                   {new Date(activity.time).toLocaleDateString('ar-SA')}
-                 </time>
-               </div>
-             ))}
-           </div>
-         ) : (
-           <div className="p-6 rounded-2xl bg-purple-50 text-center text-purple-500 font-bold">
-             لا توجد أنشطة مسجلة حتى الآن
-           </div>
-         )}
-       </div>
+      <Panel title="آخر نشاط للطلاب" subtitle="آخر ستة طلاب استخدموا المنصّة" icon={Clock} flush>
+        {stats.recentActivities.length === 0 ? (
+          <EmptyState title="لا أنشطة مسجّلة بعد" />
+        ) : (
+          <div className="portal-table-wrap">
+            <table className="portal-table">
+              <thead>
+                <tr>
+                  <th>الطالب</th>
+                  <th>الصف</th>
+                  <th>النشاط</th>
+                  <th>التاريخ</th>
+                </tr>
+              </thead>
+              <tbody>
+                {stats.recentActivities.map((activity, index) => (
+                  <tr key={`${activity.studentName}-${activity.time}-${index}`}>
+                    <td className="font-bold text-slate-800">{activity.studentName}</td>
+                    <td>{activity.grade}</td>
+                    <td>
+                      <Badge tone="accent">{activity.activity}</Badge>
+                    </td>
+                    <td className="is-num text-slate-500">
+                      <time dateTime={activity.time}>{relativeDay(activity.time)}</time>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </Panel>
     </div>
   );
 };

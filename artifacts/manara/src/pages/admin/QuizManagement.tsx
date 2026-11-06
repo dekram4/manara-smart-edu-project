@@ -25,7 +25,7 @@ const uniqueAcademicValues = (values: unknown[]): string[] => {
   }, []);
 };
 
-// 📝 نموذج إضافة سؤال يدوي
+// نموذج إضافة سؤال يدوي
 const ManualQuestionForm: React.FC<{
   onAdd: (question: string, options: string[], correctAnswer: string) => void;
   onCancel: () => void;
@@ -38,13 +38,13 @@ const ManualQuestionForm: React.FC<{
     e.preventDefault();
     
     if (!question.trim()) {
-      alert('⚠️ يجب كتابة نص السؤال');
+      alert('يجب كتابة نص السؤال');
       return;
     }
     
     const filledOptions = options.filter(o => o.trim());
     if (filledOptions.length < 2) {
-      alert('⚠️ يجب إضافة خيارين على الأقل');
+      alert('يجب إضافة خيارين على الأقل');
       return;
     }
     
@@ -56,7 +56,7 @@ const ManualQuestionForm: React.FC<{
 
   return (
     <div className="bg-white p-6 rounded-[25px] border-2 border-green-300">
-      <h3 className="font-black text-green-900 text-lg mb-4">➕ إضافة سؤال جديد</h3>
+      <h3 className="font-black text-green-900 text-lg mb-4">إضافة سؤال جديد</h3>
       <form onSubmit={handleSubmit} className="space-y-4">
         <div>
           <label className="block font-bold text-purple-700 mb-2">السؤال</label>
@@ -96,7 +96,7 @@ const ManualQuestionForm: React.FC<{
               </div>
             ))}
           </div>
-          <p className="text-xs text-purple-500 mt-2">💡 حدد الدائرة للإجابة الصحيحة</p>
+          <p className="text-xs text-purple-500 mt-2">حدد الدائرة للإجابة الصحيحة</p>
         </div>
         
         <div className="flex gap-2">
@@ -104,14 +104,14 @@ const ManualQuestionForm: React.FC<{
             type="submit"
             className="flex-1 py-3 bg-gradient-to-r from-green-600 to-emerald-600 text-white rounded-xl font-bold hover:shadow-lg transition-all"
           >
-            ✅ إضافة السؤال
+            إضافة السؤال
           </button>
           <button
             type="button"
             onClick={onCancel}
             className="px-6 py-3 bg-red-100 text-red-600 rounded-xl font-bold hover:bg-red-200 transition-all"
           >
-            ❌ إلغاء
+            إلغاء
           </button>
         </div>
       </form>
@@ -119,7 +119,7 @@ const ManualQuestionForm: React.FC<{
   );
 };
 
-// ✏️ نموذج تعديل سؤال موجود
+// نموذج تعديل سؤال موجود
 const EditQuestionForm: React.FC<{
   question: QuizQuestion;
   onUpdate: (id: string, question: string, options: string[], correctAnswer: string) => void;
@@ -133,13 +133,13 @@ const EditQuestionForm: React.FC<{
     e.preventDefault();
     
     if (!questionText.trim()) {
-      alert('⚠️ يجب كتابة نص السؤال');
+      alert('يجب كتابة نص السؤال');
       return;
     }
     
     const filledOptions = options.filter(o => o.trim());
     if (filledOptions.length < 2) {
-      alert('⚠️ يجب إضافة خيارين على الأقل');
+      alert('يجب إضافة خيارين على الأقل');
       return;
     }
     
@@ -148,7 +148,7 @@ const EditQuestionForm: React.FC<{
 
   return (
     <div className="bg-blue-50 p-6 rounded-[25px] border-2 border-blue-300 mb-4">
-      <h3 className="font-black text-blue-900 text-lg mb-4">✏️ تعديل السؤال</h3>
+      <h3 className="font-black text-blue-900 text-lg mb-4">تعديل السؤال</h3>
       <form onSubmit={handleSubmit} className="space-y-4">
         <div>
           <label className="block font-bold text-purple-700 mb-2">السؤال</label>
@@ -189,7 +189,7 @@ const EditQuestionForm: React.FC<{
               </div>
             ))}
           </div>
-          <p className="text-xs text-purple-500 mt-2">✓ حدد الإجابة الصحيحة</p>
+          <p className="text-xs text-purple-500 mt-2">حدد الإجابة الصحيحة</p>
         </div>
 
         <div className="flex gap-3">
@@ -197,14 +197,14 @@ const EditQuestionForm: React.FC<{
             type="submit"
             className="flex-1 bg-blue-600 text-white py-3 rounded-xl font-bold hover:bg-blue-700 transition-all"
           >
-            💾 حفظ التعديلات
+            حفظ التعديلات
           </button>
           <button
             type="button"
             onClick={onCancel}
             className="px-6 bg-purple-100 text-purple-700 py-3 rounded-xl font-bold hover:bg-purple-200 transition-all"
           >
-            ❌ إلغاء
+            إلغاء
           </button>
         </div>
       </form>
@@ -222,14 +222,14 @@ const QuizManagement: React.FC<QuizManagementProps> = ({ onUpdate, teacherId, te
   const [showAddQuestionForm, setShowAddQuestionForm] = useState(false);
   const [editingQuestion, setEditingQuestion] = useState<QuizQuestion | null>(null);
 
-  // 👨‍🏫 اختيار المعلم
+  // اختيار المعلم
   const [teachers, setTeachers] = useState<any[]>([]);
   const [selectedTeacherId, setSelectedTeacherId] = useState<string>(teacherId || 'admin');
   const [selectedTeacherName, setSelectedTeacherName] = useState<string>(
     teacherName || 'المشرف - محتوى عام',
   );
 
-  // 🔗 الإعدادات الأكاديمية الهرمية
+  // الإعدادات الأكاديمية الهرمية
   const [availableGrades, setAvailableGrades] = useState<string[]>([]);
   const [availableSubjects, setAvailableSubjects] = useState<string[]>([]);
   const [availableTerms, setAvailableTerms] = useState<string[]>([]);
@@ -239,14 +239,14 @@ const QuizManagement: React.FC<QuizManagementProps> = ({ onUpdate, teacherId, te
   /// هل ما زالت الشجرة الأكاديمية في طريقها من الخادم؟
   const hydrating = useSyncHydrating();
 
-  // 🔎 فلاتر قائمة الاختبارات المنشأة
+  // فلاتر قائمة الاختبارات المنشأة
   const [listSearch, setListSearch] = useState('');
   const [listSubject, setListSubject] = useState('all');
   const [listGrade, setListGrade] = useState('all');
   const [listTerm, setListTerm] = useState('all');
   const [listStatus, setListStatus] = useState<'all' | 'active' | 'locked'>('all');
 
-  // 📝 محتوى الدرس المسحوب
+  // محتوى الدرس المسحوب
   const [lessonContent, setLessonContent] = useState('');
   const [lessonFound, setLessonFound] = useState(false);
   /// كم درساً دُمجت نصوصه في الحقل — يعرف المعلم حجم ما يولّد منه.
@@ -291,7 +291,7 @@ const QuizManagement: React.FC<QuizManagementProps> = ({ onUpdate, teacherId, te
     }
   };
 
-  // 📚 تحميل الهيكل الأكاديمي
+  // تحميل الهيكل الأكاديمي
   const loadAcademicHierarchy = () => {
     const allHierarchicalConfigs = readHierarchicalConfigs(STORAGE_KEYS.HIERARCHICAL_CONFIGS);
     const teachersList = JSON.parse(localStorage.getItem(STORAGE_KEYS.TEACHERS) || '[]');
@@ -337,7 +337,7 @@ const QuizManagement: React.FC<QuizManagementProps> = ({ onUpdate, teacherId, te
     setTimeout(loadAcademicHierarchy, 0);
   };
 
-  // 🔗 الحصول على الإعدادات الأكاديمية حسب المعلم المختار
+  // الحصول على الإعدادات الأكاديمية حسب المعلم المختار
   const getFilteredConfigs = () => {
     const all = readHierarchicalConfigs(STORAGE_KEYS.HIERARCHICAL_CONFIGS);
     if (selectedTeacherId && selectedTeacherId !== 'admin') {
@@ -346,7 +346,7 @@ const QuizManagement: React.FC<QuizManagementProps> = ({ onUpdate, teacherId, te
     return all;
   };
 
-  // 🔄 تحديث الخيارات المتاحة
+  // تحديث الخيارات المتاحة
   const handleGradeChange = (newGrade: string) => {
     setQuizFormData({ ...quizFormData, grade: newGrade, subject: '', term: '', unit: '', lesson: '' });
     setLessonContent('');
@@ -545,20 +545,20 @@ const QuizManagement: React.FC<QuizManagementProps> = ({ onUpdate, teacherId, te
     return Math.max(matchingManualQuizzes.length, ...numbers) + 1;
   };
 
-  // 🤖 توليد اختبار ذكي باحترافية عالية
+  // توليد اختبار ذكي باحترافية عالية
   const generateSmartQuiz = async () => {
     if (!lessonContent.trim()) {
-      alert('⚠️ لم يتم العثور على محتوى درس! تأكد من إضافة الدرس في إدارة المحتوى.');
+      alert('لم يتم العثور على محتوى درس! تأكد من إضافة الدرس في إدارة المحتوى.');
       return;
     }
     
     if (!quizFormData.title.trim()) {
-      alert('⚠️ يرجى إدخال عنوان الاختبار');
+      alert('يرجى إدخال عنوان الاختبار');
       return;
     }
 
     if (normalizeQuizType(quizFormData.quizType) === QuizType.PERIODIC && hasGeneratedPeriodicQuiz()) {
-      alert('⚠️ تم إنشاء الاختبار الدوري بالذكاء الاصطناعي لهذا المسار مسبقاً. يمكنك تعديله من قائمة الاختبارات.');
+      alert('تم إنشاء الاختبار الدوري بالذكاء الاصطناعي لهذا المسار مسبقاً. يمكنك تعديله من قائمة الاختبارات.');
       return;
     }
     
@@ -594,24 +594,24 @@ const QuizManagement: React.FC<QuizManagementProps> = ({ onUpdate, teacherId, te
         console.error('❌ خطأ في API:', errorData);
         console.error('❌ رمز الخطأ:', response.status);
         
-        let errorMessage = '❌ فشل الاتصال بـ Gemini AI:\n\n';
+        let errorMessage = 'فشل الاتصال بـ Gemini AI:\n\n';
         
         if (
           response.status === 401 &&
           typeof errorData?.error === 'string' &&
           /تسجيل الدخول|جلسة/i.test(errorData.error)
         ) {
-          errorMessage += '🔐 انتهت جلسة المعلم أو المشرف. سجّل الخروج ثم سجّل الدخول مرة أخرى، وبعدها أعد التوليد.';
+          errorMessage += 'انتهت جلسة المعلم أو المشرف. سجّل الخروج ثم سجّل الدخول مرة أخرى، وبعدها أعد التوليد.';
         } else if (response.status === 400) {
-          errorMessage += '⚠️ طلب غير صحيح. قد يكون المحتوى طويلاً جداً.';
+          errorMessage += 'طلب غير صحيح. قد يكون المحتوى طويلاً جداً.';
         } else if (response.status === 403) {
-          errorMessage += errorData?.error || '🔒 لا تملك صلاحية توليد هذا الاختبار.';
+          errorMessage += errorData?.error || 'لا تملك صلاحية توليد هذا الاختبار.';
         } else if (response.status === 429) {
-          errorMessage += '⏳ تجاوزت حد الاستخدام. انتظر قليلاً وحاول مرة أخرى.';
+          errorMessage += 'تجاوزت حد الاستخدام. انتظر قليلاً وحاول مرة أخرى.';
         } else if (response.status === 500 || response.status === 502) {
-          errorMessage += '🔧 خطأ في خادم Google. حاول مرة أخرى بعد قليل.';
+          errorMessage += 'خطأ في خادم Google. حاول مرة أخرى بعد قليل.';
         } else if (response.status === 503) {
-          errorMessage += '⚠️ لا يوجد نموذج Gemini متاح حاليًا لهذا المفتاح. حاول مرة أخرى لاحقًا أو حدّد GEMINI_MODEL في Secrets.';
+          errorMessage += 'لا يوجد نموذج Gemini متاح حاليًا لهذا المفتاح. حاول مرة أخرى لاحقًا أو حدّد GEMINI_MODEL في Secrets.';
         } else {
           errorMessage += `رمز الخطأ: ${response.status}\n\nتحقق من:\n1️⃣ صلاحية API Key\n2️⃣ الاتصال بالإنترنت\n3️⃣ حدود الاستخدام`;
         }
@@ -627,11 +627,11 @@ const QuizManagement: React.FC<QuizManagementProps> = ({ onUpdate, teacherId, te
       if (Array.isArray(data?.questions)) {
         const generatedQuestions = data.questions.slice(0, bankSize);
         if (generatedQuestions.length === 0) {
-          alert('❌ لم يتم توليد أسئلة صالحة. حاول مرة أخرى.');
+          alert('لم يتم توليد أسئلة صالحة. حاول مرة أخرى.');
           return;
         }
         if (saveQuiz(generatedQuestions)) {
-          alert(`✅ تم إنشاء بنك احترافي بـ ${generatedQuestions.length} سؤالًا، وسيظهر لكل طالب ${requestedQuestionCount} أسئلة مختلفة.`);
+          alert(`تم إنشاء بنك احترافي بـ ${generatedQuestions.length} سؤالًا، وسيظهر لكل طالب ${requestedQuestionCount} أسئلة مختلفة.`);
         }
         return;
       }
@@ -642,7 +642,7 @@ const QuizManagement: React.FC<QuizManagementProps> = ({ onUpdate, teacherId, te
         .trim();
       
       if (!aiResponse) {
-        alert('❌ لم يتم الحصول على رد من الذكاء الاصطناعي. حاول مرة أخرى.');
+        alert('لم يتم الحصول على رد من الذكاء الاصطناعي. حاول مرة أخرى.');
         setIsGenerating(false);
         return;
       }
@@ -679,13 +679,13 @@ const QuizManagement: React.FC<QuizManagementProps> = ({ onUpdate, teacherId, te
             responseLength: aiResponse.length,
             responsePreview: aiResponse.slice(0, 500),
           });
-          alert('❌ لم يتم توليد أسئلة صالحة. حاول مرة أخرى.');
+          alert('لم يتم توليد أسئلة صالحة. حاول مرة أخرى.');
           setIsGenerating(false);
           return;
         }
         
         if (saveQuiz(generatedQuestions)) {
-          alert(`✅ تم إنشاء بنك احترافي بـ ${generatedQuestions.length} سؤالًا، وسيظهر لكل طالب ${requestedQuestionCount} أسئلة مختلفة.`);
+          alert(`تم إنشاء بنك احترافي بـ ${generatedQuestions.length} سؤالًا، وسيظهر لكل طالب ${requestedQuestionCount} أسئلة مختلفة.`);
         }
       } catch (parseError) {
         console.error('❌ خطأ في تحليل JSON:', {
@@ -696,14 +696,14 @@ const QuizManagement: React.FC<QuizManagementProps> = ({ onUpdate, teacherId, te
         });
         alert(
           data.candidates?.[0]?.finishReason === 'MAX_TOKENS'
-            ? '❌ الرد كان طويلًا ولم يكتمل. قلّل عدد الأسئلة أو حاول مرة أخرى.'
-            : '❌ فشل تحليل الأسئلة. حاول مرة أخرى.',
+            ? 'الرد كان طويلًا ولم يكتمل. قلّل عدد الأسئلة أو حاول مرة أخرى.'
+            : 'فشل تحليل الأسئلة. حاول مرة أخرى.',
         );
       }
       
     } catch (error) {
       console.error('❌ خطأ في الاتصال بـ Gemini API:', error);
-      alert('❌ حدث خطأ في الاتصال بالذكاء الاصطناعي. تحقق من الاتصال بالإنترنت وحاول مرة أخرى.');
+      alert('حدث خطأ في الاتصال بالذكاء الاصطناعي. تحقق من الاتصال بالإنترنت وحاول مرة أخرى.');
     } finally {
       setIsGenerating(false);
     }
@@ -711,7 +711,7 @@ const QuizManagement: React.FC<QuizManagementProps> = ({ onUpdate, teacherId, te
 
 
 
-  // 💾 حفظ الاختبار
+  // حفظ الاختبار
   const saveQuiz = (generatedQuestions: any[]): boolean => {
     const quizId = editingQuiz?.id || `quiz_${Date.now()}`;
     const requestedQuestionCount = Math.max(1, Math.min(quizFormData.questionCount, 30));
@@ -766,7 +766,7 @@ const QuizManagement: React.FC<QuizManagementProps> = ({ onUpdate, teacherId, te
       normalizeQuizType(quizFormData.quizType) === QuizType.PERIODIC &&
       hasGeneratedPeriodicQuiz()
     ) {
-      alert('⚠️ يوجد اختبار دوري مولّد بالذكاء الاصطناعي لهذا المسار بالفعل.');
+      alert('يوجد اختبار دوري مولّد بالذكاء الاصطناعي لهذا المسار بالفعل.');
       return false;
     }
     updated = editingQuiz
@@ -801,10 +801,10 @@ const QuizManagement: React.FC<QuizManagementProps> = ({ onUpdate, teacherId, te
     setShowAddQuestionForm(false);
   };
 
-  // 💾 حفظ اختبار يدوي
+  // حفظ اختبار يدوي
   const saveManualQuiz = () => {
     if (manualQuestions.length === 0) {
-      alert('⚠️ يجب إضافة سؤال واحد على الأقل');
+      alert('يجب إضافة سؤال واحد على الأقل');
       return;
     }
 
@@ -857,10 +857,10 @@ const QuizManagement: React.FC<QuizManagementProps> = ({ onUpdate, teacherId, te
     setShowCreateForm(false);
     setEditingQuiz(null);
     resetForm();
-    alert(`✅ تم حفظ الاختبار اليدوي بنجاح (${manualQuestions.length} سؤال)`);
+    alert(`تم حفظ الاختبار اليدوي بنجاح (${manualQuestions.length} سؤال)`);
   };
 
-  // ➕ إضافة سؤال يدوي
+  // إضافة سؤال يدوي
   const addManualQuestion = (question: string, options: string[], correctAnswer: string) => {
     const newQuestion: QuizQuestion = {
       id: `q_manual_${Date.now()}_${Math.random()}`,
@@ -881,12 +881,12 @@ const QuizManagement: React.FC<QuizManagementProps> = ({ onUpdate, teacherId, te
     setShowAddQuestionForm(false);
   };
 
-  // 🗑️ حذف سؤال يدوي
+  // حذف سؤال يدوي
   const deleteManualQuestion = (id: string) => {
     setManualQuestions(manualQuestions.filter(q => q.id !== id));
   };
 
-  // ✏️ تعديل سؤال
+  // تعديل سؤال
   const updateManualQuestion = (id: string, question: string, options: string[], correctAnswer: string) => {
     setManualQuestions(manualQuestions.map(q => 
       q.id === id 
@@ -993,7 +993,7 @@ const QuizManagement: React.FC<QuizManagementProps> = ({ onUpdate, teacherId, te
   };
 
   const handleDelete = (id: string) => {
-    if (!confirm('🗑️ حذف الاختبار نهائياً؟ سيتم حذف جميع الأسئلة المرتبطة به.')) return;
+    if (!confirm('حذف الاختبار نهائياً؟ سيتم حذف جميع الأسئلة المرتبطة به.')) return;
     const allSaved: CreatedQuiz[] = JSON.parse(
       localStorage.getItem(STORAGE_KEYS.CREATED_QUIZZES) || '[]',
     ).map(normalizeCreatedQuiz);
@@ -1034,7 +1034,7 @@ const QuizManagement: React.FC<QuizManagementProps> = ({ onUpdate, teacherId, te
       {/* 📊 Header */}
        <div className="dashboard-section-header">
         <div className="min-w-0">
-          <h1 className="text-2xl font-black text-purple-900 sm:text-3xl">🎯 إدارة الاختبارات</h1>
+          <h1 className="text-2xl font-black text-purple-900 sm:text-3xl">إدارة الاختبارات</h1>
           <p className="text-purple-500 font-medium">إنشاء وإدارة الاختبارات للطلاب</p>
         </div>
         <button
@@ -1045,15 +1045,15 @@ const QuizManagement: React.FC<QuizManagementProps> = ({ onUpdate, teacherId, te
           }}
           className="min-h-11 bg-gradient-to-r from-purple-500 to-violet-500 text-white px-5 py-3 rounded-[20px] font-black text-base hover:shadow-2xl transition-all sm:px-8 sm:py-4 sm:rounded-[25px] sm:text-lg"
         >
-          {showCreateForm ? '❌ إلغاء' : '➕ إنشاء اختبار جديد'}
+          {showCreateForm ? 'إلغاء' : 'إنشاء اختبار جديد'}
         </button>
       </div>
 
-      {/* 📝 نموذج إنشاء/تعديل اختبار */}
+      {/* نموذج إنشاء/تعديل اختبار */}
       {showCreateForm && (
          <div className="dashboard-surface mobile-modal-panel bg-gradient-to-br from-purple-50 to-violet-50 border-purple-300 animate-fadeIn">
           <h2 className="text-2xl font-black text-purple-900 mb-8">
-            {editingQuiz ? '📝 تعديل اختبار' : '✨ إنشاء اختبار جديد'}
+            {editingQuiz ? 'تعديل اختبار' : 'إنشاء اختبار جديد'}
           </h2>
 
           {/* اختيار نوع الإنشاء */}
@@ -1067,7 +1067,7 @@ const QuizManagement: React.FC<QuizManagementProps> = ({ onUpdate, teacherId, te
                     : 'bg-white border-2 border-purple-300 text-purple-600'
                 }`}
               >
-                🤖 توليد ذكي بالـ AI
+                توليد ذكي بالـ AI
               </button>
               <button
                 type="button"
@@ -1078,14 +1078,14 @@ const QuizManagement: React.FC<QuizManagementProps> = ({ onUpdate, teacherId, te
                     : 'bg-white border-2 border-green-300 text-green-600'
                 }`}
               >
-                ✍️ إنشاء يدوي
+                إنشاء يدوي
               </button>
             </div>
 
           <div className="space-y-6">
             {/* اختيار المعلم */}
             <div>
-              <label className="block font-black text-purple-900 mb-2">👨‍🏫 اختيار المعلم</label>
+              <label className="block font-black text-purple-900 mb-2">اختيار المعلم</label>
               {teacherId ? (
                 <div className="w-full p-4 border-2 border-purple-200 rounded-2xl bg-purple-50 font-bold text-lg text-purple-800">
                   👨‍🏫 {teacherName || selectedTeacherName}
@@ -1097,7 +1097,7 @@ const QuizManagement: React.FC<QuizManagementProps> = ({ onUpdate, teacherId, te
                   className="w-full p-4 border-2 border-purple-300 rounded-2xl outline-none focus:border-purple-600 bg-white font-bold text-lg"
                   required
                 >
-                  <option value="admin">📚 محتوى عام (المشرف)</option>
+                  <option value="admin">محتوى عام (المشرف)</option>
                   {teachers.map((t: any) => (
                     <option key={t.id} value={t.id}>👨‍🏫 {t.name} - {t.subject || 'معلم'}</option>
                   ))}
@@ -1105,14 +1105,14 @@ const QuizManagement: React.FC<QuizManagementProps> = ({ onUpdate, teacherId, te
               )}
               {selectedTeacherId !== 'admin' && (
                 <p className="text-sm text-purple-700 mt-2 font-bold">
-                  ✅ الإعدادات الأكاديمية المتاحة للمعلم: {selectedTeacherName}
+                  الإعدادات الأكاديمية المتاحة للمعلم: {selectedTeacherName}
                 </p>
               )}
             </div>
 
             {/* عنوان الاختبار */}
             <div>
-              <label className="block font-black text-purple-900 mb-2">🏷️ عنوان الاختبار</label>
+              <label className="block font-black text-purple-900 mb-2">عنوان الاختبار</label>
               <input
                 type="text"
                 value={quizFormData.title}
@@ -1132,7 +1132,7 @@ const QuizManagement: React.FC<QuizManagementProps> = ({ onUpdate, teacherId, te
                 className="p-4 border-2 border-purple-300 rounded-2xl outline-none focus:border-purple-600 bg-white font-bold"
                 required
               >
-                <option value="">🎓 الصف</option>
+                <option value="">الصف</option>
                 {availableGrades.map(g => <option key={g} value={g}>{g}</option>)}
               </select>
 
@@ -1145,7 +1145,7 @@ const QuizManagement: React.FC<QuizManagementProps> = ({ onUpdate, teacherId, te
                 disabled={!quizFormData.grade}
                 required
               >
-                <option value="">📖 المادة</option>
+                <option value="">المادة</option>
                 {availableSubjects.map(s => <option key={s} value={s}>{s}</option>)}
               </select>
 
@@ -1157,7 +1157,7 @@ const QuizManagement: React.FC<QuizManagementProps> = ({ onUpdate, teacherId, te
                 disabled={!quizFormData.subject}
                 required
               >
-                <option value="">📑 الفصل</option>
+                <option value="">الفصل</option>
                 {availableTerms.map(t => <option key={t} value={t}>{t}</option>)}
               </select>
 
@@ -1169,7 +1169,7 @@ const QuizManagement: React.FC<QuizManagementProps> = ({ onUpdate, teacherId, te
                 disabled={!quizFormData.term}
                 required
               >
-                <option value="">📦 الوحدة</option>
+                <option value="">الوحدة</option>
                 {availableUnits.map(u => <option key={u} value={u}>{u}</option>)}
               </select>
 
@@ -1183,7 +1183,7 @@ const QuizManagement: React.FC<QuizManagementProps> = ({ onUpdate, teacherId, te
                 className="p-4 border-2 border-purple-300 rounded-2xl outline-none focus:border-purple-600 bg-white font-bold"
                 disabled={!quizFormData.unit}
               >
-                <option value="">{hydrating && availableLessons.length === 0 ? '⏳ جارٍ تحميل الدروس…' : '📘 الدرس (اختياري — اتركه فارغاً لاختبار الوحدة)'}</option>
+                <option value="">{hydrating && availableLessons.length === 0 ? 'جارٍ تحميل الدروس…' : 'الدرس (اختياري — اتركه فارغاً لاختبار الوحدة)'}</option>
                 {availableLessons.map(l => <option key={l} value={l}>{l}</option>)}
               </select>
             </div>
@@ -1247,7 +1247,7 @@ const QuizManagement: React.FC<QuizManagementProps> = ({ onUpdate, teacherId, te
             <div className="grid min-w-0 grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-5">
               {/* نوع الاختبار */}
               <div>
-                <label className="block font-black text-purple-900 mb-2">🎯 نوع الاختبار</label>
+                <label className="block font-black text-purple-900 mb-2">نوع الاختبار</label>
                 {/* ‏القائمةُ هي المصدرُ الواحد: منها النوعُ ورايتا الإعادة معاً
                     (isRepeatable وallowRetake)، فلا تختلف الشارةُ عمّا يجده
                     الطالب. واختيارُ درسٍ يقترح «الدوري» وتركُه يقترح «المعلم»
@@ -1260,8 +1260,8 @@ const QuizManagement: React.FC<QuizManagementProps> = ({ onUpdate, teacherId, te
                   }}
                   className="w-full p-4 border-2 border-purple-300 rounded-2xl outline-none focus:border-purple-600 bg-white font-bold"
                 >
-                  <option value={QuizType.PERIODIC}>🔁 الاختبار الدوري (اختبار الدرس)</option>
-                  <option value={QuizType.TEACHER}>📋 اختبار المعلم (اختبار الوحدة)</option>
+                  <option value={QuizType.PERIODIC}>الاختبار الدوري (اختبار الدرس)</option>
+                  <option value={QuizType.TEACHER}>اختبار المعلم (اختبار الوحدة)</option>
                 </select>
                 <span className="block text-xs font-bold text-purple-500 mt-2">
                   {normalizeQuizType(quizFormData.quizType) === QuizType.PERIODIC
@@ -1272,7 +1272,7 @@ const QuizManagement: React.FC<QuizManagementProps> = ({ onUpdate, teacherId, te
 
               {/* عدد الأسئلة */}
               <div>
-                <label className="block font-black text-purple-900 mb-2">📊 عدد الأسئلة لكل طالب</label>
+                <label className="block font-black text-purple-900 mb-2">عدد الأسئلة لكل طالب</label>
                 <select
                   value={quizFormData.questionCount}
                   onChange={e => setQuizFormData({ ...quizFormData, questionCount: parseInt(e.target.value) })}
@@ -1289,14 +1289,14 @@ const QuizManagement: React.FC<QuizManagementProps> = ({ onUpdate, teacherId, te
 
               {/* الحالة */}
               <div>
-                <label className="block font-black text-purple-900 mb-2">🔘 الحالة</label>
+                <label className="block font-black text-purple-900 mb-2">الحالة</label>
                 <select
                   value={quizFormData.isActive ? 'active' : 'inactive'}
                   onChange={e => setQuizFormData({ ...quizFormData, isActive: e.target.value === 'active' })}
                   className="w-full p-4 border-2 border-purple-300 rounded-2xl outline-none focus:border-purple-600 bg-white font-bold"
                 >
-                  <option value="active">✅ مفعّل (يظهر للطلاب)</option>
-                  <option value="inactive">❌ غير مفعّل</option>
+                  <option value="active">مفعّل (يظهر للطلاب)</option>
+                  <option value="inactive">غير مفعّل</option>
                 </select>
               </div>
             </div>
@@ -1304,16 +1304,15 @@ const QuizManagement: React.FC<QuizManagementProps> = ({ onUpdate, teacherId, te
             {/* معلومات الاحترافية */}
             <div className="bg-gradient-to-r from-purple-100 to-violet-100 border-2 border-purple-300 p-6 rounded-[25px]">
               <div className="flex items-start gap-3">
-                <span className="text-3xl">🎓</span>
                 <div>
                   <h3 className="font-black text-purple-900 text-lg mb-2">نظام توليد احترافي</h3>
                   <ul className="text-purple-800 text-sm space-y-1">
-                    <li>✅ أسئلة متنوعة (تعريف، فهم، تطبيق، تحليل، تقييم)</li>
-                    <li>✅ مستويات صعوبة متدرجة (سهل، متوسط، صعب)</li>
-                    <li>✅ خيارات ذكية ومقنعة لجميع الاحتمالات</li>
-                    <li>✅ بنك أكبر مع مجموعة مختلفة وثابتة لكل طالب</li>
-                    <li>✅ تغطية شاملة لمحتوى الدرس</li>
-                    <li>✅ صياغة احترافية بدون أخطاء</li>
+                    <li>أسئلة متنوعة (تعريف، فهم، تطبيق، تحليل، تقييم)</li>
+                    <li>مستويات صعوبة متدرجة (سهل، متوسط، صعب)</li>
+                    <li>خيارات ذكية ومقنعة لجميع الاحتمالات</li>
+                    <li>بنك أكبر مع مجموعة مختلفة وثابتة لكل طالب</li>
+                    <li>تغطية شاملة لمحتوى الدرس</li>
+                    <li>صياغة احترافية بدون أخطاء</li>
                   </ul>
                 </div>
               </div>
@@ -1331,7 +1330,7 @@ const QuizManagement: React.FC<QuizManagementProps> = ({ onUpdate, teacherId, te
                     : 'bg-gradient-to-r from-purple-600 to-violet-600 hover:shadow-2xl shadow-purple-300'
                 } text-white`}
               >
-                {isGenerating ? '⏳ جاري التوليد الاحترافي...' : '✨ توليد الاختبار الآن'}
+                {isGenerating ? 'جاري التوليد الاحترافي...' : 'توليد الاختبار الآن'}
               </button>
             ) : (
        <div className="dashboard-surface dashboard-content-records space-y-4">
@@ -1339,7 +1338,7 @@ const QuizManagement: React.FC<QuizManagementProps> = ({ onUpdate, teacherId, te
                 {manualQuestions.length > 0 && (
                   <div className="bg-white p-6 rounded-[25px] border-2 border-green-300">
                     <h3 className="font-black text-green-900 text-lg mb-4">
-                      📝 الأسئلة المضافة ({manualQuestions.length})
+                      الأسئلة المضافة ({manualQuestions.length})
                     </h3>
                     <div className="space-y-3">
                       {manualQuestions.map((q, idx) => (
@@ -1406,7 +1405,7 @@ const QuizManagement: React.FC<QuizManagementProps> = ({ onUpdate, teacherId, te
                     onClick={() => setShowAddQuestionForm(true)}
                     className="w-full py-4 rounded-[25px] font-black text-lg bg-gradient-to-r from-green-600 to-emerald-600 text-white hover:shadow-xl transition-all"
                   >
-                    ➕ إضافة سؤال جديد
+                    إضافة سؤال جديد
                   </button>
                 )}
 
@@ -1417,7 +1416,7 @@ const QuizManagement: React.FC<QuizManagementProps> = ({ onUpdate, teacherId, te
                     onClick={saveManualQuiz}
                     className="w-full py-6 rounded-[30px] font-black text-2xl bg-gradient-to-r from-green-600 to-emerald-600 text-white hover:shadow-2xl shadow-green-300 transition-all"
                   >
-                    💾 حفظ الاختبار ({manualQuestions.length} سؤال)
+                    حفظ الاختبار ({manualQuestions.length} سؤال)
                   </button>
                 )}
               </div>
@@ -1426,14 +1425,14 @@ const QuizManagement: React.FC<QuizManagementProps> = ({ onUpdate, teacherId, te
         </div>
       )}
 
-      {/* 📋 قائمة الاختبارات المنشأة */}
+      {/* قائمة الاختبارات المنشأة */}
       <div className="space-y-4">
         <h2 className="text-2xl font-black text-purple-900">
-          📚 الاختبارات المنشأة ({visibleQuizzes.length}
+          الاختبارات المنشأة ({visibleQuizzes.length}
           {listFiltersActive ? ` من ${createdQuizzes.length}` : ''})
         </h2>
 
-        {/* 🔎 شريط الفلاتر — يظهر فقط حين يوجد ما يُفلتَر. */}
+        {/* شريط الفلاتر — يظهر فقط حين يوجد ما يُفلتَر. */}
         {createdQuizzes.length > 0 && (
           <div className="dashboard-filter-surface">
             <div className="dashboard-filter-grid dashboard-filter-grid-wide">
@@ -1441,7 +1440,7 @@ const QuizManagement: React.FC<QuizManagementProps> = ({ onUpdate, teacherId, te
                 type="search"
                 value={listSearch}
                 onChange={e => setListSearch(e.target.value)}
-                placeholder="🔎 ابحث بالاسم أو الوحدة أو الدرس"
+                placeholder="ابحث بالاسم أو الوحدة أو الدرس"
                 className="dashboard-form-control rounded-xl border-2 border-slate-200 px-4 font-bold outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
               />
               <select
@@ -1449,7 +1448,7 @@ const QuizManagement: React.FC<QuizManagementProps> = ({ onUpdate, teacherId, te
                 onChange={e => setListSubject(e.target.value)}
                 className="dashboard-form-control rounded-xl border-2 border-slate-200 px-4 font-bold outline-none focus:border-blue-500"
               >
-                <option value="all">📖 كل المواد</option>
+                <option value="all">كل المواد</option>
                 {listFilterOptions.subjects.map(v => <option key={v} value={v}>{v}</option>)}
               </select>
               <select
@@ -1457,7 +1456,7 @@ const QuizManagement: React.FC<QuizManagementProps> = ({ onUpdate, teacherId, te
                 onChange={e => setListGrade(e.target.value)}
                 className="dashboard-form-control rounded-xl border-2 border-slate-200 px-4 font-bold outline-none focus:border-blue-500"
               >
-                <option value="all">🎓 كل الصفوف</option>
+                <option value="all">كل الصفوف</option>
                 {listFilterOptions.grades.map(v => <option key={v} value={v}>{v}</option>)}
               </select>
               <select
@@ -1465,7 +1464,7 @@ const QuizManagement: React.FC<QuizManagementProps> = ({ onUpdate, teacherId, te
                 onChange={e => setListTerm(e.target.value)}
                 className="dashboard-form-control rounded-xl border-2 border-slate-200 px-4 font-bold outline-none focus:border-blue-500"
               >
-                <option value="all">📅 كل الفصول الدراسية</option>
+                <option value="all">كل الفصول الدراسية</option>
                 {listFilterOptions.terms.map(v => <option key={v} value={v}>{v}</option>)}
               </select>
               <select
@@ -1473,9 +1472,9 @@ const QuizManagement: React.FC<QuizManagementProps> = ({ onUpdate, teacherId, te
                 onChange={e => setListStatus(e.target.value as 'all' | 'active' | 'locked')}
                 className="dashboard-form-control rounded-xl border-2 border-slate-200 px-4 font-bold outline-none focus:border-blue-500"
               >
-                <option value="all">🔁 كل الحالات</option>
-                <option value="active">✅ نشط</option>
-                <option value="locked">🔒 مقفل</option>
+                <option value="all">كل الحالات</option>
+                <option value="active">نشط</option>
+                <option value="locked">مقفل</option>
               </select>
             </div>
             {listFiltersActive && (
@@ -1495,7 +1494,6 @@ const QuizManagement: React.FC<QuizManagementProps> = ({ onUpdate, teacherId, te
 
         {createdQuizzes.length === 0 ? (
           <div className="p-32 text-center bg-white rounded-[40px] border-2 border-dashed border-purple-200">
-            <div className="text-6xl mb-4">📝</div>
             <h3 className="text-2xl font-black text-purple-300 mb-2">لا توجد اختبارات حتى الآن</h3>
             <p className="text-purple-400">ابدأ بإنشاء اختبار جديد</p>
           </div>
@@ -1520,7 +1518,7 @@ const QuizManagement: React.FC<QuizManagementProps> = ({ onUpdate, teacherId, te
                         ? 'dashboard-record-status-on'
                         : 'dashboard-record-status-off'
                     }`}>
-                      {quiz.isActive ? '✅ مفعّل' : '❌ غير مفعّل'}
+                      {quiz.isActive ? 'مفعّل' : 'غير مفعّل'}
                     </span>
                   </div>
 
@@ -1566,7 +1564,7 @@ const QuizManagement: React.FC<QuizManagementProps> = ({ onUpdate, teacherId, te
                       يُعلَن أنه يغطي الوحدة كاملة — فلا يبقى المستوى السادس
                       غامضاً على من يقرأ البطاقة. */}
                   <span className="dashboard-badge">
-                    {quiz.lesson ? `📘 ${quiz.lesson}` : '📘 كل دروس الوحدة'}
+                    {quiz.lesson ? `📘 ${quiz.lesson}` : 'كل دروس الوحدة'}
                   </span>
                   <span className="dashboard-badge dashboard-badge-accent">
                     {normalizeQuizType(quiz.quizType) === QuizType.PERIODIC
@@ -1581,22 +1579,22 @@ const QuizManagement: React.FC<QuizManagementProps> = ({ onUpdate, teacherId, te
                     فوق بعضها. صار شبكة تلتف من تلقائها. */}
                 <dl className="dashboard-record-meta">
                   <div>
-                    <dt>📊 الأسئلة</dt>
+                    <dt>الأسئلة</dt>
                     <dd>{quiz.questions.length}</dd>
                   </div>
                   <div>
-                    <dt>📅 الإنشاء</dt>
+                    <dt>الإنشاء</dt>
                     <dd>{new Date(quiz.createdAt).toLocaleDateString('ar-SA')}</dd>
                   </div>
                   {quiz.lastModified && (
                     <div>
-                      <dt>🔄 آخر تعديل</dt>
+                      <dt>آخر تعديل</dt>
                       <dd>{new Date(quiz.lastModified).toLocaleDateString('ar-SA')}</dd>
                     </div>
                   )}
                   {quiz.createdByName && (
                     <div>
-                      <dt>👨‍🏫 المعلم</dt>
+                      <dt>المعلم</dt>
                       <dd>{quiz.createdByName}</dd>
                     </div>
                   )}
@@ -1606,7 +1604,7 @@ const QuizManagement: React.FC<QuizManagementProps> = ({ onUpdate, teacherId, te
                 {quiz.questions.length > 0 && (
                   <details className="dashboard-record-footer">
                     <summary className="dashboard-record-reveal">
-                      👁️ عرض الأسئلة ({quiz.questions.length})
+                      عرض الأسئلة ({quiz.questions.length})
                     </summary>
                     <div className="mt-4 space-y-3">
                       {quiz.questions.map((q, idx) => (

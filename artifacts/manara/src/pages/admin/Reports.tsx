@@ -134,7 +134,7 @@ const Reports: React.FC = () => {
       
       return html`
         <div class="teacher-section">
-          <h2>👨‍🏫 المعلم: ${teacher?.name || 'غير معروف'}</h2>
+          <h2>المعلم: ${teacher?.name || 'غير معروف'}</h2>
           <p><strong>عدد أولياء الأمور:</strong> ${parents.length}</p>
           <p><strong>عدد الطلاب:</strong> ${students.length}</p>
           
@@ -196,7 +196,7 @@ const Reports: React.FC = () => {
         
         return html`
           <div class="teacher-section">
-            <h2>👨‍🏫 المعلم: ${teacher.name}</h2>
+            <h2>المعلم: ${teacher.name}</h2>
             <p><strong>المادة:</strong> ${teacher.subject || '—'} | <strong>عدد أولياء الأمور:</strong> ${parents.length} | <strong>عدد الطلاب:</strong> ${students.length}</p>
             <table border="1">
               <thead>
@@ -237,7 +237,7 @@ const Reports: React.FC = () => {
       
       return html`
         <div class="teacher-section">
-          <h2>👨‍👩‍👧‍👦 ولي الأمر: ${parent?.name || 'غير معروف'}</h2>
+          <h2>ولي الأمر: ${parent?.name || 'غير معروف'}</h2>
           <p><strong>رقم الجوال:</strong> ${parent?.phoneNumber || '—'} | <strong>عدد الأبناء:</strong> ${students.length}</p>
           <table border="1">
             <thead>
@@ -268,7 +268,7 @@ const Reports: React.FC = () => {
         
         return html`
           <div class="teacher-section">
-            <h2>👨‍👩‍👧‍👦 ولي الأمر: ${parent.name}</h2>
+            <h2>ولي الأمر: ${parent.name}</h2>
             <p><strong>رقم الجوال:</strong> ${parent.phoneNumber} | <strong>عدد الأبناء:</strong> ${students.length}</p>
             <table border="1">
               <thead>
@@ -533,7 +533,6 @@ const Reports: React.FC = () => {
 
        <div className="dashboard-card-grid dashboard-card-grid-wide">
          <div className="dashboard-surface flex flex-col items-center text-center group hover:shadow-md transition-all">
-           <div className="mb-5 flex h-20 w-20 items-center justify-center rounded-2xl bg-blue-50 text-5xl">👨‍🎓</div>
           <h3 className="text-xl font-black text-purple-800 mb-3 leading-7">تقرير الطلاب</h3>
           <p className="text-purple-400 font-bold mb-6 flex-1 leading-6">بيانات الطلاب الأكاديمية وحالة التسجيل والصفوف</p>
           
@@ -587,11 +586,10 @@ const Reports: React.FC = () => {
           <button
             onClick={() => handlePrint('students')}
             className="w-full bg-blue-600 text-white py-5 rounded-[25px] font-black text-xl hover:bg-blue-700 shadow-xl shadow-blue-100 transition-all"
-          >🖨️ طباعة التقرير</button>
+          >طباعة التقرير</button>
         </div>
 
           <div className="dashboard-surface flex flex-col items-center text-center group hover:shadow-md transition-all">
-           <div className="mb-5 flex h-20 w-20 items-center justify-center rounded-2xl bg-emerald-50 text-5xl">📝</div>
           <h3 className="text-xl font-black text-purple-800 mb-3 leading-7">نتائج الاختبارات</h3>
           <p className="text-purple-400 font-bold mb-6 flex-1 leading-6">تحليل شامل لنتائج جميع الطلاب في مختلف المواد والوحدات</p>
           <div className="w-full mb-4 text-right">
@@ -604,17 +602,16 @@ const Reports: React.FC = () => {
           <button
             onClick={() => handlePrint('quizzes')}
             className="w-full bg-emerald-600 text-white py-5 rounded-[25px] font-black text-xl hover:bg-emerald-700 shadow-xl shadow-emerald-100 transition-all"
-          >🖨️ طباعة التقرير</button>
+          >طباعة التقرير</button>
         </div>
 
          <div className="dashboard-surface flex flex-col items-center text-center group hover:shadow-md transition-all">
-           <div className="mb-5 flex h-20 w-20 items-center justify-center rounded-2xl bg-purple-50 text-5xl">📈</div>
           <h3 className="text-xl font-black text-purple-800 mb-3 leading-7">تقرير التفاعل</h3>
           <p className="text-purple-400 font-bold mb-6 flex-1 leading-6">سجل تفاعلات الطلاب مع المحتوى (الأفاتار، الفيديو)</p>
           <button
             onClick={() => handlePrint('interactions')}
             className="w-full bg-purple-600 text-white py-5 rounded-[25px] font-black text-xl hover:bg-purple-700 shadow-xl shadow-purple-100 transition-all"
-          >🖨️ طباعة تقرير التفاعل</button>
+          >طباعة تقرير التفاعل</button>
         </div>
       </div>
     </div>

@@ -147,15 +147,15 @@ const AcademicSaveBar: React.FC<{
   const status = (() => {
     switch (state.kind) {
       case 'checking':
-        return { text: '⏳ جارٍ التحقّق من قاعدة البيانات…', color: '#92400e', background: '#fef3c7' };
+        return { text: 'جارٍ التحقّق من قاعدة البيانات…', color: '#92400e', background: '#fef3c7' };
       case 'saving':
-        return { text: '⏳ جارٍ الحفظ…', color: '#92400e', background: '#fef3c7' };
+        return { text: 'جارٍ الحفظ…', color: '#92400e', background: '#fef3c7' };
       case 'saved':
         return state.verified
-          ? { text: '✅ محفوظ في قاعدة البيانات', color: '#065f46', background: '#d1fae5' }
-          : { text: '✅ أُرسل — وتعذّر التحقّق من القراءة', color: '#92400e', background: '#fef3c7' };
+          ? { text: 'محفوظ في قاعدة البيانات', color: '#065f46', background: '#d1fae5' }
+          : { text: 'أُرسل — وتعذّر التحقّق من القراءة', color: '#92400e', background: '#fef3c7' };
       case 'failed':
-        return { text: `⚠️ لم يُحفظ: ${state.reason}`, color: '#991b1b', background: '#fee2e2' };
+        return { text: `لم يُحفظ: ${state.reason}`, color: '#991b1b', background: '#fee2e2' };
       default:
         return { text: 'لم يُتحقّق بعد', color: '#475569', background: '#f1f5f9' };
     }
@@ -182,20 +182,20 @@ const AcademicSaveBar: React.FC<{
   return (
     <div style={styles.bar}>
       <button onClick={() => void save(false)} disabled={busy} style={styles.button}>
-        💾 حفظ وتثبيت الإعدادات الأكاديمية
+        حفظ وتثبيت الإعدادات الأكاديمية
       </button>
       {/* الاتجاه المعاكس: من قاعدة البيانات إلى الشاشة. وكان الشريط
           يعرف الرفع وحده، فمن كانت نسخته متخلّفة لا حيلة له إلا أن
           يمسح بيانات الموقع بيده. */}
       <button onClick={() => void pull()} disabled={busy} style={styles.sessionButton}>
-        🔄 جلب نسخة قاعدة البيانات
+        جلب نسخة قاعدة البيانات
       </button>
       <span style={{ ...styles.status, color: status.color, backgroundColor: status.background }}>
         {status.text}
       </span>
       {looksLikeSession && teacherUsername && (
         <button onClick={() => void reopen()} style={styles.sessionButton}>
-          🔑 إعادة فتح جلسة الحفظ ثم إعادة المحاولة
+          إعادة فتح جلسة الحفظ ثم إعادة المحاولة
         </button>
       )}
       {state.kind === 'saved' && (

@@ -13,6 +13,7 @@ import {
   findStudentById,
   findStudentByUsername,
   safeStudentData,
+  recordStudentLogin,
   studentRecord,
   studentToken,
   upgradeAccountPassword,
@@ -395,6 +396,12 @@ router.post("/auth/student/session", async (req, res) => {
     // ‏بالمفتاح العام ويتحقّق من كلمة المرور على الهاتف — فكانت سجلّاتُ الطلاب
     // ‏وبصماتُهم مقروءةً لكل من يملك المفتاح المضمَّن في أيّ APK.
     const record = await studentRecord(student);
+    // ‏عدّادُ الدخول لوليّ الأمر والمعلم. فشلُه لا يمنع الطالب من الدخول.
+    const login = await recordStudentLogin(student.rowId).catch((error) => {
+      logger.warn({ err: error }, "Student login count not recorded");
+      return null;
+    });
+    if (record && login) Object.assign(record.data, login);
     return res.json({
       token: studentToken(student.id),
       expiresAt: Date.now() + 60 * 60 * 12 * 1000,

@@ -47,7 +47,7 @@ const ContentManagement: React.FC<ContentManagementProps> = ({ onUpdate, teacher
   /// هل ما زالت الشجرة الأكاديمية في طريقها من الخادم؟
   const hydrating = useSyncHydrating();
 
-  // 🔎 فلاتر قائمة المحتوى المنشور
+  // فلاتر قائمة المحتوى المنشور
   const [listSearch, setListSearch] = useState('');
   const [listSubject, setListSubject] = useState('all');
   const [listGrade, setListGrade] = useState('all');
@@ -334,7 +334,7 @@ const ContentManagement: React.FC<ContentManagementProps> = ({ onUpdate, teacher
     e.preventDefault();
 
     if (teacherId && !getTeacherPermissions({ permissionPackageId }).canManageContent) {
-      alert('⚠️ ليس لديك صلاحية إدارة المحتوى التعليمي');
+      alert('ليس لديك صلاحية إدارة المحتوى التعليمي');
       return;
     }
     
@@ -388,7 +388,7 @@ const ContentManagement: React.FC<ContentManagementProps> = ({ onUpdate, teacher
       if (!isLimitReached(teacherLessonCount, permissions.maxContent)) {
         // The limit allows this new lesson.
       } else {
-        alert(`⚠️ وصلت إلى الحد الأقصى المسموح به (${permissions.maxContent}) من المحتوى التعليمي`);
+        alert(`وصلت إلى الحد الأقصى المسموح به (${permissions.maxContent}) من المحتوى التعليمي`);
         return;
       }
     }
@@ -632,8 +632,8 @@ const ContentManagement: React.FC<ContentManagementProps> = ({ onUpdate, teacher
             value={selectedTeacherId} 
             onChange={handleTeacherChange}
           >
-            <option value="">🌐 عرض الكل (جميع المعلمين)</option>
-            <option value="admin">📚 محتوى عام (يظهر لجميع المعلمين)</option>
+            <option value="">عرض الكل (جميع المعلمين)</option>
+            <option value="admin">محتوى عام (يظهر لجميع المعلمين)</option>
             {teachers.map(teacher => (
               <option key={teacher.id} value={teacher.id}>
                 👨‍🏫 {teacher.name} - {teacher.subject || 'معلم'}
@@ -644,14 +644,14 @@ const ContentManagement: React.FC<ContentManagementProps> = ({ onUpdate, teacher
           {selectedTeacherId === 'admin' && (
             <div className="dashboard-notice dashboard-content-notice dashboard-content-notice-success">
               <span>
-                ✅ تقوم الآن بإنشاء محتوى عام - سيظهر لجميع المعلمين
+                تقوم الآن بإنشاء محتوى عام - سيظهر لجميع المعلمين
               </span>
             </div>
           )}
           {selectedTeacherName && selectedTeacherId !== 'admin' && (
             <div className="dashboard-notice dashboard-content-notice dashboard-content-notice-info">
               <span>
-                ✅ تقوم الآن بإدارة محتوى المعلم: {selectedTeacherName}
+                تقوم الآن بإدارة محتوى المعلم: {selectedTeacherName}
               </span>
             </div>
           )}
@@ -681,7 +681,7 @@ const ContentManagement: React.FC<ContentManagementProps> = ({ onUpdate, teacher
           }`}
           title={!showForm && !teacherId && !selectedTeacherId ? 'اختر معلماً أو محتوى عام لإضافة محتوى جديد' : ''}
         >
-          {showForm ? (editingLesson ? '↩ إلغاء التعديل والعودة للقائمة' : 'إلغاء') : '➕ إضافة محتوى جديد'}
+          {showForm ? (editingLesson ? '↩ إلغاء التعديل والعودة للقائمة' : 'إلغاء') : 'إضافة محتوى جديد'}
         </button>
       </div>
 
@@ -805,13 +805,13 @@ const ContentManagement: React.FC<ContentManagementProps> = ({ onUpdate, teacher
                 required
                 disabled={!formData.unit}
               >
-                <option value="">{hydrating && availableLessons.length === 0 ? '⏳ جارٍ تحميل الدروس…' : 'الدرس'}</option>
+                <option value="">{hydrating && availableLessons.length === 0 ? 'جارٍ تحميل الدروس…' : 'الدرس'}</option>
                 {availableLessons.map((o, i) => <option key={i} value={o}>{o}</option>)}
               </select>
              </div>
              {formData.unit && availableLessons.length === 0 && !hydrating && (
                <p className="dashboard-content-hint dashboard-content-hint-warning">
-                 ⚠️ لا توجد دروس معرّفة في هذه الوحدة. أضفها أولاً من «الإعدادات
+                 لا توجد دروس معرّفة في هذه الوحدة. أضفها أولاً من «الإعدادات
                  الأكاديمية ← الخطوة 6: اختر وحدة وأضف درساً»، ثم عد إلى هنا.
                </p>
              )}
@@ -829,8 +829,8 @@ const ContentManagement: React.FC<ContentManagementProps> = ({ onUpdate, teacher
                <div className="dashboard-content-resource-card dashboard-content-video-card">
                  <label>فيديو شرح الدرس</label>
                  <div className="dashboard-content-toggle">
-                  <button type="button" onClick={() => setFormData({ ...formData, explanationVideoType: 'embed', explanationVideoUrl: formData.explanationVideoType === 'mp4' && isMp4VideoUrl(formData.explanationVideoUrl) ? '' : formData.explanationVideoUrl, explanationVideoFile: null })} className={`flex-1 rounded-xl px-3 py-2 text-sm font-black ${formData.explanationVideoType === 'embed' ? 'bg-purple-500 text-white' : 'text-purple-700'}`}>🔗 رابط مضمن</button>
-                  <button type="button" onClick={() => setFormData({ ...formData, explanationVideoType: 'mp4' })} className={`flex-1 rounded-xl px-3 py-2 text-sm font-black ${formData.explanationVideoType === 'mp4' ? 'bg-purple-500 text-white' : 'text-purple-700'}`}>📁 رفع MP4</button>
+                  <button type="button" onClick={() => setFormData({ ...formData, explanationVideoType: 'embed', explanationVideoUrl: formData.explanationVideoType === 'mp4' && isMp4VideoUrl(formData.explanationVideoUrl) ? '' : formData.explanationVideoUrl, explanationVideoFile: null })} className={`flex-1 rounded-xl px-3 py-2 text-sm font-black ${formData.explanationVideoType === 'embed' ? 'bg-purple-500 text-white' : 'text-purple-700'}`}>رابط مضمن</button>
+                  <button type="button" onClick={() => setFormData({ ...formData, explanationVideoType: 'mp4' })} className={`flex-1 rounded-xl px-3 py-2 text-sm font-black ${formData.explanationVideoType === 'mp4' ? 'bg-purple-500 text-white' : 'text-purple-700'}`}>رفع MP4</button>
                 </div>
                 {formData.explanationVideoType === 'embed' ? (
                    <input type="url" value={formData.explanationVideoUrl} onChange={e => setFormData({...formData, explanationVideoUrl: e.target.value})} className="dashboard-content-control" placeholder="https://..." />
@@ -845,12 +845,12 @@ const ContentManagement: React.FC<ContentManagementProps> = ({ onUpdate, teacher
                   onClick={addExplanationVideo}
                    className="dashboard-content-secondary-action"
                 >
-                  ➕ إضافة هذا الفيديو إلى شرح الدرس
+                  إضافة هذا الفيديو إلى شرح الدرس
                 </button>
                 {formData.explanationVideos.length > 0 && (
                    <div className="dashboard-content-video-list">
                      <p>
-                      🎬 فيديوهات هذا الدرس ({formData.explanationVideos.length})
+                      فيديوهات هذا الدرس ({formData.explanationVideos.length})
                     </p>
                     {formData.explanationVideos.map((video, index) => (
                        <div key={video.id} className="dashboard-content-video-row">
@@ -890,7 +890,7 @@ const ContentManagement: React.FC<ContentManagementProps> = ({ onUpdate, teacher
                    onClick={() => setFormData({ ...formData, liveMeetingUrl: newManaraRoomUrl() })}
                    className="mt-2 rounded-xl bg-purple-600 px-4 py-2 text-sm font-black text-white hover:bg-purple-700"
                  >
-                   🎥 إنشاء غرفة منارة
+                   إنشاء غرفة منارة
                  </button>
                  <p className="mt-2 text-xs font-bold text-purple-700">
                    غرفة منارة تعمل بالصوت والصورة داخل تطبيق الطالب. افتح الرابط نفسه من جهازك لتبدأ اللقاء
@@ -950,7 +950,7 @@ const ContentManagement: React.FC<ContentManagementProps> = ({ onUpdate, teacher
                 }}
               />
                <p className="dashboard-content-hint">
-                <span>⚠️</span> يمكنك رفع ملف نصي أو PDF وسيتم استخراج النص تلقائياً.
+                يمكنك رفع ملف نصي أو PDF وسيتم استخراج النص تلقائياً.
               </p>
             </div>
 
@@ -958,13 +958,13 @@ const ContentManagement: React.FC<ContentManagementProps> = ({ onUpdate, teacher
               type="submit" 
                className="dashboard-content-submit"
             >
-              💾 حفظ ونشر المحتوى
+              حفظ ونشر المحتوى
             </button>
           </form>
         </div>
       )}
 
-      {/* 🔎 شريط فلاتر المحتوى — يُخفى مع القائمة كلِّها أثناء التعديل */}
+      {/* شريط فلاتر المحتوى — يُخفى مع القائمة كلِّها أثناء التعديل */}
       {!editingLesson && lessons.length > 0 && (
         <div className="dashboard-filter-surface" style={{ marginBottom: '1.5rem' }}>
           <div className="dashboard-filter-grid dashboard-filter-grid-wide">
@@ -972,32 +972,32 @@ const ContentManagement: React.FC<ContentManagementProps> = ({ onUpdate, teacher
               type="search"
               value={listSearch}
               onChange={e => setListSearch(e.target.value)}
-              placeholder="🔎 ابحث في المسار الأكاديمي"
+              placeholder="ابحث في المسار الأكاديمي"
               className="dashboard-form-control rounded-xl border-2 border-slate-200 px-4 font-bold outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
             />
             <select value={listGrade} onChange={e => setListGrade(e.target.value)}
               className="dashboard-form-control rounded-xl border-2 border-slate-200 px-4 font-bold outline-none focus:border-blue-500">
-              <option value="all">🎓 كل الصفوف</option>
+              <option value="all">كل الصفوف</option>
               {listFilterOptions.grades.map(v => <option key={v} value={v}>{v}</option>)}
             </select>
             <select value={listSubject} onChange={e => setListSubject(e.target.value)}
               className="dashboard-form-control rounded-xl border-2 border-slate-200 px-4 font-bold outline-none focus:border-blue-500">
-              <option value="all">📖 كل المواد</option>
+              <option value="all">كل المواد</option>
               {listFilterOptions.subjects.map(v => <option key={v} value={v}>{v}</option>)}
             </select>
             <select value={listKind} onChange={e => setListKind(e.target.value as typeof listKind)}
               className="dashboard-form-control rounded-xl border-2 border-slate-200 px-4 font-bold outline-none focus:border-blue-500">
-              <option value="all">🗂️ كل الأنواع</option>
-              <option value="video">🎬 فيديو شرح</option>
-              <option value="avatar">🤖 معلم افتراضي</option>
-              <option value="meeting">📹 اجتماع مباشر</option>
-              <option value="text">📝 نص الدرس</option>
+              <option value="all">كل الأنواع</option>
+              <option value="video">فيديو شرح</option>
+              <option value="avatar">معلم افتراضي</option>
+              <option value="meeting">اجتماع مباشر</option>
+              <option value="text">نص الدرس</option>
             </select>
             <select value={listPublish} onChange={e => setListPublish(e.target.value as typeof listPublish)}
               className="dashboard-form-control rounded-xl border-2 border-slate-200 px-4 font-bold outline-none focus:border-blue-500">
-              <option value="all">🔁 كل الحالات</option>
-              <option value="published">✅ منشور</option>
-              <option value="empty">⚠️ بلا محتوى</option>
+              <option value="all">كل الحالات</option>
+              <option value="published">منشور</option>
+              <option value="empty">بلا محتوى</option>
             </select>
           </div>
           {listFiltersActive && (
@@ -1038,7 +1038,7 @@ const ContentManagement: React.FC<ContentManagementProps> = ({ onUpdate, teacher
               <th className="px-6 py-5">الفصل الدراسي</th>
               <th className="px-6 py-5">الوحدة</th>
               <th className="px-6 py-5">الدرس</th>
-              {!teacherId && <th className="px-6 py-5">👨‍🏫 المنشئ</th>}
+              {!teacherId && <th className="px-6 py-5">المنشئ</th>}
               <th className="px-6 py-5">الفيديو</th>
               <th className="px-6 py-5">الأفاتار</th>
               <th className="px-6 py-5">الاجتماع</th>
@@ -1066,13 +1066,13 @@ const ContentManagement: React.FC<ContentManagementProps> = ({ onUpdate, teacher
                   </td>
                 )}
                 <td className="px-6 py-5">
-                  {l.explanationVideoUrl ? <span className="bg-blue-100 text-blue-600 px-3 py-1 rounded-lg text-xs font-black">✅ موجود</span> : <span className="bg-purple-100 text-purple-400 px-3 py-1 rounded-lg text-xs font-black">❌ غير موجود</span>}
+                  {l.explanationVideoUrl ? <span className="bg-blue-100 text-blue-600 px-3 py-1 rounded-lg text-xs font-black">موجود</span> : <span className="bg-purple-100 text-purple-400 px-3 py-1 rounded-lg text-xs font-black">غير موجود</span>}
                 </td>
                 <td className="px-6 py-5">
-                  {l.avatarInteractionUrl ? <span className="bg-emerald-100 text-emerald-600 px-3 py-1 rounded-lg text-xs font-black">✅ موجود</span> : <span className="bg-purple-100 text-purple-400 px-3 py-1 rounded-lg text-xs font-black">❌ غير موجود</span>}
+                  {l.avatarInteractionUrl ? <span className="bg-emerald-100 text-emerald-600 px-3 py-1 rounded-lg text-xs font-black">موجود</span> : <span className="bg-purple-100 text-purple-400 px-3 py-1 rounded-lg text-xs font-black">غير موجود</span>}
                 </td>
                 <td className="px-6 py-5">
-                  {l.liveMeetingUrl ? <span className="bg-purple-100 text-purple-600 px-3 py-1 rounded-lg text-xs font-black">✅ موجود</span> : <span className="bg-purple-100 text-purple-400 px-3 py-1 rounded-lg text-xs font-black">❌ غير موجود</span>}
+                  {l.liveMeetingUrl ? <span className="bg-purple-100 text-purple-600 px-3 py-1 rounded-lg text-xs font-black">موجود</span> : <span className="bg-purple-100 text-purple-400 px-3 py-1 rounded-lg text-xs font-black">غير موجود</span>}
                 </td>
                 <td className="px-6 py-5 space-x-2 space-x-reverse">
                    <button onClick={() => handleEdit(l)} className="dashboard-content-table-edit">تعديل</button>
@@ -1136,16 +1136,16 @@ const ContentManagement: React.FC<ContentManagementProps> = ({ onUpdate, teacher
 
                 <dl className="dashboard-record-meta">
                   <div>
-                    <dt>🎬 الفيديو</dt>
-                    <dd>{l.explanationVideoUrl ? '✅ موجود' : '❌ غير موجود'}</dd>
+                    <dt>الفيديو</dt>
+                    <dd>{l.explanationVideoUrl ? 'موجود' : 'غير موجود'}</dd>
                   </div>
                   <div>
-                    <dt>🤖 الأفاتار</dt>
-                    <dd>{l.avatarInteractionUrl ? '✅ موجود' : '❌ غير موجود'}</dd>
+                    <dt>الأفاتار</dt>
+                    <dd>{l.avatarInteractionUrl ? 'موجود' : 'غير موجود'}</dd>
                   </div>
                   <div>
-                    <dt>📹 الاجتماع</dt>
-                    <dd>{l.liveMeetingUrl ? '✅ موجود' : '❌ غير موجود'}</dd>
+                    <dt>الاجتماع</dt>
+                    <dd>{l.liveMeetingUrl ? 'موجود' : 'غير موجود'}</dd>
                   </div>
                 </dl>
               </article>

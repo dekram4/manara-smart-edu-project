@@ -1,5 +1,6 @@
 import crypto from "node:crypto";
 import { verifyPassword } from "./passwords";
+import { type LoginStats, nextLoginStats } from "./studentLogins";
 
 export type StudentActor = {
   id: string;
@@ -315,4 +316,31 @@ export function verifyStudentToken(value: string): string | null {
 
 export function apiSupabaseConfig(): StudentSupabaseConfig | null {
   return config();
+}
+/**
+ * يسجّل دخول الطالب في سجلّه: يزيد `loginCount` ويكتب `lastLoginAt` — انظر
+ * `studentLogins.ts`. ويُعيد ما كُتب، أو `null` إن كان تكراراً لدخولٍ قريب.
+ *
+ * يُقرأ السجلّ ثم يُكتب كاملاً، كما في `upgradeAccountPassword`: `PATCH` على
+ * `data` يستبدلها.
+ */
+export async function recordStudentLogin(rowId: string, now = new Date()): Promise<LoginStats | null> {
+  const settings = config();
+  if (!settings) throw new Error("Supabase credentials are required");
+  const record = await studentRecord({ rowId });
+  if (!record) return null;
+  const next = nextLoginStats(record.data, now);
+  if (!next) return null;
+  const patch = await fetch(`${settings.url}/rest/v1/students?id=eq.${encodeURIComponent(record.id)}`, {
+    method: "PATCH",
+    headers: {
+      apikey: settings.key,
+      Authorization: `Bearer ${settings.key}`,
+      "Content-Type": "application/json",
+      Prefer: "return=minimal",
+    },
+    body: JSON.stringify({ data: { ...record.data, ...next }, updated_at: now.toISOString() }),
+  });
+  if (!patch.ok) throw new Error(`student login record failed (${patch.status})`);
+  return next;
 }

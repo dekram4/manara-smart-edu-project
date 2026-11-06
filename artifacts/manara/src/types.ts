@@ -125,6 +125,10 @@ export interface StudentInfo {
   enrollments?: any[];
   /** Shared progress snapshot shown to teachers and parents. */
   gamification?: StudentGamification;
+  /** عددُ مرّات دخول التطبيق — يكتبه الخادم عند كل دخول (`/auth/student/session`). */
+  loginCount?: number;
+  /** آخرُ دخولٍ للتطبيق، بتوقيت الخادم. */
+  lastLoginAt?: string;
 }
 
 export interface StudentGamification {

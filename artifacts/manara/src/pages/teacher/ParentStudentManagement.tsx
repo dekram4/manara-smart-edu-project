@@ -134,22 +134,22 @@ const ParentStudentManagement: React.FC<ParentStudentManagementProps> = ({ teach
       ? parentForm.permissionPackageId !== (editingParent.permissionPackageId || '')
       : Boolean(parentForm.permissionPackageId);
     if (changingParentPackage && !permissions.canCreatePermissionPackages) {
-      alert('⚠️ ليس لديك صلاحية إسناد إدارة الصلاحيات');
+      alert('ليس لديك صلاحية إسناد إدارة الصلاحيات');
       return;
     }
 
     if (!editingParent) {
       if (!permissions.canCreateParents) {
-        alert('⚠️ ليس لديك صلاحية إنشاء أولياء أمور');
+        alert('ليس لديك صلاحية إنشاء أولياء أمور');
         return;
       }
       const teacherParents = getTeacherParents(allParents, teacherId);
       if (isLimitReached(teacherParents.length, permissions.maxParents)) {
-        alert(`⚠️ وصلت إلى الحد الأقصى المسموح به (${permissions.maxParents}) من أولياء الأمور`);
+        alert(`وصلت إلى الحد الأقصى المسموح به (${permissions.maxParents}) من أولياء الأمور`);
         return;
       }
     } else if (!permissions.canEditParents) {
-      alert('⚠️ ليس لديك صلاحية تعديل أولياء الأمور');
+      alert('ليس لديك صلاحية تعديل أولياء الأمور');
       return;
     }
     
@@ -162,7 +162,7 @@ const ParentStudentManagement: React.FC<ParentStudentManagementProps> = ({ teach
         p.nationalId === nationalId && p.id !== editingParent?.id
       );
       if (duplicateParent) {
-        alert(`⚠️ رقم الهوية ${nationalId} مستخدم بالفعل من قبل ولي الأمر: ${duplicateParent.name}`);
+        alert(`رقم الهوية ${nationalId} مستخدم بالفعل من قبل ولي الأمر: ${duplicateParent.name}`);
         return;
       }
       
@@ -170,7 +170,7 @@ const ParentStudentManagement: React.FC<ParentStudentManagementProps> = ({ teach
       const allTeachers = JSON.parse(localStorage.getItem(STORAGE_KEYS.TEACHERS) || '[]');
       const duplicateTeacher = allTeachers.find((t: any) => t.nationalId === nationalId);
       if (duplicateTeacher) {
-        alert(`⚠️ رقم الهوية ${nationalId} مستخدم بالفعل من قبل المعلم: ${duplicateTeacher.name}`);
+        alert(`رقم الهوية ${nationalId} مستخدم بالفعل من قبل المعلم: ${duplicateTeacher.name}`);
         return;
       }
       
@@ -178,7 +178,7 @@ const ParentStudentManagement: React.FC<ParentStudentManagementProps> = ({ teach
       const allStudents = JSON.parse(localStorage.getItem(STORAGE_KEYS.STUDENTS) || '[]');
       const duplicateStudent = allStudents.find((s: any) => s.nationalId === nationalId);
       if (duplicateStudent) {
-        alert(`⚠️ رقم الهوية ${nationalId} مستخدم بالفعل من قبل الطالب: ${duplicateStudent.name}`);
+        alert(`رقم الهوية ${nationalId} مستخدم بالفعل من قبل الطالب: ${duplicateStudent.name}`);
         return;
       }
     }
@@ -235,23 +235,23 @@ const ParentStudentManagement: React.FC<ParentStudentManagementProps> = ({ teach
       ? studentForm.permissionPackageId !== (editingStudent.permissionPackageId || '')
       : Boolean(studentForm.permissionPackageId);
     if (changingStudentPackage && !permissions.canCreatePermissionPackages) {
-      alert('⚠️ ليس لديك صلاحية إسناد إدارة الصلاحيات');
+      alert('ليس لديك صلاحية إسناد إدارة الصلاحيات');
       return;
     }
 
     if (!editingStudent) {
       if (!permissions.canCreateStudents) {
-        alert('⚠️ ليس لديك صلاحية إنشاء الطلاب');
+        alert('ليس لديك صلاحية إنشاء الطلاب');
         return;
       }
       const teacherParents = getTeacherParents(allParents, teacherId);
       const teacherStudents = getTeacherStudents(allStudents, teacherId, teacherParents);
       if (isLimitReached(teacherStudents.length, permissions.maxStudents)) {
-        alert(`⚠️ وصلت إلى الحد الأقصى المسموح به (${permissions.maxStudents}) من الطلاب`);
+        alert(`وصلت إلى الحد الأقصى المسموح به (${permissions.maxStudents}) من الطلاب`);
         return;
       }
     } else if (!permissions.canEditStudents) {
-      alert('⚠️ ليس لديك صلاحية تعديل الطلاب');
+      alert('ليس لديك صلاحية تعديل الطلاب');
       return;
     }
     
@@ -264,14 +264,14 @@ const ParentStudentManagement: React.FC<ParentStudentManagementProps> = ({ teach
         s.nationalId === nationalId && s.id !== editingStudent?.id
       );
       if (duplicateStudent) {
-        alert(`⚠️ رقم الهوية ${nationalId} مستخدم بالفعل من قبل الطالب: ${duplicateStudent.name}`);
+        alert(`رقم الهوية ${nationalId} مستخدم بالفعل من قبل الطالب: ${duplicateStudent.name}`);
         return;
       }
       
       // التحقق من أولياء الأمور
       const duplicateParent = allParents.find(p => p.nationalId === nationalId);
       if (duplicateParent) {
-        alert(`⚠️ رقم الهوية ${nationalId} مستخدم بالفعل من قبل ولي الأمر: ${duplicateParent.name}`);
+        alert(`رقم الهوية ${nationalId} مستخدم بالفعل من قبل ولي الأمر: ${duplicateParent.name}`);
         return;
       }
       
@@ -279,7 +279,7 @@ const ParentStudentManagement: React.FC<ParentStudentManagementProps> = ({ teach
       const allTeachers = JSON.parse(localStorage.getItem(STORAGE_KEYS.TEACHERS) || '[]');
       const duplicateTeacher = allTeachers.find((t: any) => t.teacherId === nationalId);
       if (duplicateTeacher) {
-        alert(`⚠️ رقم الهوية ${nationalId} مستخدم بالفعل من قبل المعلم: ${duplicateTeacher.name}`);
+        alert(`رقم الهوية ${nationalId} مستخدم بالفعل من قبل المعلم: ${duplicateTeacher.name}`);
         return;
       }
     }
@@ -372,18 +372,18 @@ const ParentStudentManagement: React.FC<ParentStudentManagementProps> = ({ teach
       const outcome = await saveStudentConfirmed(savedStudent);
       if (outcome.ok === false) {
         loadData();
-        alert(`⚠️ لم يُحفظ في قاعدة البيانات: ${outcome.reason}`);
+        alert(`لم يُحفظ في قاعدة البيانات: ${outcome.reason}`);
         return;
       }
     }
 
     loadData();
     resetStudentForm();
-    alert('تم حفظ الطالب في قاعدة البيانات ✅');
+    alert('تم حفظ الطالب في قاعدة البيانات');
   };
 
   const handleDeleteParent = (parentId: string) => {    if (!permissions.canDeleteParents) {
-      alert('⚠️ ليس لديك صلاحية حذف أولياء الأمور');
+      alert('ليس لديك صلاحية حذف أولياء الأمور');
       return;
     }    if (!confirm('هل أنت متأكد من حذف ولي الأمر وجميع أبنائه؟')) return;
     
@@ -401,7 +401,7 @@ const ParentStudentManagement: React.FC<ParentStudentManagementProps> = ({ teach
   };
 
   const handleDeleteStudent = (studentId: string) => {    if (!permissions.canDeleteStudents) {
-      alert('⚠️ ليس لديك صلاحية حذف الطلاب');
+      alert('ليس لديك صلاحية حذف الطلاب');
       return;
     }    if (!confirm('هل أنت متأكد من حذف الطالب؟')) return;
     
@@ -424,7 +424,7 @@ const ParentStudentManagement: React.FC<ParentStudentManagementProps> = ({ teach
 
   const openParentPermissions = (parent: ParentInfo) => {
     if (!permissions.canManageParentPermissions) {
-      alert('⚠️ ليس لديك صلاحية إدارة صلاحيات أولياء الأمور');
+      alert('ليس لديك صلاحية إدارة صلاحيات أولياء الأمور');
       return;
     }
     setPermissionsParent(parent);
@@ -456,7 +456,7 @@ const ParentStudentManagement: React.FC<ParentStudentManagementProps> = ({ teach
     setPermissionsParent(null);
     setParentPermissionDraft(null);
     loadData();
-    alert('✅ تم حفظ صلاحيات ولي الأمر');
+    alert('تم حفظ صلاحيات ولي الأمر');
   };
 
   const resetParentForm = () => {
@@ -501,7 +501,7 @@ const ParentStudentManagement: React.FC<ParentStudentManagementProps> = ({ teach
       <div className="dashboard-filter-surface dashboard-account-toolbar">
         <div className="dashboard-section-header">
           <div>
-            <h1 className="text-3xl font-black text-slate-900">👥 إدارة أولياء الأمور والطلاب</h1>
+            <h1 className="text-3xl font-black text-slate-900">إدارة أولياء الأمور والطلاب</h1>
             <p className="text-slate-500 font-medium">
               يمكنك إنشاء حسابات أولياء الأمور وإضافة الطلاب لهم
             </p>
@@ -514,7 +514,7 @@ const ParentStudentManagement: React.FC<ParentStudentManagementProps> = ({ teach
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="🔍 ابحث عن ولي أمر أو طالب بالاسم، اسم المستخدم، رقم الجوال، أو رقم الهوية..."
+              placeholder="ابحث عن ولي أمر أو طالب بالاسم، اسم المستخدم، رقم الجوال، أو رقم الهوية..."
               className="dashboard-form-control w-full p-4 pr-12 rounded-xl border-2 border-slate-200 bg-slate-50 text-slate-800 placeholder-slate-400 focus:bg-white focus:border-amber-500 outline-none font-bold text-lg"
             />
             {searchQuery && (
@@ -522,7 +522,7 @@ const ParentStudentManagement: React.FC<ParentStudentManagementProps> = ({ teach
                 onClick={() => setSearchQuery('')}
                 className="absolute left-4 top-1/2 -translate-y-1/2 bg-slate-200 hover:bg-slate-300 text-slate-700 px-3 py-1 rounded-lg font-bold text-sm transition-all"
               >
-                ✖ مسح
+                مسح
               </button>
             )}
           </div>
@@ -530,7 +530,7 @@ const ParentStudentManagement: React.FC<ParentStudentManagementProps> = ({ teach
         {/* قوائم منسدلة لأولياء الأمور والطلاب */}
         <div className="dashboard-filter-grid dashboard-filter-grid-wide">
           <div>
-            <label className="text-slate-600 text-xs font-bold mb-1 block">👨‍👩‍👧‍👦 ولي الأمر</label>
+            <label className="text-slate-600 text-xs font-bold mb-1 block">ولي الأمر</label>
             <select
               value={selectedParentId}
               onChange={(e) => { setSelectedParentId(e.target.value); setSelectedStudentId('all'); }}
@@ -543,7 +543,7 @@ const ParentStudentManagement: React.FC<ParentStudentManagementProps> = ({ teach
             </select>
           </div>
           <div>
-            <label className="text-slate-600 text-xs font-bold mb-1 block">🎓 الطالب</label>
+            <label className="text-slate-600 text-xs font-bold mb-1 block">الطالب</label>
             <select
               value={selectedStudentId}
               onChange={(e) => { setSelectedStudentId(e.target.value); setSelectedParentId('all'); }}
@@ -561,13 +561,11 @@ const ParentStudentManagement: React.FC<ParentStudentManagementProps> = ({ teach
       {/* إحصائيات */}
       <div className="dashboard-stats-grid dashboard-stats-grid-compact">
         <div className="dashboard-stat-card dashboard-account-stat dashboard-account-stat-green">
-          <div className="text-5xl mb-2">👨‍👩‍👧‍👦</div>
           <div className="text-3xl font-black text-slate-900">{parents.length}</div>
           <div className="text-slate-500 font-medium">ولي أمر</div>
         </div>
 
         <div className="dashboard-stat-card dashboard-account-stat dashboard-account-stat-blue">
-          <div className="text-5xl mb-2">🎓</div>
           <div className="text-3xl font-black text-slate-900">{students.length}</div>
           <div className="text-slate-500 font-medium">طالب</div>
         </div>
@@ -579,14 +577,14 @@ const ParentStudentManagement: React.FC<ParentStudentManagementProps> = ({ teach
         {!showParentForm && !showStudentForm && (
           <>
              <div className="dashboard-section-header dashboard-account-section-header mb-4">
-              <h2 className="text-2xl font-black text-gray-800">👨‍👩‍👧‍👦 أولياء الأمور والطلاب</h2>
+              <h2 className="text-2xl font-black text-gray-800">أولياء الأمور والطلاب</h2>
                <div className="dashboard-account-actions flex gap-3">
                 {permissions.canCreateStudents && (
                   <button
                     onClick={() => setShowStudentForm(true)}
                     className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-xl font-bold transition-all"
                   >
-                    ➕ إضافة طالب
+                    إضافة طالب
                   </button>
                 )}
                 {permissions.canCreateParents && (
@@ -594,12 +592,12 @@ const ParentStudentManagement: React.FC<ParentStudentManagementProps> = ({ teach
                     onClick={() => setShowParentForm(true)}
                     className="bg-green-600 hover:bg-green-700 text-white px-6 py-3 rounded-xl font-bold transition-all"
                   >
-                    ➕ إضافة ولي أمر
+                    إضافة ولي أمر
                   </button>
                 )}
                 {!permissions.canCreateStudents && !permissions.canCreateParents && (
                   <div className="text-amber-600 font-bold text-sm bg-amber-50 px-4 py-3 rounded-xl">
-                    🔒 ليس لديك صلاحيات لإضافة حسابات جديدة
+                    ليس لديك صلاحيات لإضافة حسابات جديدة
                   </div>
                 )}
               </div>
@@ -611,7 +609,6 @@ const ParentStudentManagement: React.FC<ParentStudentManagementProps> = ({ teach
            <div ref={parentFormView.formRef} className="dashboard-surface dashboard-account-form bg-slate-50">
             <div className="flex items-center justify-between mb-6">
               <div className="flex items-center gap-3">
-                <div className="text-4xl">👤</div>
                 <h3 className="text-2xl font-black text-gray-800">
                   {editingParent ? 'تعديل بيانات ولي أمر' : 'إضافة ولي أمر جديد'}
                 </h3>
@@ -674,7 +671,7 @@ const ParentStudentManagement: React.FC<ParentStudentManagementProps> = ({ teach
                 />
               </div>
                <div>
-                 <label className="block text-sm font-bold text-gray-700 mb-2">🔐 إدارة صلاحيات ولي الأمر</label>
+                 <label className="block text-sm font-bold text-gray-700 mb-2">إدارة صلاحيات ولي الأمر</label>
                  <select
                    value={parentForm.permissionPackageId}
                    onChange={(e) => setParentForm({ ...parentForm, permissionPackageId: e.target.value })}
@@ -690,13 +687,13 @@ const ParentStudentManagement: React.FC<ParentStudentManagementProps> = ({ teach
                 onClick={handleSaveParent}
                 className="flex-1 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white px-8 py-4 rounded-xl font-bold text-lg transition-all shadow-lg"
               >
-                💾 حفظ التغييرات
+                حفظ التغييرات
               </button>
               <button
                 onClick={resetParentForm}
                 className="px-8 py-4 bg-gray-300 hover:bg-gray-400 text-gray-800 rounded-xl font-bold text-lg transition-all"
               >
-                ❌ إلغاء
+                إلغاء
               </button>
             </div>
           </div>
@@ -722,7 +719,6 @@ const ParentStudentManagement: React.FC<ParentStudentManagementProps> = ({ teach
               }
               if (filteredStudents.length === 0) return (
                 <div className="text-center py-20">
-                  <div className="text-6xl mb-4">🎓</div>
                   <p className="text-gray-600 font-bold text-xl mb-2">لا يوجد طلاب</p>
                 </div>
               );
@@ -779,7 +775,6 @@ const ParentStudentManagement: React.FC<ParentStudentManagementProps> = ({ teach
 
             if (filteredParents.length === 0) return (
               <div className="text-center py-20">
-                <div className="text-6xl mb-4">🔍</div>
                 <p className="text-gray-600 font-bold text-xl mb-2">لا توجد نتائج</p>
               </div>
             );
@@ -801,18 +796,18 @@ const ParentStudentManagement: React.FC<ParentStudentManagementProps> = ({ teach
                     </div>
                     <div className="flex gap-2">
                       {permissions.canEditParents && (
-                         <button onClick={() => { setEditingParent(parent); setParentForm({ name: parent.name, username: parent.username, password: '', phoneNumber: parent.phoneNumber, nationalId: parent.nationalId || '', permissionPackageId: parent.permissionPackageId || '' }); setShowParentForm(true); parentFormView.reveal(); }} className="bg-yellow-500 hover:bg-yellow-600 text-white px-4 py-2 rounded-lg font-bold">✏️ تعديل</button>
+                         <button onClick={() => { setEditingParent(parent); setParentForm({ name: parent.name, username: parent.username, password: '', phoneNumber: parent.phoneNumber, nationalId: parent.nationalId || '', permissionPackageId: parent.permissionPackageId || '' }); setShowParentForm(true); parentFormView.reveal(); }} className="bg-yellow-500 hover:bg-yellow-600 text-white px-4 py-2 rounded-lg font-bold">تعديل</button>
                       )}
                       {permissions.canManageParentPermissions && (
                         <button
                           onClick={() => openParentPermissions(parent)}
                           className="bg-indigo-500 hover:bg-indigo-600 text-white px-4 py-2 rounded-lg font-bold"
                         >
-                          🔐 الصلاحيات
+                          الصلاحيات
                         </button>
                       )}
                       {permissions.canDeleteParents && (
-                        <button onClick={() => handleDeleteParent(parent.id)} className="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-lg font-bold">🗑️ حذف</button>
+                        <button onClick={() => handleDeleteParent(parent.id)} className="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-lg font-bold">حذف</button>
                       )}
                     </div>
                   </div>
@@ -820,7 +815,7 @@ const ParentStudentManagement: React.FC<ParentStudentManagementProps> = ({ teach
                   {/* قائمة الطلاب التابعين — تُعرض فقط في وضع الكل أو أولياء الأمور */}
                   {parentStudents.length > 0 && (
                      <div className="dashboard-account-students mt-3 mr-16 space-y-2">
-                      <h4 className="text-sm font-bold text-gray-700 mb-2">🎓 الطلاب:</h4>
+                      <h4 className="text-sm font-bold text-gray-700 mb-2">الطلاب:</h4>
                       {parentStudents.map((student) => {
                         const studentMatches = searchQuery && (
                           student.name.toLowerCase().includes(search) ||
@@ -955,7 +950,7 @@ const ParentStudentManagement: React.FC<ParentStudentManagementProps> = ({ teach
                     لا شيء مؤشَّر = جميع مواد المعلم، وهي الحالة
                     الافتراضية لكل طالب مسجَّل قبل وجود هذا الحقل. */}
                 <label className="block text-sm font-bold text-gray-700 mb-2">
-                  📚 المواد المتاحة للطالب
+                  المواد المتاحة للطالب
                   <span className="font-normal text-gray-500 text-xs">
                     {' '}— {studentForm.assignedSubjects.length === 0
                       ? 'جميع المواد'
@@ -1044,7 +1039,7 @@ const ParentStudentManagement: React.FC<ParentStudentManagementProps> = ({ teach
                 />
               </div>
               <div>
-                <label className="block text-sm font-bold text-gray-700 mb-2">🔐 إدارة صلاحيات الطالب</label>
+                <label className="block text-sm font-bold text-gray-700 mb-2">إدارة صلاحيات الطالب</label>
                 <select
                   value={studentForm.permissionPackageId}
                   onChange={(e) => setStudentForm({ ...studentForm, permissionPackageId: e.target.value })}
@@ -1061,13 +1056,13 @@ const ParentStudentManagement: React.FC<ParentStudentManagementProps> = ({ teach
                 onClick={handleSaveStudent}
                 className="flex-1 bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 text-white px-8 py-4 rounded-xl font-bold shadow-lg transform hover:scale-105 transition-all text-lg"
               >
-                💾 حفظ التغييرات
+                حفظ التغييرات
               </button>
               <button
                 onClick={resetStudentForm}
                 className="px-8 py-4 bg-gray-300 hover:bg-gray-400 text-gray-800 rounded-xl font-bold shadow-md transform hover:scale-105 transition-all text-lg"
               >
-                ❌ إلغاء
+                إلغاء
               </button>
             </div>
           </div>
@@ -1079,7 +1074,7 @@ const ParentStudentManagement: React.FC<ParentStudentManagementProps> = ({ teach
           <div className="bg-white rounded-3xl shadow-2xl w-full max-w-2xl p-6" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-5">
               <div>
-                <h2 className="text-2xl font-black text-slate-800">🔐 صلاحيات ولي الأمر</h2>
+                <h2 className="text-2xl font-black text-slate-800">صلاحيات ولي الأمر</h2>
                 <p className="text-slate-500 font-bold mt-1">{permissionsParent.name}</p>
               </div>
               <button onClick={() => { setPermissionsParent(null); setParentPermissionDraft(null); }} className="text-2xl text-slate-400 hover:text-slate-700">✕</button>
@@ -1118,7 +1113,7 @@ const ParentStudentManagement: React.FC<ParentStudentManagementProps> = ({ teach
               />
             </div>
             <div className="flex gap-3 mt-6">
-              <button onClick={saveParentPermissions} className="flex-1 rounded-xl bg-indigo-600 py-3 text-white font-black hover:bg-indigo-700">💾 حفظ الصلاحيات</button>
+              <button onClick={saveParentPermissions} className="flex-1 rounded-xl bg-indigo-600 py-3 text-white font-black hover:bg-indigo-700">حفظ الصلاحيات</button>
               <button onClick={() => { setPermissionsParent(null); setParentPermissionDraft(null); }} className="rounded-xl bg-slate-200 px-6 py-3 font-black text-slate-700">إلغاء</button>
             </div>
           </div>

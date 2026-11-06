@@ -85,6 +85,16 @@ const PRINT_FRAME_LIFETIME_MS = 5 * 60_000;
  * الطباعة، و`allow-same-origin` لتصل إليه الصفحةُ فتطبعه.
  * وDOMPurify يُسقط `<!DOCTYPE>` — فيُعاد إن كان في المستند، كي لا يتغيّر وضعُ العرض.
  */
+/**
+ * المستندُ معقَّماً كما يُطبع، لمعاينته في إطارٍ على الشاشة — فما يُرى هو ما
+ * يُطبع، بالتعقيم نفسه.
+ */
+export function sanitizeDocument(documentHtml: SafeHtml): string {
+  const source = documentHtml.value;
+  const doctype = /^\s*<!DOCTYPE html>/i.test(source) ? '<!DOCTYPE html>' : '';
+  return doctype + DOMPurify.sanitize(source, PRINT_SANITIZE_CONFIG);
+}
+
 export function printDocument(
   documentHtml: SafeHtml,
   options: PrintDocumentOptions = {},

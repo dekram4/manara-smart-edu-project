@@ -21,17 +21,17 @@ const MyAccount: React.FC<MyAccountProps> = ({ teacher, onUpdate }) => {
     setError('');
 
     if (!passwordsMatch(currentPassword, teacher.password)) {
-      setError('❌ كلمة المرور الحالية غير صحيحة');
+      setError('كلمة المرور الحالية غير صحيحة');
       return;
     }
 
     if (newPassword !== confirmPassword) {
-      setError('❌ كلمتا المرور الجديدة غير متطابقتين');
+      setError('كلمتا المرور الجديدة غير متطابقتين');
       return;
     }
 
     if (newPassword.length < 6) {
-      setError('⚠️ كلمة المرور يجب أن تكون 6 أحرف على الأقل');
+      setError('كلمة المرور يجب أن تكون 6 أحرف على الأقل');
       return;
     }
 
@@ -50,18 +50,18 @@ const MyAccount: React.FC<MyAccountProps> = ({ teacher, onUpdate }) => {
     setCurrentPassword('');
     setNewPassword('');
     setConfirmPassword('');
-    alert('✅ تم تغيير كلمة المرور بنجاح');
+    alert('تم تغيير كلمة المرور بنجاح');
   };
 
   return (
     <div className="dashboard-page dashboard-consistent-page animate-fadeIn">
        <div className="dashboard-section-header">
-         <h1 className="text-4xl font-black text-amber-900">👤 حسابي</h1>
+         <h1 className="text-4xl font-black text-amber-900">حسابي</h1>
        </div>
 
       {/* معلومات الحساب */}
        <div className="dashboard-surface border-amber-100">
-        <h2 className="text-2xl font-black text-amber-900 mb-6">📋 معلومات الحساب</h2>
+        <h2 className="text-2xl font-black text-amber-900 mb-6">معلومات الحساب</h2>
         
          <div className="dashboard-card-grid">
            <div className="dashboard-account-record bg-amber-50 p-6 rounded-2xl">
@@ -91,12 +91,12 @@ const MyAccount: React.FC<MyAccountProps> = ({ teacher, onUpdate }) => {
       {/* تغيير كلمة المرور */}
        <div className="dashboard-surface border-amber-100">
          <div className="dashboard-section-header mb-6">
-          <h2 className="text-2xl font-black text-amber-900">🔐 كلمة المرور</h2>
+          <h2 className="text-2xl font-black text-amber-900">كلمة المرور</h2>
           <button
             onClick={() => setShowChangePassword(!showChangePassword)}
             className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-2xl font-bold transition-all"
           >
-            {showChangePassword ? '❌ إلغاء' : '🔄 تغيير كلمة المرور'}
+            {showChangePassword ? 'إلغاء' : 'تغيير كلمة المرور'}
           </button>
         </div>
 
@@ -109,7 +109,7 @@ const MyAccount: React.FC<MyAccountProps> = ({ teacher, onUpdate }) => {
             )}
 
             <div>
-              <label className="block font-bold text-amber-700 mb-2">🔑 كلمة المرور الحالية</label>
+              <label className="block font-bold text-amber-700 mb-2">كلمة المرور الحالية</label>
               <input
                 type="password"
                 value={currentPassword}
@@ -121,7 +121,7 @@ const MyAccount: React.FC<MyAccountProps> = ({ teacher, onUpdate }) => {
             </div>
 
             <div>
-              <label className="block font-bold text-amber-700 mb-2">🆕 كلمة المرور الجديدة</label>
+              <label className="block font-bold text-amber-700 mb-2">كلمة المرور الجديدة</label>
               <input
                 type="password"
                 value={newPassword}
@@ -133,7 +133,7 @@ const MyAccount: React.FC<MyAccountProps> = ({ teacher, onUpdate }) => {
             </div>
 
             <div>
-              <label className="block font-bold text-amber-700 mb-2">✅ تأكيد كلمة المرور</label>
+              <label className="block font-bold text-amber-700 mb-2">تأكيد كلمة المرور</label>
               <input
                 type="password"
                 value={confirmPassword}
@@ -148,7 +148,7 @@ const MyAccount: React.FC<MyAccountProps> = ({ teacher, onUpdate }) => {
               type="submit"
               className="w-full bg-gradient-to-r from-amber-400 to-orange-500 text-white py-5 rounded-[24px] font-black text-xl shadow-xl hover:shadow-2xl transition-all"
             >
-              💾 حفظ كلمة المرور الجديدة
+              حفظ كلمة المرور الجديدة
             </button>
           </form>
         )}

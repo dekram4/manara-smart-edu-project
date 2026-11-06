@@ -211,11 +211,11 @@ const PermissionPackageManagement: React.FC<PermissionPackageManagementProps> = 
 
   const startEditPackage = (pkg: PermissionPackage) => {
     if (!packageBelongsToManager(pkg, managerRole, managerId)) {
-      alert('🔒 هذا الإعداد مملوك للمشرف أو لحساب آخر ولا يمكن تعديله من هنا');
+      alert('هذا الإعداد مملوك للمشرف أو لحساب آخر ولا يمكن تعديله من هنا');
       return;
     }
     if (!canCreateOrEditPackage(pkg.role)) {
-      alert('⚠️ لا تملك صلاحية تعديل إعدادات الصلاحيات لهذا الدور');
+      alert('لا تملك صلاحية تعديل إعدادات الصلاحيات لهذا الدور');
       return;
     }
     setEditorRole(pkg.role);
@@ -234,11 +234,11 @@ const PermissionPackageManagement: React.FC<PermissionPackageManagementProps> = 
   const savePackage = (event: React.FormEvent) => {
     event.preventDefault();
     if (editorRole === managerRole) {
-      alert('⚠️ لا يمكنك إنشاء أو تعديل إعداد صلاحيات لدورك الشخصي');
+      alert('لا يمكنك إنشاء أو تعديل إعداد صلاحيات لدورك الشخصي');
       return;
     }
     if (!managerId || !canCreateOrEditPackage(editorRole)) {
-      alert('⚠️ لا تملك صلاحية إنشاء أو تعديل إعدادات الصلاحيات لهذا الدور');
+      alert('لا تملك صلاحية إنشاء أو تعديل إعدادات الصلاحيات لهذا الدور');
       return;
     }
     if (!packageName.trim()) {
@@ -287,12 +287,12 @@ const PermissionPackageManagement: React.FC<PermissionPackageManagementProps> = 
     localStorage.setItem(STORAGE_KEYS.PERMISSION_PACKAGES, JSON.stringify(updated));
     setPackages(updated);
     closeEditor();
-    alert(`✅ تم ${editingPackage ? 'تعديل' : 'إنشاء'} ${nextPackage.name} بنجاح`);
+    alert(`تم ${editingPackage ? 'تعديل' : 'إنشاء'} ${nextPackage.name} بنجاح`);
   };
 
   const deletePackage = (pkg: PermissionPackage) => {
     if (!packageBelongsToManager(pkg, managerRole, managerId)) {
-      alert('🔒 لا يمكن حذف إعداد المشرف أو إعداد حساب آخر');
+      alert('لا يمكن حذف إعداد المشرف أو إعداد حساب آخر');
       return;
     }
     if (!confirm(`حذف إعداد الصلاحيات «${pkg.name}»؟`)) return;
@@ -304,7 +304,7 @@ const PermissionPackageManagement: React.FC<PermissionPackageManagementProps> = 
       || allParents.some(item => item.permissionPackageId === pkg.id)
       || allStudents.some(item => item.permissionPackageId === pkg.id);
     if (used) {
-      alert('⚠️ لا يمكن حذف إعداد مستخدم حاليًا. غيّر الإعداد المرتبط بالحسابات أولًا.');
+      alert('لا يمكن حذف إعداد مستخدم حاليًا. غيّر الإعداد المرتبط بالحسابات أولًا.');
       return;
     }
 
@@ -315,11 +315,11 @@ const PermissionPackageManagement: React.FC<PermissionPackageManagementProps> = 
 
   const assignPackage = (target: ParentInfo | StudentInfo, role: TargetRole, packageId: string) => {
     if (!canManageTarget(role)) {
-      alert('⚠️ لا تملك الصلاحية لإسناد إعداد صلاحيات لهذا الدور');
+      alert('لا تملك الصلاحية لإسناد إعداد صلاحيات لهذا الدور');
       return;
     }
     if (packageId && !visiblePackages.some(pkg => pkg.id === packageId && pkg.role === role)) {
-      alert('⚠️ إعداد الصلاحيات المختار غير متاح لهذا الدور');
+      alert('إعداد الصلاحيات المختار غير متاح لهذا الدور');
       return;
     }
 
@@ -353,8 +353,8 @@ const PermissionPackageManagement: React.FC<PermissionPackageManagementProps> = 
     loadData();
     const selectedPackage = packages.find(pkg => pkg.id === packageId);
     alert(selectedPackage
-      ? `✅ تم إسناد إعداد الصلاحيات «${selectedPackage.name}» إلى ${getTargetName(target)}`
-      : `✅ تمت إعادة ${getTargetName(target)} إلى الصلاحيات العامة`);
+      ? `تم إسناد إعداد الصلاحيات «${selectedPackage.name}» إلى ${getTargetName(target)}`
+      : `تمت إعادة ${getTargetName(target)} إلى الصلاحيات العامة`);
   };
 
   const managerDescription = managerRole === 'teacher'
@@ -364,7 +364,7 @@ const PermissionPackageManagement: React.FC<PermissionPackageManagementProps> = 
   return (
     <div className="dashboard-page dashboard-consistent-page" dir="rtl">
       <div className="dashboard-page-toolbar dashboard-filter-surface">
-         <h1 className="text-2xl font-black text-slate-900">🔐 إدارة الصلاحيات</h1>
+         <h1 className="text-2xl font-black text-slate-900">إدارة الصلاحيات</h1>
         <p className="mt-2 font-bold text-slate-600">{managerDescription}</p>
         <p className="mt-1 text-sm font-bold text-slate-500">
            سياسة المشرف هي الحد الأعلى، ولا يمكن لأي دور منح صلاحية غير مسموحة بها.
@@ -391,7 +391,7 @@ const PermissionPackageManagement: React.FC<PermissionPackageManagementProps> = 
             onClick={() => startNewPackage(activeTargetRole)}
             className="rounded-2xl bg-emerald-600 px-5 py-3 font-black text-white shadow-lg hover:bg-emerald-700"
           >
-            ➕ إنشاء {roleLabels[activeTargetRole]}
+            إنشاء {roleLabels[activeTargetRole]}
           </button>
         )}
       </div>
@@ -401,7 +401,7 @@ const PermissionPackageManagement: React.FC<PermissionPackageManagementProps> = 
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
               <h2 className="text-xl font-black text-indigo-900">
-                {editingPackage ? '✏️ تعديل إعداد الصلاحيات' : '✨ إنشاء إعداد صلاحيات جديد'}
+                {editingPackage ? 'تعديل إعداد الصلاحيات' : 'إنشاء إعداد صلاحيات جديد'}
               </h2>
               <p className="mt-1 text-sm font-bold text-slate-500">{roleLabels[editorRole]}</p>
             </div>
@@ -454,14 +454,14 @@ const PermissionPackageManagement: React.FC<PermissionPackageManagementProps> = 
             </div>
           )}
           <button type="submit" className="mt-5 w-full rounded-xl bg-indigo-600 py-3 font-black text-white hover:bg-indigo-700">
-            💾 حفظ إعداد الصلاحيات
+            حفظ إعداد الصلاحيات
           </button>
         </form>
       )}
 
       {!canManageTarget(activeTargetRole) && (
         <div className="rounded-2xl border-2 border-amber-200 bg-amber-50 p-4 font-bold text-amber-800">
-          🔒 لا توجد لديك صلاحية لإدارة الصلاحيات لهذا الدور. اطلب من المشرف تفعيل الصلاحية المناسبة.
+          لا توجد لديك صلاحية لإدارة الصلاحيات لهذا الدور. اطلب من المشرف تفعيل الصلاحية المناسبة.
         </div>
       )}
 

@@ -12,9 +12,9 @@ interface PermissionPackagesProps {
 }
 
 const roleLabels: Record<PermissionPackageRole, string> = {
-  teacher: '👨‍🏫 المعلمين',
-  parent: '👨‍👩‍👧 أولياء الأمور',
-  student: '🎓 الطلاب',
+  teacher: 'المعلمين',
+  parent: 'أولياء الأمور',
+  student: 'الطلاب',
 };
 
 const permissionLabels: Record<string, string> = {
@@ -123,7 +123,7 @@ const PermissionPackages: React.FC<PermissionPackagesProps> = ({ onUpdate }) => 
     setName('');
     setDescription('');
     setDraft(clone((getPermissions()[activeRole] || DEFAULT_PERMISSIONS[activeRole]) as Record<string, boolean | number>));
-    alert(`✅ تم حفظ إعداد ${nextPackage.name} بنجاح — إجمالي الإعدادات ${roleLabels[activeRole]}: ${updated.filter(pkg => pkg.role === activeRole).length}`);
+    alert(`تم حفظ إعداد ${nextPackage.name} بنجاح — إجمالي الإعدادات ${roleLabels[activeRole]}: ${updated.filter(pkg => pkg.role === activeRole).length}`);
     onUpdate?.();
   };
 
@@ -137,7 +137,7 @@ const PermissionPackages: React.FC<PermissionPackagesProps> = ({ onUpdate }) => 
       students.some((item: any) => item.permissionPackageId === pkg.id);
 
     if (used) {
-      alert('⚠️ لا يمكن حذف إعداد مستخدم حاليًا. غيّر الإعداد المرتبط بالحسابات أولاً.');
+      alert('لا يمكن حذف إعداد مستخدم حاليًا. غيّر الإعداد المرتبط بالحسابات أولاً.');
       return;
     }
     if (!confirm(`حذف إعداد الصلاحيات «${pkg.name}»؟`)) return;
@@ -162,7 +162,7 @@ const PermissionPackages: React.FC<PermissionPackagesProps> = ({ onUpdate }) => 
     <div className="dashboard-page dashboard-consistent-page animate-fadeIn" dir="rtl">
        <div className="dashboard-section-header">
         <div>
-          <h1 className="text-3xl font-black text-purple-900">🔐 إدارة الصلاحيات</h1>
+          <h1 className="text-3xl font-black text-purple-900">إدارة الصلاحيات</h1>
           <p className="mt-1 font-bold text-purple-500">
            أنشئ إعدادات متعددة ومستقلة ثم اربط كل حساب بإعداد الصلاحيات المناسب له
           </p>
@@ -171,7 +171,7 @@ const PermissionPackages: React.FC<PermissionPackagesProps> = ({ onUpdate }) => 
           onClick={() => startNew(activeRole)}
           className="rounded-2xl bg-gradient-to-r from-purple-600 to-violet-600 px-6 py-3 font-black text-white shadow-lg hover:shadow-xl"
         >
-           ➕ إنشاء إعداد صلاحيات جديد
+           إنشاء إعداد صلاحيات جديد
         </button>
       </div>
 
@@ -216,8 +216,8 @@ const PermissionPackages: React.FC<PermissionPackagesProps> = ({ onUpdate }) => 
                 </span>
               </div>
               <div className="mt-4 flex gap-2">
-                <button onClick={() => handleEdit(pkg)} className="flex-1 rounded-xl bg-blue-50 py-2 font-black text-blue-700 hover:bg-blue-100">✏️ تعديل</button>
-                <button onClick={() => handleDelete(pkg)} className="rounded-xl bg-red-50 px-5 py-2 font-black text-red-600 hover:bg-red-100">🗑️ حذف</button>
+                <button onClick={() => handleEdit(pkg)} className="flex-1 rounded-xl bg-blue-50 py-2 font-black text-blue-700 hover:bg-blue-100">تعديل</button>
+                <button onClick={() => handleDelete(pkg)} className="rounded-xl bg-red-50 px-5 py-2 font-black text-red-600 hover:bg-red-100">حذف</button>
               </div>
             </div>
           ))}
@@ -225,7 +225,7 @@ const PermissionPackages: React.FC<PermissionPackagesProps> = ({ onUpdate }) => 
 
         <form onSubmit={handleSave} className="dashboard-surface min-w-0 border-2 border-purple-100 shadow-lg">
           <h2 className="text-xl font-black text-purple-900">
-             {editingPackage ? '✏️ تعديل إعداد الصلاحيات' : '✨ إنشاء إعداد صلاحيات'}
+             {editingPackage ? 'تعديل إعداد الصلاحيات' : 'إنشاء إعداد صلاحيات'}
           </h2>
           <div className="mt-5 space-y-4">
              <input value={name} onChange={event => setName(event.target.value)} placeholder="اسم إعداد الصلاحيات، مثال: معلم متقدم" className="w-full rounded-xl border-2 border-purple-100 p-3 font-bold outline-none focus:border-purple-400" required />
@@ -262,7 +262,7 @@ const PermissionPackages: React.FC<PermissionPackagesProps> = ({ onUpdate }) => 
 
           <div className="mt-6 flex gap-3">
             <button type="submit" className="flex-1 rounded-xl py-3 font-black text-white shadow-md hover:brightness-110" style={{ backgroundColor: COLORS.success }}>
-               💾 حفظ إعداد الصلاحيات
+               حفظ إعداد الصلاحيات
             </button>
             <button type="button" onClick={() => startNew(activeRole)} className="rounded-xl bg-slate-100 px-5 py-3 font-black text-slate-700 hover:bg-slate-200">
               تفريغ

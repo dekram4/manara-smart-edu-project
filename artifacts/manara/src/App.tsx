@@ -1,5 +1,6 @@
 ﻿import React, { Component, ErrorInfo, ReactNode, useState, useEffect, useRef, Suspense } from 'react';
 import { motion } from 'framer-motion';
+import { ChevronDown } from 'lucide-react';
 import Spline from '@splinetool/react-spline';
 import { gsap } from 'gsap';
 import RoleSelection from './pages/RoleSelection';
@@ -184,9 +185,12 @@ const ScrollDownButton: React.FC = () => {
       whileHover={{ scale: 1.04 }}
       whileTap={{ scale: 0.96 }}
       onClick={handleClick}
-      className="fixed bottom-[calc(1rem+env(safe-area-inset-bottom))] left-[calc(1rem+env(safe-area-inset-left))] z-50 rounded-full border border-cyan-300/40 bg-slate-900/85 px-4 py-3 text-sm font-black text-cyan-100 shadow-2xl backdrop-blur-md"
+      aria-label="الانتقال إلى أسفل الصفحة"
+      title="إلى الأسفل"
+      style={{ pointerEvents: visible ? 'auto' : 'none' }}
+      className="fixed bottom-[calc(5rem+env(safe-area-inset-bottom))] left-[calc(1rem+env(safe-area-inset-left))] z-50 flex h-10 w-10 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 shadow-md"
     >
-      ↓ للأسفل
+      <ChevronDown size={20} aria-hidden="true" />
     </motion.button>
   );
 };

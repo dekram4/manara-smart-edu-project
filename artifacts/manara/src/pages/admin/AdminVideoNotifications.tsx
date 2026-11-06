@@ -71,7 +71,7 @@ const AdminVideoNotifications: React.FC = () => {
     <div className="dashboard-page dashboard-consistent-page animate-fadeIn">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
-          <h2 className="text-3xl font-black text-purple-800">📢 إشعارات الفيديوهات</h2>
+          <h2 className="text-3xl font-black text-purple-800">إشعارات الفيديوهات</h2>
           {unreadCount > 0 && (
             <span className="px-3 py-1 bg-red-500 text-white rounded-full text-sm font-bold animate-pulse">
               {unreadCount} جديدة
@@ -83,14 +83,14 @@ const AdminVideoNotifications: React.FC = () => {
             onClick={clearAll}
             className="px-4 py-2 bg-red-100 text-red-600 rounded-xl font-bold hover:bg-red-200 transition-all text-sm"
           >
-            🗑️ حذف الكل
+            حذف الكل
           </button>
         )}
       </div>
 
       <div className="rounded-2xl border border-purple-200 bg-purple-50 p-4">
         <div className="mb-3 flex items-center justify-between">
-          <h3 className="text-lg font-black text-purple-800">🔎 فلترة إشعارات الفيديو</h3>
+          <h3 className="text-lg font-black text-purple-800">فلترة إشعارات الفيديو</h3>
           <button
             onClick={() => setFilters({ grade: '', subject: '', term: '', unit: '' })}
             className="rounded-lg bg-white px-3 py-1 text-xs font-bold text-purple-700 hover:bg-purple-100"
@@ -100,19 +100,19 @@ const AdminVideoNotifications: React.FC = () => {
         </div>
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
           <select value={filters.grade} onChange={(e) => setFilters({ ...filters, grade: e.target.value })} className="rounded-xl border border-purple-200 bg-white p-3 font-bold text-purple-900">
-            <option value="">🎓 كل الصفوف</option>
+            <option value="">كل الصفوف</option>
             {filterOptions.grades.map((grade) => <option key={grade} value={grade}>{grade}</option>)}
           </select>
           <select value={filters.subject} onChange={(e) => setFilters({ ...filters, subject: e.target.value })} className="rounded-xl border border-purple-200 bg-white p-3 font-bold text-purple-900">
-            <option value="">📖 كل المواد</option>
+            <option value="">كل المواد</option>
             {filterOptions.subjects.map((subject) => <option key={subject} value={subject}>{subject}</option>)}
           </select>
           <select value={filters.term} onChange={(e) => setFilters({ ...filters, term: e.target.value })} className="rounded-xl border border-purple-200 bg-white p-3 font-bold text-purple-900">
-            <option value="">📑 كل الفصول</option>
+            <option value="">كل الفصول</option>
             {filterOptions.terms.map((term) => <option key={term} value={term}>{term}</option>)}
           </select>
           <select value={filters.unit} onChange={(e) => setFilters({ ...filters, unit: e.target.value })} className="rounded-xl border border-purple-200 bg-white p-3 font-bold text-purple-900">
-            <option value="">📦 كل الوحدات</option>
+            <option value="">كل الوحدات</option>
             {filterOptions.units.map((unit) => <option key={unit} value={unit}>{unit}</option>)}
           </select>
         </div>
@@ -147,12 +147,12 @@ const AdminVideoNotifications: React.FC = () => {
                   onClick={() => markAsRead(n.id)}
                   className="px-4 py-2 bg-purple-600 text-white rounded-xl font-bold hover:bg-purple-700 transition-all text-sm shrink-0"
                 >
-                  ✓ تميت القراءة
+                  تميت القراءة
                 </button>
               )}
               {n.read && (
                 <span className="px-3 py-1 bg-green-100 text-green-600 rounded-xl text-xs font-bold">
-                  ✓ مقروءة
+                  مقروءة
                 </span>
               )}
             </div>
@@ -161,7 +161,6 @@ const AdminVideoNotifications: React.FC = () => {
 
         {filteredNotifications.length === 0 && (
           <div className="p-16 bg-purple-50 rounded-[40px] border-2 border-dashed border-purple-300 text-center">
-            <div className="text-7xl mb-6">📢</div>
             <h3 className="text-2xl font-black text-purple-800 mb-3">لا توجد إشعارات مطابقة للفلاتر</h3>
             <p className="text-purple-600 font-bold">جرّب تغيير الفلاتر أو انتظر إشعارات جديدة من المعلمين</p>
           </div>

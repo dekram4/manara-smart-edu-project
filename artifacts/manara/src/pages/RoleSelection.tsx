@@ -1,21 +1,8 @@
 import React, { useEffect, useState } from 'react';
-import { motion } from 'framer-motion';
+import type { LucideIcon } from 'lucide-react';
+import { ArrowLeft, Check, Download, Presentation, ShieldCheck, Smartphone, UsersRound } from 'lucide-react';
 import { GameAudioEngine } from '../utils/gameAudioEngine';
-import ManaraBrand from '../components/ManaraBrand';
 import { fetchStudentApk } from '../utils/studentApk';
-
-interface RoleCard {
-  id: 'teacher' | 'parent' | 'admin';
-  title: string;
-  subtitle: string;
-  description: string;
-  icon: string;
-  palette: { from: string; via: string; to: string };
-  glowColor: string;
-  accentLight: string;
-  tag: string;
-  svgIllustration: React.ReactNode;
-}
 
 interface RoleSelectionProps {
   onSelectAdmin: () => void;
@@ -23,238 +10,51 @@ interface RoleSelectionProps {
   onSelectParent: () => void;
 }
 
-/* ─── Per-role SVG illustrations ─── */
-const TeacherIllustration = () => (
-  <svg viewBox="0 0 120 90" fill="none" className="h-full w-full" aria-hidden="true">
-    {/* whiteboard */}
-    <rect x="16" y="22" width="70" height="46" rx="4" fill="#d1fae5" fillOpacity="0.5" stroke="#60a5fa" strokeWidth="1.2" strokeOpacity="0.6" />
-    <rect x="20" y="26" width="62" height="38" rx="2" fill="#ecfdf5" fillOpacity="0.3" />
-    {/* equation on board */}
-    <text x="34" y="46" fontSize="10" fill="#1e3a8a" fillOpacity="0.8" fontFamily="monospace" fontWeight="bold">y = mx + b</text>
-    <line x1="28" y1="52" x2="72" y2="52" stroke="#60a5fa" strokeWidth="1" strokeOpacity="0.4" />
-    <circle cx="48" cy="58" r="2.5" fill="#60a5fa" fillOpacity="0.6" />
-    <circle cx="60" cy="56" r="2" fill="#93c5fd" fillOpacity="0.6" />
-    <circle cx="68" cy="54" r="2" fill="#bfdbfe" fillOpacity="0.6" />
-    {/* teacher pointer */}
-    <line x1="92" y1="28" x2="82" y2="42" stroke="#93c5fd" strokeWidth="2" strokeLinecap="round" />
-    <circle cx="93" cy="26" r="3" fill="#60a5fa" fillOpacity="0.8" />
-    {/* board legs */}
-    <line x1="28" y1="68" x2="24" y2="78" stroke="#60a5fa" strokeWidth="1.5" strokeOpacity="0.5" />
-    <line x1="78" y1="68" x2="82" y2="78" stroke="#60a5fa" strokeWidth="1.5" strokeOpacity="0.5" />
-    {/* sparkles */}
-    <circle cx="105" cy="30" r="2.2" fill="#93c5fd" fillOpacity="0.7" />
-    <circle cx="10"  cy="35" r="1.8" fill="#93c5fd" fillOpacity="0.6" />
-    <circle cx="108" cy="70" r="2"   fill="#bfdbfe" fillOpacity="0.6" />
-  </svg>
-);
-
-const ParentIllustration = () => (
-  <svg viewBox="0 0 120 90" fill="none" className="h-full w-full" aria-hidden="true">
-    {/* parent figure */}
-    <circle cx="38" cy="28" r="10" fill="#bfdbfe" fillOpacity="0.7" />
-    <rect x="24" y="40" width="28" height="26" rx="6" fill="#60a5fa" fillOpacity="0.55" />
-    {/* child figure */}
-    <circle cx="78" cy="34" r="7" fill="#dbeafe" fillOpacity="0.75" />
-    <rect x="67" y="43" width="22" height="20" rx="5" fill="#93c5fd" fillOpacity="0.55" />
-    {/* connecting heart */}
-    <path d="M58 40 C58 36 62 33 64 36 C66 33 70 36 70 40 C70 44 64 49 64 49 C64 49 58 44 58 40Z"
-      fill="#3b82f6" fillOpacity="0.75" />
-    {/* stars around */}
-    <circle cx="15"  cy="18" r="2.5" fill="#93c5fd" fillOpacity="0.75" />
-    <circle cx="105" cy="22" r="2"   fill="#60a5fa" fillOpacity="0.7" />
-    <circle cx="10"  cy="70" r="1.8" fill="#dbeafe" fillOpacity="0.6" />
-    <circle cx="108" cy="72" r="2.2" fill="#93c5fd" fillOpacity="0.65" />
-    {/* progress bar */}
-    <rect x="20" y="76" width="80" height="5" rx="2.5" fill="#eff6ff" fillOpacity="0.35" />
-    <rect x="20" y="76" width="56" height="5" rx="2.5" fill="#60a5fa" fillOpacity="0.7" />
-  </svg>
-);
-
-const AdminIllustration = () => (
-  <svg viewBox="0 0 120 90" fill="none" className="h-full w-full" aria-hidden="true">
-    {/* gear large */}
-    <circle cx="55" cy="44" r="18" fill="#64748b" fillOpacity="0.2" stroke="#64748b" strokeWidth="1.5" strokeOpacity="0.5" />
-    <circle cx="55" cy="44" r="10" fill="#a21caf" fillOpacity="0.5" />
-    {/* gear teeth */}
-    {[0,45,90,135,180,225,270,315].map((deg, i) => {
-      const r = Math.PI * deg / 180;
-      const x1 = 55 + 18 * Math.cos(r);
-      const y1 = 44 + 18 * Math.sin(r);
-      const x2 = 55 + 24 * Math.cos(r);
-      const y2 = 44 + 24 * Math.sin(r);
-      return <line key={i} x1={x1} y1={y1} x2={x2} y2={y2} stroke="#64748b" strokeWidth="3.5" strokeLinecap="round" strokeOpacity="0.65" />;
-    })}
-    {/* small gear */}
-    <circle cx="88" cy="26" r="9" fill="#cbd5e1" fillOpacity="0.18" stroke="#64748b" strokeWidth="1" strokeOpacity="0.45" />
-    <circle cx="88" cy="26" r="5" fill="#a21caf" fillOpacity="0.45" />
-    {[0,60,120,180,240,300].map((deg, i) => {
-      const r = Math.PI * deg / 180;
-      const x1 = 88 + 9 * Math.cos(r);
-      const y1 = 26 + 9 * Math.sin(r);
-      const x2 = 88 + 12 * Math.cos(r);
-      const y2 = 26 + 12 * Math.sin(r);
-      return <line key={i} x1={x1} y1={y1} x2={x2} y2={y2} stroke="#64748b" strokeWidth="2.5" strokeLinecap="round" strokeOpacity="0.55" />;
-    })}
-    {/* shield */}
-    <path d="M24 20 L36 16 L48 20 L48 34 C48 42 36 48 36 48 C36 48 24 42 24 34 Z"
-      fill="#fae8ff" fillOpacity="0.18" stroke="#64748b" strokeWidth="1.2" strokeOpacity="0.5" />
-    <polyline points="29,32 34,38 44,26" stroke="#64748b" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" strokeOpacity="0.8" />
-    {/* data nodes */}
-    <circle cx="20"  cy="70" r="3" fill="#64748b" fillOpacity="0.6" />
-    <circle cx="40"  cy="75" r="2" fill="#cbd5e1" fillOpacity="0.6" />
-    <circle cx="60"  cy="72" r="2.5" fill="#64748b" fillOpacity="0.5" />
-    <circle cx="100" cy="68" r="2" fill="#cbd5e1" fillOpacity="0.5" />
-    <line x1="20" y1="70" x2="40" y2="75" stroke="#64748b" strokeWidth="0.8" strokeOpacity="0.4" />
-    <line x1="40" y1="75" x2="60" y2="72" stroke="#64748b" strokeWidth="0.8" strokeOpacity="0.4" />
-  </svg>
-);
+interface RoleCard {
+  id: 'teacher' | 'parent' | 'admin';
+  title: string;
+  description: string;
+  features: string[];
+  icon: LucideIcon;
+  tone: 'primary' | 'accent' | 'gold';
+}
 
 const roles: RoleCard[] = [
   {
     id: 'teacher',
     title: 'بوابة المعلم',
-    subtitle: 'علّم • أدِر • قيّم',
-    description: 'فصول ذكية، نشر الدروس، وتقارير الأداء',
-    icon: '👨‍🏫',
-    palette: { from: '#172554', via: '#1e3a8a', to: '#2563eb' },
-    glowColor: 'rgba(37,99,235,0.45)',
-    accentLight: '#93c5fd',
-    tag: 'معلم',
-    svgIllustration: <TeacherIllustration />,
+    description: 'إدارة الفصول والمحتوى التعليمي ومتابعة أداء الطلاب.',
+    features: ['الدروس والاختبارات', 'تقارير الطلاب وأولياء الأمور', 'إصدار الشهادات'],
+    icon: Presentation,
+    tone: 'primary',
   },
   {
     id: 'parent',
-    title: 'ولي الأمر',
-    subtitle: 'تابع • راقب • ادعم',
-    description: 'متابعة مستوى أبنائك والتقارير الأكاديمية',
-    icon: '👨‍👩‍👧',
-    palette: { from: '#1e3a8a', via: '#2563eb', to: '#3b82f6' },
-    glowColor: 'rgba(59,130,246,0.45)',
-    accentLight: '#dbeafe',
-    tag: 'ولي أمر',
-    svgIllustration: <ParentIllustration />,
+    title: 'بوابة ولي الأمر',
+    description: 'متابعة تحصيل الأبناء ونشاطهم وشهاداتهم أولاً بأول.',
+    features: ['الدرجات ونتائج الاختبارات', 'المستوى والنشاط والجواهر', 'التقارير والشهادات للطباعة'],
+    icon: UsersRound,
+    tone: 'accent',
   },
   {
     id: 'admin',
     title: 'لوحة المشرف',
-    subtitle: 'أدِر • تحكّم • أشرف',
-    description: 'إدارة شاملة للمنصة والعمليات الأكاديمية',
-    icon: '⚙️',
-    palette: { from: '#0f172a', via: '#334155', to: '#1d4ed8' },
-    glowColor: 'rgba(51,65,85,0.45)',
-    accentLight: '#cbd5e1',
-    tag: 'مشرف',
-    svgIllustration: <AdminIllustration />,
+    description: 'الإدارة الشاملة للمنصّة والحسابات والإعدادات الأكاديمية.',
+    features: ['المعلمون والحسابات', 'الإعدادات الأكاديمية والمحتوى', 'الصلاحيات وإعدادات النظام'],
+    icon: ShieldCheck,
+    tone: 'gold',
   },
 ];
 
-interface FloatingLearningObjectProps {
-  icon: string;
-  label: string;
-  color: string;
-  left: string;
-  top: string;
-  delay: number;
-  duration: number;
-  size?: 'sm' | 'md' | 'lg';
-  hiddenOnMobile?: boolean;
-}
-
-const FloatingLearningObject: React.FC<FloatingLearningObjectProps> = ({
-  icon,
-  label,
-  color,
-  left,
-  top,
-  delay,
-  duration,
-  size = 'md',
-  hiddenOnMobile = false,
-}) => {
-  const dimensions = {
-    sm: { shell: 'h-14 w-14', icon: 'text-2xl', orbit: 'inset-[-7px]', label: 'text-[9px]' },
-    md: { shell: 'h-[72px] w-[72px]', icon: 'text-3xl', orbit: 'inset-[-9px]', label: 'text-[10px]' },
-    lg: { shell: 'h-20 w-20', icon: 'text-4xl', orbit: 'inset-[-10px]', label: 'text-[11px]' },
-  }[size];
-
-  return (
-    <motion.div
-      className={`pointer-events-auto absolute z-[2] ${hiddenOnMobile ? 'hidden sm:block' : ''}`}
-      style={{ left, top }}
-      initial={{ opacity: 0, scale: 0.65 }}
-      animate={{
-        opacity: [0.55, 0.9, 0.55],
-        y: [0, -18, 0],
-        x: [0, 7, 0],
-        rotate: [-3, 4, -3],
-        scale: [1, 1.06, 1],
-      }}
-      transition={{
-        duration,
-        delay,
-        repeat: Infinity,
-        ease: 'easeInOut',
-      }}
-      whileHover={{ scale: 1.16, opacity: 1, zIndex: 20 }}
-    >
-      <div className="relative flex flex-col items-center">
-        {/* orbital rings give the emoji a crafted, educational-tech look */}
-        <motion.div
-          className={`pointer-events-none absolute ${dimensions.orbit} rounded-full border border-dashed`}
-          style={{
-            borderColor: `${color}70`,
-            boxShadow: `0 0 18px ${color}35`,
-          }}
-          animate={{ rotate: 360 }}
-          transition={{ duration: duration * 1.8, repeat: Infinity, ease: 'linear' }}
-        />
-        <motion.div
-          className={`pointer-events-none absolute ${dimensions.orbit} rounded-full border`}
-          style={{
-            borderColor: `${color}25`,
-            transform: 'rotate(58deg) scaleX(0.55)',
-          }}
-          animate={{ rotate: [58, 418] }}
-          transition={{ duration: duration * 2.2, repeat: Infinity, ease: 'linear' }}
-        />
-
-        {/* glass emoji badge */}
-        <div
-          className={`${dimensions.shell} flex items-center justify-center rounded-[22px] border backdrop-blur-xl`}
-          style={{
-            background: `linear-gradient(145deg, ${color}32, rgba(15,23,42,0.76))`,
-            borderColor: `${color}65`,
-            boxShadow: `0 10px 28px rgba(0,0,0,0.3), 0 0 30px ${color}25, inset 0 1px 0 rgba(255,255,255,0.18)`,
-          }}
-        >
-          <motion.span
-            aria-hidden="true"
-            className={`${dimensions.icon} select-none drop-shadow-[0_0_10px_rgba(255,255,255,0.45)]`}
-            animate={{ rotate: [-5, 5, -5], scale: [1, 1.1, 1] }}
-            transition={{ duration: duration * 0.7, repeat: Infinity, ease: 'easeInOut', delay: delay + 0.2 }}
-            whileHover={{ rotate: 12, scale: 1.24 }}
-          >
-            {icon}
-          </motion.span>
-        </div>
-
-        {/* small professional label */}
-        <span
-          className={`mt-2 rounded-full border px-2 py-0.5 font-bold tracking-wide text-white/70 backdrop-blur-md ${dimensions.label}`}
-          style={{
-            background: `${color}18`,
-            borderColor: `${color}35`,
-          }}
-        >
-          {label}
-        </span>
-      </div>
-    </motion.div>
-  );
-};
-
+/**
+ * صفحةُ الدخول الأولى: اختيارُ البوابة.
+ *
+ * كانت خلفيةً داكنة تطفو فوقها رموزٌ تعبيرية تدور في مدارات، وبطاقاتٌ زجاجية
+ * تتوهّج وتهتزّ ويصدر عنها صوتٌ عند المرور. صارت صفحةَ بوابةٍ رسمية: شريطُ
+ * الهوية، ثم ثلاثُ بطاقات تقول كلٌّ منها لمن هي وماذا فيها، بأيقوناتٍ خطّية
+ * وألوانٍ هادئة. وزرُّ تطبيق الطالب يبقى كما كان: يظهر حين يصل رابطه.
+ */
 const RoleSelection: React.FC<RoleSelectionProps> = (props) => {
-  const [hoveredId, setHoveredId] = useState<string | null>(null);
   // رابطُ تطبيق الطالب من إعدادات النظام في الخادم — يغيّره المشرف من لوحته.
   // وما لم يصل الرابط لا يظهر الزرّ: زرٌّ لا يفتح شيئاً أسوأ من غيابه.
   const [apkUrl, setApkUrl] = useState<string | null>(null);
@@ -273,267 +73,90 @@ const RoleSelection: React.FC<RoleSelectionProps> = (props) => {
   };
 
   return (
-    <div
-      className="role-selection-shell relative flex min-h-screen w-full select-none flex-col items-center justify-center overflow-hidden p-5 font-tajawal"
-      dir="rtl"
-    >
-      {/* ─── الخلفية: تدرّج كحلي/رمادي هادئ ───
-          كانت أربع محطات بين الأسود والبنفسجي (#04041a → #0d0b33 → …) مع
-          ثلاث هالات نابضة وشبكة خطوط رمادية باهتة فوق كل شيء. الشبكة تحديداً
-          هي «الخطوط الشاحبة» المُتعبة للعين: خطوط بسُمك بكسل واحد بشفافية
-          0.07 تهتزّ على حافة الإدراك.
-
-          التدرّج هنا محطتان من عائلة slate الرسمية، وهالتان ساكنتان بلا
-          نبض تعطيان عمقاً دون ضوضاء. */}
-      <div className="pointer-events-none absolute inset-0">
-        <div className="absolute inset-0 bg-[linear-gradient(160deg,_#0f172a_0%,_#1e293b_45%,_#0f172a_100%)]" />
-        <div className="absolute -left-32 top-0 h-[42vw] w-[42vw] max-h-[520px] max-w-[520px] rounded-full bg-blue-600/12 blur-[90px]" />
-        <div className="absolute -right-24 bottom-0 h-[38vw] w-[38vw] max-h-[480px] max-w-[480px] rounded-full bg-slate-500/10 blur-[90px]" />
-        {/* إضاءة علوية خفيفة تمنح عمقاً دون أن تُحدث حدّاً مرئياً. */}
-        <div className="absolute inset-x-0 top-0 h-80 bg-[radial-gradient(ellipse_70%_60%_at_50%_0%,rgba(37,99,235,0.16),transparent)]" />
-        {/* Floating educational objects: each has its own orbit, glow, motion and label. */}
-        <FloatingLearningObject icon="📚" label="القراءة" color="#818cf8" left="4%" top="17%" delay={0} duration={6.4} size="lg" hiddenOnMobile />
-        <FloatingLearningObject icon="✏️" label="الإبداع" color="#93c5fd" left="89%" top="14%" delay={0.7} duration={5.8} size="md" hiddenOnMobile />
-        <FloatingLearningObject icon="🔬" label="العلوم" color="#2dd4bf" left="7%" top="73%" delay={1.3} duration={6.8} size="md" hiddenOnMobile />
-        <FloatingLearningObject icon="🌍" label="اكتشف العالم" color="#38bdf8" left="87%" top="70%" delay={1.9} duration={7.2} size="lg" hiddenOnMobile />
-        <FloatingLearningObject icon="🧮" label="الرياضيات" color="#60a5fa" left="18%" top="5%" delay={0.4} duration={6.1} size="sm" hiddenOnMobile />
-        <FloatingLearningObject icon="🎨" label="الفن" color="#a5b4fc" left="76%" top="5%" delay={1.1} duration={5.4} size="sm" hiddenOnMobile />
-        <FloatingLearningObject icon="⭐" label="إنجاز" color="#7dd3fc" left="45%" top="88%" delay={2.1} duration={5.9} size="sm" />
-      </div>
-
-      {/* ─── Header ─── */}
-      <motion.div
-        initial={{ opacity: 0, y: -28 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.7, ease: 'easeOut' }}
-         className="role-selection-header relative z-10 mb-8 text-center sm:mb-10"
-      >
-        <ManaraBrand variant="hero" className="text-white" />
-        <p className="mt-2 text-base font-medium text-slate-400">
-          اختر بوابتك وابدأ رحلتك التعليمية الذكية ✨
-        </p>
-      </motion.div>
-
-      {/* ─── Role cards grid ─── */}
-       <div className="role-selection-grid relative z-10 grid w-full max-w-6xl grid-cols-1 gap-5 sm:grid-cols-2 sm:gap-6 xl:grid-cols-3">
-        {roles.map((role, index) => {
-          const isHovered = hoveredId === role.id;
-          return (
-            <motion.button
-              key={role.id}
-              type="button"
-              initial={{ opacity: 0, y: 44, scale: 0.93 }}
-              animate={{ opacity: 1, y: 0, scale: 1 }}
-              transition={{ duration: 0.55, delay: index * 0.12, type: 'spring', stiffness: 200, damping: 22 }}
-              whileHover={{ scale: 1.025, y: -6 }}
-              whileTap={{ scale: 0.97 }}
-              onMouseEnter={() => { setHoveredId(role.id); GameAudioEngine.play('uiHover'); }}
-              onMouseLeave={() => setHoveredId(null)}
-              onClick={() => { GameAudioEngine.play('uiSelect'); handlers[role.id](); }}
-                className={`role-selection-card group relative min-h-48 overflow-hidden text-center sm:min-h-56
-                  border backdrop-blur-md transition-all duration-300
-                  ${isHovered
-                    ? 'border-blue-500/50 shadow-2xl shadow-blue-500/10'
-                    : 'border-slate-700/60 shadow-lg shadow-slate-950/40'}`}
-              style={{
-                borderRadius: '1rem',
-                // زجاجية حقيقية: لون شبه شفاف فوق الخلفية مع `backdrop-blur`.
-                // الطبقات المصمتة السابقة كانت تحجب ما خلفها فيضيع الأثر.
-                backgroundColor: isHovered
-                  ? 'rgb(15 23 42 / 0.55)'
-                  : 'rgb(15 23 42 / 0.40)',
-              }}
+    <div className="portal-auth portal-roles" dir="rtl">
+      <div className="portal-roles-band" aria-hidden="true" />
+      <div className="portal-roles-inner">
+        <header className="portal-roles-header">
+          <div className="portal-roles-brand">
+            <img src="/manara-logo-emblem.png" alt="شعار منصة منارة المعرفة التعليمية" />
+            <div>
+              <strong>منصة منارة المعرفة التعليمية</strong>
+              <span>تعليمٌ ذكي، معرفة، ومستقبلٌ مشرق</span>
+            </div>
+          </div>
+          {apkUrl && (
+            <a
+              href={apkUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="portal-roles-apk-link"
+              data-testid="student-apk-download"
+              onClick={() => GameAudioEngine.play('uiSelect')}
             >
-              {/* لمسة لون خافتة من هوية الدور — تكفي للتمييز دون أن تُخرجه
-                  عن العائلة الكحلية. */}
-              <div
-                className="pointer-events-none absolute inset-0 transition-opacity duration-300"
-                style={{
-                  background: `radial-gradient(circle at 50% 0%, ${role.palette.to}22, transparent 62%)`,
-                  opacity: isHovered ? 1 : 0.6,
-                  borderRadius: 'inherit',
-                }}
-              />
+              <Smartphone aria-hidden="true" />
+              تطبيق الطالب
+            </a>
+          )}
+        </header>
 
-               {/* SVG illustration — large atmospheric art behind the role icon */}
-              <div
-                  className="pointer-events-none absolute -right-2 top-1/2 h-44 w-52 -translate-y-1/2 scale-125 origin-center opacity-25 transition-all duration-500 group-hover:scale-[1.38] group-hover:opacity-55 sm:h-48 sm:w-60"
+        <section className="portal-roles-hero">
+          <p>البوابة الإلكترونية</p>
+          <h1>مرحباً بك، اختر بوابة الدخول</h1>
+          <span>لكل مستخدمٍ بوابته الخاصة. اختر صفتك للمتابعة إلى صفحة تسجيل الدخول.</span>
+        </section>
+
+        <div className="portal-roles-grid">
+          {roles.map((role) => {
+            const Icon = role.icon;
+            return (
+              <button
+                key={role.id}
+                type="button"
+                className={`portal-role-card tone-${role.tone}`}
+                onClick={() => {
+                  GameAudioEngine.play('uiSelect');
+                  handlers[role.id]();
+                }}
               >
-                {role.svgIllustration}
-              </div>
+                <span className="portal-role-icon" aria-hidden="true">
+                  <Icon />
+                </span>
+                <span className="portal-role-title">{role.title}</span>
+                <span className="portal-role-description">{role.description}</span>
+                <span className="portal-role-features">
+                  {role.features.map((feature) => (
+                    <span key={feature}>
+                      <Check aria-hidden="true" /> {feature}
+                    </span>
+                  ))}
+                </span>
+                <span className="portal-role-cta">
+                  الدخول إلى البوابة <ArrowLeft aria-hidden="true" />
+                </span>
+              </button>
+            );
+          })}
+        </div>
 
-              {/* أقواس الزوايا الزخرفية أُزيلت: خطوط بشفافية 35–50٪ على حافة
-                  الإدراك، وهي من «الخطوط الشاحبة» التي تُتعب العين دون أن
-                  تضيف معنى. */}
+        {apkUrl && (
+          <a href={apkUrl} target="_blank" rel="noopener noreferrer" className="portal-roles-apk" onClick={() => GameAudioEngine.play('uiSelect')}>
+            <span className="portal-role-icon tone-success" aria-hidden="true">
+              <Smartphone />
+            </span>
+            <span className="min-w-0 flex-1">
+              <strong>تطبيق الطالب</strong>
+              <span>يتعلّم الطالب من تطبيقه على الهاتف أو الجهاز اللوحي — أندرويد.</span>
+            </span>
+            <span className="portal-btn portal-btn-secondary">
+              <Download aria-hidden="true" /> تحميل التطبيق
+            </span>
+          </a>
+        )}
 
-              {/* Shimmer sweep on hover */}
-              <div
-                className="pointer-events-none absolute inset-0 rounded-[inherit] opacity-0 transition-opacity duration-300 group-hover:opacity-100"
-                style={{
-                  background: `linear-gradient(105deg, transparent 38%, ${role.accentLight}18 52%, transparent 66%)`,
-                  backgroundSize: '200% 100%',
-                  animation: isHovered ? 'shimmerSweepRole 2.8s ease-in-out infinite' : 'none',
-                }}
-              />
-
-              {/* Top edge accent line */}
-              <div
-                className="pointer-events-none absolute inset-x-0 top-0 h-px rounded-full transition-opacity duration-300 group-hover:opacity-100"
-                style={{
-                  background: `linear-gradient(90deg, transparent, ${role.accentLight}90, transparent)`,
-                  opacity: isHovered ? 1 : 0.35,
-                }}
-              />
-
-              {/* Corner glow */}
-              <div
-                className="pointer-events-none absolute -right-8 -top-8 h-28 w-28 rounded-full blur-2xl transition-opacity duration-400"
-                style={{
-                  background: `radial-gradient(circle, ${role.palette.via}55, transparent)`,
-                  opacity: isHovered ? 1 : 0.35,
-                }}
-              />
-
-               {/* المحتوى في منتصف البطاقة: الأيقونة فوق الاسم، بمحاذاة
-                   وسطية وحشوة مريحة متساوية على الجهات. */}
-               <div className="relative z-10 flex h-full flex-col items-center justify-center gap-4 p-6 text-center sm:gap-5 sm:p-7">
-                 {/* Role icon badge */}
-                <div
-                   className="relative flex h-28 w-28 shrink-0 items-center justify-center rounded-[30px] text-[4.7rem] shadow-2xl transition-transform duration-300 group-hover:scale-110 group-hover:rotate-[-4deg] sm:h-32 sm:w-32 sm:text-[5.5rem]"
-                  style={{
-                     background: `linear-gradient(145deg, ${role.palette.from}f2, ${role.palette.via}e8 52%, ${role.palette.to}f5)`,
-                     border: `2px solid ${role.accentLight}55`,
-                     boxShadow: `0 14px 34px ${role.glowColor}, 0 0 0 7px ${role.palette.via}12, inset 0 2px 0 rgba(255,255,255,0.28), inset 0 -12px 24px rgba(0,0,0,0.2)`,
-                  }}
-                >
-                   <div
-                     className="pointer-events-none absolute inset-2 rounded-[24px] border border-white/20"
-                     style={{ boxShadow: `inset 0 0 22px ${role.accentLight}20` }}
-                   />
-                   <div
-                     className="pointer-events-none absolute -inset-3 rounded-[36px] opacity-60 blur-xl transition-opacity duration-300 group-hover:opacity-100"
-                     style={{ background: role.glowColor }}
-                   />
-                  <motion.span
-                    aria-hidden="true"
-                     className="relative z-10 select-none drop-shadow-[0_8px_8px_rgba(0,0,0,0.42)]"
-                    animate={
-                      isHovered
-                        ? { y: [0, -5, 0], rotate: [-7, 7, -3, 0], scale: [1, 1.14, 1.05, 1] }
-                        : { y: [0, -2, 0], rotate: [-2, 2, -2] }
-                    }
-                    transition={{
-                      duration: isHovered ? 0.75 : 3.4,
-                      repeat: Infinity,
-                      ease: 'easeInOut',
-                    }}
-                  >
-                    {role.icon}
-                  </motion.span>
-                </div>
-
-                {/* Text block */}
-                <div className="min-w-0 w-full">
-                  {/* Tag pill */}
-                  <span
-                     className="mb-2 inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-[11px] font-black uppercase tracking-widest shadow-lg"
-                    style={{
-                       background: `${role.palette.via}38`,
-                      color: role.accentLight,
-                       border: `1px solid ${role.accentLight}45`,
-                    }}
-                  >
-                     <span className="h-1.5 w-1.5 rounded-full bg-current shadow-[0_0_8px_currentColor]" />
-                    {role.tag}
-                  </span>
-                   <h3 className="text-[1.45rem] font-black leading-tight text-white drop-shadow-md transition-colors sm:text-[1.65rem] group-hover:text-white">
-                    {role.title}
-                  </h3>
-                  <p
-                     className="mt-1 text-xs font-black tracking-wide sm:text-sm"
-                    style={{ color: role.accentLight }}
-                  >
-                    {role.subtitle}
-                  </p>
-                    <p className="mt-2 text-[13px] font-medium leading-relaxed text-slate-300 transition-colors group-hover:text-white sm:text-sm">
-                    {role.description}
-                  </p>
-                </div>
-
-                {/* مؤشّر الدخول */}
-                <motion.div
-                  animate={isHovered ? { y: 3, scale: 1.12 } : { y: 0, scale: 1 }}
-                  transition={{ duration: 0.25 }}
-                   className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl text-xl font-black transition-all duration-300"
-                  style={{
-                    background: isHovered ? role.palette.via : 'rgba(255,255,255,0.06)',
-                    color: isHovered ? '#fff' : 'rgba(255,255,255,0.4)',
-                    border: `1px solid ${isHovered ? role.accentLight + '50' : 'rgba(255,255,255,0.08)'}`,
-                    boxShadow: isHovered ? `0 0 18px ${role.glowColor}` : 'none',
-                  }}
-                >
-                  ←
-                </motion.div>
-              </div>
-            </motion.button>
-          );
-        })}
+        <footer className="portal-roles-footer">
+          © {new Date().getFullYear()} منصة منارة المعرفة التعليمية · جميع الحقوق محفوظة
+        </footer>
       </div>
-
-      {/* ─── تحميل تطبيق الطالب ───
-          رابطٌ يفتح العنوانَ المعتمد في نافذةٍ جديدة، فيعمل مع رابط تنزيلٍ
-          مباشر ومع صفحة متجرٍ أو GitHub على السواء. */}
-      {apkUrl && (
-        <motion.a
-          href={apkUrl}
-          target="_blank"
-          rel="noopener noreferrer"
-          data-testid="student-apk-download"
-          initial={{ opacity: 0, y: 16 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.55, duration: 0.45, ease: 'easeOut' }}
-          whileHover={{ scale: 1.03, y: -2 }}
-          whileTap={{ scale: 0.97 }}
-          onMouseEnter={() => GameAudioEngine.play('uiHover')}
-          onClick={() => GameAudioEngine.play('uiSelect')}
-          className="group relative z-10 mt-8 inline-flex items-center gap-3 rounded-2xl border border-emerald-400/40 px-6 py-3.5 text-white shadow-lg shadow-emerald-900/30 backdrop-blur-md transition-colors hover:border-emerald-300/70"
-          style={{ background: 'linear-gradient(135deg, rgba(5,150,105,0.85), rgba(16,185,129,0.75))' }}
-        >
-          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white/15 shadow-inner" aria-hidden="true">
-            <svg viewBox="0 0 24 24" className="h-6 w-6 fill-current">
-              <path d="M17.6 9.48l1.84-3.18a.38.38 0 0 0-.66-.38l-1.86 3.22a11.4 11.4 0 0 0-9.84 0L5.22 5.92a.38.38 0 0 0-.66.38L6.4 9.48A10.8 10.8 0 0 0 1 18h22a10.8 10.8 0 0 0-5.4-8.52zM7 15.25a1.25 1.25 0 1 1 0-2.5 1.25 1.25 0 0 1 0 2.5zm10 0a1.25 1.25 0 1 1 0-2.5 1.25 1.25 0 0 1 0 2.5z" />
-            </svg>
-          </span>
-          <span className="flex flex-col items-start leading-tight">
-            <span className="text-base font-black sm:text-lg">تحميل تطبيق الطالب</span>
-            <span className="text-xs font-bold text-emerald-50/85" dir="ltr">Android APK</span>
-          </span>
-          <span className="mr-1 flex h-8 w-8 items-center justify-center rounded-lg bg-white/15 text-lg font-black transition-transform group-hover:translate-y-0.5" aria-hidden="true">↓</span>
-        </motion.a>
-      )}
-
-      {/* ─── Bottom tagline ─── */}
-      <motion.p
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        transition={{ delay: 0.9 }}
-        className="relative z-10 mt-8 text-sm text-slate-400"
-      >
-        منصة التعليم الذكي · التعلّم في كل مكان وزمان
-      </motion.p>
-
-      {/* ─── Global keyframes ─── */}
-      <style>{`
-        @keyframes floatIcon {
-          0%, 100% { transform: translateY(0px) rotate(0deg); }
-          50%       { transform: translateY(-14px) rotate(4deg); }
-        }
-        @keyframes shimmerSweepRole {
-          0%   { background-position: -200% 0; }
-          60%  { background-position:  200% 0; }
-          100% { background-position:  200% 0; }
-        }
-      `}</style>
     </div>
   );
 };

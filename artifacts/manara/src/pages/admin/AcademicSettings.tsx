@@ -281,7 +281,7 @@ const AcademicSettings: React.FC<AcademicSettingsProps> = ({ onUpdate, teacherId
     
     // منع المعلم من حذف الإعدادات العامة أو إعدادات المعلمين الآخرين
     if (teacherId && !belongsToTeacher(gradeToDelete, teacherId)) {
-      alert('⚠️ لا يمكنك حذف هذا الإعداد. يمكنك فقط حذف الإعدادات التي أنشأتها بنفسك.');
+      alert('لا يمكنك حذف هذا الإعداد. يمكنك فقط حذف الإعدادات التي أنشأتها بنفسك.');
       return;
     }
     
@@ -330,7 +330,7 @@ const AcademicSettings: React.FC<AcademicSettingsProps> = ({ onUpdate, teacherId
     
     // منع التعديل على إعدادات معلمين آخرين
     if (teacherId && !isGeneralConfig(grade) && !belongsToTeacher(grade, teacherId)) {
-      alert('⚠️ لا يمكنك تعديل إعدادات معلم آخر.');
+      alert('لا يمكنك تعديل إعدادات معلم آخر.');
       return;
     }
 
@@ -361,7 +361,7 @@ const AcademicSettings: React.FC<AcademicSettingsProps> = ({ onUpdate, teacherId
         setNewSubject('');
         loadSettings();
         onUpdate();
-        alert('✅ تم إضافة المادة إلى نسختك الخاصة (لن تظهر عند المشرف)');
+        alert('تم إضافة المادة إلى نسختك الخاصة (لن تظهر عند المشرف)');
         return;
       }
     }
@@ -386,7 +386,7 @@ const AcademicSettings: React.FC<AcademicSettingsProps> = ({ onUpdate, teacherId
     
     // رسائل مختلفة حسب نوع الإعداد
     if (isOwnSetting) {
-      alert('✅ تم إضافة المادة بنجاح (ستظهر عند المشرف)');
+      alert('تم إضافة المادة بنجاح (ستظهر عند المشرف)');
     } else {
       alert('تم إضافة المادة بنجاح');
     }
@@ -436,7 +436,7 @@ const AcademicSettings: React.FC<AcademicSettingsProps> = ({ onUpdate, teacherId
     
     // منع التعديل على إعدادات معلمين آخرين
     if (teacherId && !isGeneralConfig(grade) && !belongsToTeacher(grade, teacherId)) {
-      alert('⚠️ لا يمكنك تعديل إعدادات معلم آخر.');
+      alert('لا يمكنك تعديل إعدادات معلم آخر.');
       return;
     }
 
@@ -483,7 +483,7 @@ const AcademicSettings: React.FC<AcademicSettingsProps> = ({ onUpdate, teacherId
         setNewTerm('');
         loadSettings();
         onUpdate();
-        alert('✅ تم إضافة الفصل إلى نسختك الخاصة (لن يظهر عند المشرف)');
+        alert('تم إضافة الفصل إلى نسختك الخاصة (لن يظهر عند المشرف)');
         return;
       }
     }
@@ -514,7 +514,7 @@ const AcademicSettings: React.FC<AcademicSettingsProps> = ({ onUpdate, teacherId
     
     // رسائل مختلفة حسب نوع الإعداد
     if (isOwnSetting) {
-      alert('✅ تم إضافة الفصل بنجاح (سيظهر عند المشرف)');
+      alert('تم إضافة الفصل بنجاح (سيظهر عند المشرف)');
     } else {
       alert('تم إضافة الفصل بنجاح');
     }
@@ -569,7 +569,7 @@ const AcademicSettings: React.FC<AcademicSettingsProps> = ({ onUpdate, teacherId
     const grade = hierarchicalConfigs[gradeIndex];
 
     if (teacherId && !isGeneralConfig(grade) && !belongsToTeacher(grade, teacherId)) {
-      alert('⚠️ لا يمكنك تعديل إعدادات معلم آخر.');
+      alert('لا يمكنك تعديل إعدادات معلم آخر.');
       return;
     }
 
@@ -593,7 +593,7 @@ const AcademicSettings: React.FC<AcademicSettingsProps> = ({ onUpdate, teacherId
       name,
     ]);
     setNewLesson('');
-    alert('✅ تم إضافة الدرس');
+    alert('تم إضافة الدرس');
   };
 
   // 9. إضافة وحدة لفصل محدد
@@ -614,7 +614,7 @@ const AcademicSettings: React.FC<AcademicSettingsProps> = ({ onUpdate, teacherId
     
     // منع التعديل على إعدادات معلمين آخرين
     if (teacherId && !isGeneralConfig(grade) && !belongsToTeacher(grade, teacherId)) {
-      alert('⚠️ لا يمكنك تعديل إعدادات معلم آخر.');
+      alert('لا يمكنك تعديل إعدادات معلم آخر.');
       return;
     }
 
@@ -668,7 +668,7 @@ const AcademicSettings: React.FC<AcademicSettingsProps> = ({ onUpdate, teacherId
         setNewUnit('');
         loadSettings();
         onUpdate();
-        alert('✅ تم إضافة الوحدة إلى نسختك الخاصة (لن تظهر عند المشرف)');
+        alert('تم إضافة الوحدة إلى نسختك الخاصة (لن تظهر عند المشرف)');
         return;
       }
     }
@@ -699,7 +699,7 @@ const AcademicSettings: React.FC<AcademicSettingsProps> = ({ onUpdate, teacherId
     
     // رسائل مختلفة حسب نوع الإعداد
     if (isOwnSetting) {
-      alert('✅ تم إضافة الوحدة بنجاح (ستظهر عند المشرف)');
+      alert('تم إضافة الوحدة بنجاح (ستظهر عند المشرف)');
     } else {
       alert('تم إضافة الوحدة بنجاح');
     }
@@ -984,10 +984,10 @@ const AcademicSettings: React.FC<AcademicSettingsProps> = ({ onUpdate, teacherId
       localStorage.setItem(STORAGE_KEYS.HIERARCHICAL_CONFIGS, JSON.stringify(next));
       const outcome = await saveKvConfirmed(STORAGE_KEYS.HIERARCHICAL_CONFIGS, next);
       if (outcome.ok === false) {
-        alert(`⚠️ نُسخت محلياً ولم تُحفظ على الخادم: ${outcome.reason}`);
+        alert(`نُسخت محلياً ولم تُحفظ على الخادم: ${outcome.reason}`);
       } else {
         alert(
-          `✅ نُسخت ${copies.length} إعداداً إلى «${target.name}»` +
+          `نُسخت ${copies.length} إعداداً إلى «${target.name}»` +
             (outcome.verified ? ' وحُفظت في قاعدة البيانات.' : ' وأُرسلت، وتعذّر التحقق.'),
         );
       }
@@ -1095,7 +1095,7 @@ const AcademicSettings: React.FC<AcademicSettingsProps> = ({ onUpdate, teacherId
       {!teacherId && selectedTeacherId && (
         <div style={styles.copyBar}>
           <span style={{ fontWeight: 'bold', color: '#3730a3' }}>
-            📋 إعدادات «{selectedTeacherName || 'معلم'}»
+            إعدادات «{selectedTeacherName || 'معلم'}»
           </span>
           <button onClick={() => setCopyOpen(true)} style={styles.copyButton}>
             نسخ هذه الإعدادات لمعلم آخر
@@ -1152,7 +1152,7 @@ const AcademicSettings: React.FC<AcademicSettingsProps> = ({ onUpdate, teacherId
                 disabled={copyBusy || !copyTargetId}
                 style={styles.copyConfirm}
               >
-                {copyBusy ? '⏳ جارٍ النسخ…' : '✅ نسخ وحفظ'}
+                {copyBusy ? 'جارٍ النسخ…' : 'نسخ وحفظ'}
               </button>
               <button
                 onClick={() => setCopyOpen(false)}
@@ -1177,7 +1177,7 @@ const AcademicSettings: React.FC<AcademicSettingsProps> = ({ onUpdate, teacherId
             border: '2px solid #818cf8',
           }}>
             <h3 style={{ fontWeight: 'bold', fontSize: '1.2rem', color: '#4338ca', marginBottom: '15px' }}>
-              👨‍🏫 المعلمون
+              المعلمون
             </h3>
             
             {/* خيار إنشاء إعدادات جديدة */}
@@ -1271,7 +1271,7 @@ const AcademicSettings: React.FC<AcademicSettingsProps> = ({ onUpdate, teacherId
                   }}
                 >
                   <option value="">اختر معلم...</option>
-                  <option value="admin">📚 إعدادات عامة (تظهر لجميع المعلمين)</option>
+                  <option value="admin">إعدادات عامة (تظهر لجميع المعلمين)</option>
                   {teachers.map(teacher => (
                     <option key={teacher.id} value={teacher.id}>
                       👨‍🏫 {teacher.name} - {teacher.subject || 'معلم'}
@@ -1290,7 +1290,7 @@ const AcademicSettings: React.FC<AcademicSettingsProps> = ({ onUpdate, teacherId
                     marginBottom: '15px'
                   }}>
                     <span style={{ fontWeight: 'bold', color: '#15803d' }}>
-                      ✅ إعدادات عامة - تظهر لجميع المعلمين
+                      إعدادات عامة - تظهر لجميع المعلمين
                     </span>
                   </div>
                 )}
@@ -1303,7 +1303,7 @@ const AcademicSettings: React.FC<AcademicSettingsProps> = ({ onUpdate, teacherId
                     marginBottom: '15px'
                   }}>
                     <span style={{ fontWeight: 'bold', color: '#4338ca' }}>
-                      👨‍🏫 إعدادات المعلم: {selectedTeacherName}
+                      إعدادات المعلم: {selectedTeacherName}
                     </span>
                   </div>
                 )}
@@ -1470,7 +1470,7 @@ const AcademicSettings: React.FC<AcademicSettingsProps> = ({ onUpdate, teacherId
                 }}
                 style={styles.treeFilterControl}
               >
-                <option value="">🏫 كل الصفوف</option>
+                <option value="">كل الصفوف</option>
                 {Array.from(new Set(hierarchicalConfigs.map(config => config.grade))).map(grade => (
                   <option key={grade} value={grade}>{grade}</option>
                 ))}
@@ -1480,7 +1480,7 @@ const AcademicSettings: React.FC<AcademicSettingsProps> = ({ onUpdate, teacherId
                 onChange={e => setFilterSubject(e.target.value)}
                 style={styles.treeFilterControl}
               >
-                <option value="">📚 كل المواد</option>
+                <option value="">كل المواد</option>
                 {filterSubjectOptions.map(subject => (
                   <option key={subject} value={subject}>{subject}</option>
                 ))}
@@ -1489,7 +1489,7 @@ const AcademicSettings: React.FC<AcademicSettingsProps> = ({ onUpdate, teacherId
                 type="search"
                 value={treeSearch}
                 onChange={e => setTreeSearch(e.target.value)}
-                placeholder="🔍 ابحث باسم صف أو مادة أو فصل أو وحدة أو درس"
+                placeholder="ابحث باسم صف أو مادة أو فصل أو وحدة أو درس"
                 style={{ ...styles.treeFilterControl, flex: '2 1 220px' }}
               />
               <button onClick={() => setAllCollapsed(true)} style={styles.treeToolButton}>⊖ طيّ الكل</button>
@@ -1499,7 +1499,7 @@ const AcademicSettings: React.FC<AcademicSettingsProps> = ({ onUpdate, teacherId
                   onClick={() => { setFilterGrade(''); setFilterSubject(''); setTreeSearch(''); }}
                   style={styles.treeToolButton}
                 >
-                  ✖ مسح
+                  مسح
                 </button>
               )}
             </div>
@@ -1521,7 +1521,7 @@ const AcademicSettings: React.FC<AcademicSettingsProps> = ({ onUpdate, teacherId
                   <span style={styles.ownerBadge}>👨‍🏫 {config.createdByName}</span>
                 )}
                 {teacherId && isGeneralConfig(config) && (
-                  <span style={styles.copyHintBadge}>✏️ يمكن التعديل (سينشئ نسخة)</span>
+                  <span style={styles.copyHintBadge}>يمكن التعديل (سينشئ نسخة)</span>
                 )}
               </>
             )}

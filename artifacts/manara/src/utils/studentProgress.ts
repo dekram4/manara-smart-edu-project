@@ -16,6 +16,9 @@ export interface StudentProgressSummary {
   averageScore: number;
   lastQuiz: QuizResult | null;
   updatedAt?: string;
+  /** مرّاتُ الدخول، أو `null` لطالبٍ لم يُسجَّل له دخولٌ بعد إضافة العدّ. */
+  loginCount: number | null;
+  lastLoginAt?: string;
 }
 
 export function getStudentProgressSummary(
@@ -59,5 +62,7 @@ export function getStudentProgressSummary(
     averageScore: Number(snapshot.averageScore ?? averageScore),
     lastQuiz,
     updatedAt: snapshot.updatedAt,
+    loginCount: typeof student.loginCount === 'number' ? student.loginCount : null,
+    lastLoginAt: student.lastLoginAt,
   };
 }
