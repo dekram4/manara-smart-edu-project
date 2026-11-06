@@ -11,6 +11,7 @@ import { dedupeHierarchicalConfigs } from '../../utils/academic';
 import { useSyncHydrating } from '../../hooks/useSyncHydrating';
 import { saveKvConfirmed } from '../../db/confirmedSave';
 import ConfirmDialog, { ConfirmRequest } from '../../components/ConfirmDialog';
+import { Plus as IconPlus, Presentation as IconPresentation, Search as IconSearch } from 'lucide-react';
 
 interface AcademicSettingsProps {
   onUpdate: () => void;
@@ -1192,7 +1193,7 @@ const AcademicSettings: React.FC<AcademicSettingsProps> = ({ onUpdate, teacherId
                 borderRight: selectedTeacherId === '' ? '4px solid #4338ca' : '1px solid #e5e7eb'
               }}
             >
-              <div style={{ fontSize: '1.5rem' }}>➕</div>
+              <div style={{ fontSize: '1.5rem' }}><IconPlus className="inline-block h-[1em] w-[1em] align-[-0.125em]" aria-hidden="true" /></div>
               <div style={{ flex: 1 }}>
                 <div style={{ fontWeight: 'bold', color: '#4338ca' }}>إنشاء إعدادات جديدة</div>
                 <div style={{ fontSize: '0.8rem', color: '#6b7280' }}>اختر معلم أو إنشاء عامة</div>
@@ -1217,7 +1218,7 @@ const AcademicSettings: React.FC<AcademicSettingsProps> = ({ onUpdate, teacherId
                     borderRight: selectedTeacherId === teacher.id ? '4px solid #4338ca' : '1px solid #e5e7eb'
                   }}
                 >
-                  <div style={{ fontSize: '1.5rem' }}>👨‍🏫</div>
+                  <div style={{ fontSize: '1.5rem' }}><IconPresentation className="inline-block h-[1em] w-[1em] align-[-0.125em]" aria-hidden="true" /></div>
                   <div style={{ flex: 1 }}>
                     <div style={{ fontWeight: 'bold', color: '#1f2937' }}>{teacher.name}</div>
                     <div style={{ fontSize: '0.8rem', color: '#6b7280' }}>
@@ -1274,7 +1275,7 @@ const AcademicSettings: React.FC<AcademicSettingsProps> = ({ onUpdate, teacherId
                   <option value="admin">إعدادات عامة (تظهر لجميع المعلمين)</option>
                   {teachers.map(teacher => (
                     <option key={teacher.id} value={teacher.id}>
-                      👨‍🏫 {teacher.name} - {teacher.subject || 'معلم'}
+                      {teacher.name} - {teacher.subject || 'معلم'}
                     </option>
                   ))}
                 </select>
@@ -1330,7 +1331,7 @@ const AcademicSettings: React.FC<AcademicSettingsProps> = ({ onUpdate, teacherId
                 placeholder="مثال: الصف الأول الابتدائي"
                 style={{ ...styles.addInput, flex: 1 }}
               />
-              <button onClick={handleAddGrade} style={styles.addButton}>➕</button>
+              <button onClick={handleAddGrade} style={styles.addButton}><IconPlus className="inline-block h-[1em] w-[1em] align-[-0.125em]" aria-hidden="true" /></button>
             </div>
           </div>
 
@@ -1360,7 +1361,7 @@ const AcademicSettings: React.FC<AcademicSettingsProps> = ({ onUpdate, teacherId
                 style={{ ...styles.addInput, flex: 1 }}
                 disabled={!selectedGrade}
               />
-              <button onClick={handleAddSubject} style={styles.addButton} disabled={!selectedGrade}>➕</button>
+              <button onClick={handleAddSubject} style={styles.addButton} disabled={!selectedGrade}><IconPlus className="inline-block h-[1em] w-[1em] align-[-0.125em]" aria-hidden="true" /></button>
             </div>
           </div>
 
@@ -1390,7 +1391,7 @@ const AcademicSettings: React.FC<AcademicSettingsProps> = ({ onUpdate, teacherId
                 style={{ ...styles.addInput, flex: 1 }}
                 disabled={!selectedSubject}
               />
-              <button onClick={handleAddTerm} style={styles.addButton} disabled={!selectedSubject}>➕</button>
+              <button onClick={handleAddTerm} style={styles.addButton} disabled={!selectedSubject}><IconPlus className="inline-block h-[1em] w-[1em] align-[-0.125em]" aria-hidden="true" /></button>
             </div>
           </div>
 
@@ -1421,7 +1422,7 @@ const AcademicSettings: React.FC<AcademicSettingsProps> = ({ onUpdate, teacherId
                 style={{ ...styles.addInput, flex: 1 }}
                 disabled={!selectedTerm}
               />
-              <button onClick={handleAddUnit} style={styles.addButton} disabled={!selectedTerm}>➕</button>
+              <button onClick={handleAddUnit} style={styles.addButton} disabled={!selectedTerm}><IconPlus className="inline-block h-[1em] w-[1em] align-[-0.125em]" aria-hidden="true" /></button>
             </div>
           </div>
 
@@ -1450,7 +1451,7 @@ const AcademicSettings: React.FC<AcademicSettingsProps> = ({ onUpdate, teacherId
                 style={{ ...styles.addInput, flex: 1 }}
                 disabled={!selectedUnit}
               />
-              <button onClick={handleAddLessonFromForm} style={styles.addButton} disabled={!selectedUnit}>➕</button>
+              <button onClick={handleAddLessonFromForm} style={styles.addButton} disabled={!selectedUnit}><IconPlus className="inline-block h-[1em] w-[1em] align-[-0.125em]" aria-hidden="true" /></button>
             </div>
           </div>
         </div>
@@ -1518,7 +1519,7 @@ const AcademicSettings: React.FC<AcademicSettingsProps> = ({ onUpdate, teacherId
             gradeBadges={config => (
               <>
                 {config.createdByName && (
-                  <span style={styles.ownerBadge}>👨‍🏫 {config.createdByName}</span>
+                  <span style={styles.ownerBadge}>{config.createdByName}</span>
                 )}
                 {teacherId && isGeneralConfig(config) && (
                   <span style={styles.copyHintBadge}>يمكن التعديل (سينشئ نسخة)</span>
@@ -1565,7 +1566,7 @@ const AcademicSettings: React.FC<AcademicSettingsProps> = ({ onUpdate, teacherId
             }
             noMatchState={
               <div style={{ textAlign: 'center', padding: '30px', color: '#9ca3af' }}>
-                <div style={{ fontSize: '2rem', marginBottom: '8px' }}>🔍</div>
+                <div style={{ fontSize: '2rem', marginBottom: '8px' }}><IconSearch className="inline-block h-[1em] w-[1em] align-[-0.125em]" aria-hidden="true" /></div>
                 <p>لا يطابق هذا البحث أي صف. جرّب كلمة أخرى أو امسح التصفية.</p>
               </div>
             }

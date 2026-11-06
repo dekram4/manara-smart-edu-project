@@ -21,6 +21,7 @@ import PermissionPackages from './PermissionPackages';
 import AdminVideoNotifications from './AdminVideoNotifications';
 import DuelQuestionReview from '../shared/DuelQuestionReview';
 import CardPermissions from '../shared/CardPermissions';
+import TeacherCertificates from '../teacher/TeacherCertificates';
 import VideoNotificationBadge from './VideoNotificationBadge';
 import PrivateChat from '../shared/PrivateChat';
 import { getQuizResultPercentage } from '../../utils/quizScoring';
@@ -35,6 +36,7 @@ import { useDashboardPage } from '../../hooks/useDashboardPage';
 import PortalShell, { PortalNavItem } from '../../components/portal/PortalShell';
 import type { LucideIcon } from 'lucide-react';
 import {
+  Award,
   BellRing,
   BookOpenCheck,
   ChartColumn,
@@ -62,6 +64,7 @@ const ADMIN_PAGES = [
   'VIDEO_NOTIFICATIONS',
   'DUEL_QUESTIONS',
   'CARD_PERMISSIONS',
+  'CERTIFICATES',
 ] as AdminMenuType[];
 
 /** القائمة بترتيبها، واسمُ كل صفحةٍ في الشريط العلوي. */
@@ -77,6 +80,7 @@ const ADMIN_MENU: { id: AdminMenuType; label: string; icon: LucideIcon }[] = [
   { id: 'DUEL_QUESTIONS' as AdminMenuType, label: 'أسئلة «تحدَّ زملاءك»', icon: Swords },
   { id: 'CARD_PERMISSIONS' as AdminMenuType, label: 'صلاحيات البطاقات', icon: ShieldCheck },
   { id: AdminMenuType.REPORTS, label: 'التقارير', icon: ChartColumn },
+  { id: 'CERTIFICATES' as AdminMenuType, label: 'الشهادات', icon: Award },
   { id: 'PERMISSION_PACKAGES' as AdminMenuType, label: 'إدارة الصلاحيات', icon: Package },
   { id: 'VIDEO_NOTIFICATIONS' as AdminMenuType, label: 'إشعارات الفيديو', icon: BellRing },
   { id: AdminMenuType.SYSTEM_SETTINGS, label: 'إعدادات النظام', icon: SlidersHorizontal },
@@ -240,6 +244,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
       case 'VIDEO_NOTIFICATIONS' as AdminMenuType: return <AdminVideoNotifications />;
       case 'DUEL_QUESTIONS' as AdminMenuType: return <DuelQuestionReview role="admin" />;
       case 'CARD_PERMISSIONS' as AdminMenuType: return <CardPermissions role="admin" />;
+      case 'CERTIFICATES' as AdminMenuType: return <TeacherCertificates teacherId="" teacherName="مشرف النظام" issuerRole="admin" />;
       default: return <DashboardHome stats={stats} onRefresh={refreshStats} />;
     }
   };

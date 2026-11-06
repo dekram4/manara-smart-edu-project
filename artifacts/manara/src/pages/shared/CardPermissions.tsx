@@ -3,6 +3,8 @@ import { managementRequest } from '../../utils/managementApi';
 import { STORAGE_KEYS } from '../../constants';
 import { playLamsaSound } from '../../utils/sounds';
 import { gradesForOwner } from '../../utils/academic';
+import type { LucideIcon } from 'lucide-react';
+import { BookOpen, BookOpenText, Calculator, ClipboardList, Film, Gamepad2, LayoutGrid, MessageSquareText, Palette, Presentation, Swords, Video } from 'lucide-react';
 
 /**
  * صلاحيات بطاقات الطالب: يفتح المعلمُ أو المشرف كلَّ بطاقةٍ في تطبيق الطالب
@@ -38,18 +40,18 @@ interface PermissionsResponse {
   rules: CardRule[];
 }
 
-const CARD_ICONS: Record<string, string> = {
-  lesson: '📖',
-  cinema: '🎬',
-  games: '🎮',
-  personality: '🧑‍🎨',
-  tutor: '👩‍🏫',
-  quiz: '📝',
-  solver: '🧮',
-  meeting: '📡',
-  chat: '💬',
-  challenge: '⚔️',
-  study: '📚',
+const CARD_ICONS: Record<string, LucideIcon> = {
+  lesson: BookOpenText,
+  cinema: Film,
+  games: Gamepad2,
+  personality: Palette,
+  tutor: Presentation,
+  quiz: ClipboardList,
+  solver: Calculator,
+  meeting: Video,
+  chat: MessageSquareText,
+  challenge: Swords,
+  study: BookOpen,
 };
 
 /** نفسُ تسوية الخادم المختصرة لمقارنة المعرّفات والصفوف. */
@@ -223,7 +225,7 @@ const CardPermissions: React.FC<CardPermissionsProps> = ({ role, teacherId }) =>
       setNotice('تم حفظ الصلاحيات، وتظهر للطالب عند فتحه التطبيق أو عودته إلى الواجهة.');
       await load();
     } catch (err) {
-      setNotice(`⚠️ ${err instanceof Error ? err.message : 'تعذر حفظ الصلاحيات'}`);
+      setNotice(`${err instanceof Error ? err.message : 'تعذر حفظ الصلاحيات'}`);
     } finally {
       setSaving(false);
     }
@@ -241,7 +243,7 @@ const CardPermissions: React.FC<CardPermissionsProps> = ({ role, teacherId }) =>
       setNotice('تمت إعادة الضبط.');
       await load();
     } catch (err) {
-      setNotice(`⚠️ ${err instanceof Error ? err.message : 'تعذر إعادة الضبط'}`);
+      setNotice(`${err instanceof Error ? err.message : 'تعذر إعادة الضبط'}`);
     } finally {
       setSaving(false);
     }
@@ -271,7 +273,7 @@ const CardPermissions: React.FC<CardPermissionsProps> = ({ role, teacherId }) =>
       </div>
 
       {error && (
-        <div className="rounded-2xl border-2 border-red-200 bg-red-50 p-4 font-bold text-red-700">⚠️ {error}</div>
+        <div className="rounded-2xl border-2 border-red-200 bg-red-50 p-4 font-bold text-red-700">{error}</div>
       )}
       {loading && !data && <div className="p-10 text-center font-black text-indigo-700">جارٍ التحميل…</div>}
 
@@ -376,7 +378,14 @@ const CardPermissions: React.FC<CardPermissionsProps> = ({ role, teacherId }) =>
                     aria-pressed={open}
                     className={`flex items-center gap-3 rounded-2xl border-2 p-4 text-right transition disabled:cursor-not-allowed disabled:opacity-50 ${open ? 'border-emerald-300 bg-emerald-50' : 'border-slate-300 bg-slate-100 grayscale'}`}
                   >
-                    <span className="text-3xl">{CARD_ICONS[card.id] ?? '🗂️'}</span>
+                    {(() => {
+                    const CardIcon = CARD_ICONS[card.id] ?? LayoutGrid;
+                    return (
+                      <span className="portal-stat-icon tone-primary" aria-hidden="true" style={{ width: '2.75rem', height: '2.75rem' }}>
+                        <CardIcon />
+                      </span>
+                    );
+                  })()}
                     <span className="flex-1 font-black text-slate-800">{card.label}</span>
                     <span className={`rounded-full px-3 py-1 text-xs font-black ${open ? 'bg-emerald-500 text-white' : 'bg-slate-500 text-white'}`}>
                       {open ? 'مفعّلة' : 'معطّلة'}
@@ -437,7 +446,7 @@ const CardPermissions: React.FC<CardPermissionsProps> = ({ role, teacherId }) =>
                           {locked.length === 0
                             ? <span className="font-bold text-emerald-600">كلها مفتوحة</span>
                             : locked.map(card => (
-                                <span key={card.id} className="mb-1 ml-1 inline-block rounded-lg bg-slate-200 px-2 py-1 text-xs font-bold text-slate-700">🔒 {card.label}</span>
+                                <span key={card.id} className="mb-1 ml-1 inline-block rounded-lg bg-slate-200 px-2 py-1 text-xs font-bold text-slate-700">{card.label}</span>
                               ))}
                         </td>
                       </tr>

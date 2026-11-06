@@ -12,6 +12,7 @@ import { studentReportDocument } from '../../utils/officialDocuments';
 import DocumentPreview from '../../components/portal/DocumentPreview';
 import { readStorageArray } from '../../utils/storage';
 import type { CertificateRecord, TeacherInfo } from '../../types';
+import { ChartColumn as IconChartColumn, Check as IconCheck, ClipboardList as IconClipboardList, Gem as IconGem, GraduationCap as IconGraduationCap, UsersRound as IconUsersRound, Zap as IconZap } from 'lucide-react';
 
 interface TeacherReportsProps {
   teacherId: string;
@@ -225,7 +226,7 @@ const TeacherReports: React.FC<TeacherReportsProps> = ({ teacherId }) => {
            <h1>التقارير والإحصائيات</h1>
            <p>تابع أداء طلابك ونتائج اختباراتهم وعلاقة كل طالب بولي أمره من شاشة واحدة.</p>
          </div>
-         <span className="dashboard-reports-header-icon">📊</span>
+         <span className="dashboard-reports-header-icon"><IconChartColumn className="inline-block h-[1em] w-[1em] align-[-0.125em]" aria-hidden="true" /></span>
       </div>
 
       {/* Search */}
@@ -259,19 +260,19 @@ const TeacherReports: React.FC<TeacherReportsProps> = ({ teacherId }) => {
       {/* إحصائيات عامة */}
         <div className="dashboard-stats-grid dashboard-stats-grid-compact dashboard-reports-stats">
          <div className="dashboard-stat-card dashboard-reports-stat dashboard-reports-stat-blue">
-          <div className="dashboard-stat-heading"><span className="text-3xl">👨‍👩‍👧‍👦</span><span className="font-black">أولياء الأمور</span></div>
+          <div className="dashboard-stat-heading"><span className="text-3xl"><IconUsersRound className="inline-block h-[1em] w-[1em] align-[-0.125em]" aria-hidden="true" /></span><span className="font-black">أولياء الأمور</span></div>
           <div className="dashboard-stat-value">{parents.length}</div>
           <div className="text-blue-100 font-medium">حساب مرتبط</div>
         </div>
 
          <div className="dashboard-stat-card dashboard-reports-stat dashboard-reports-stat-green">
-          <div className="dashboard-stat-heading"><span className="text-3xl">🎓</span><span className="font-black">الطلاب</span></div>
+          <div className="dashboard-stat-heading"><span className="text-3xl"><IconGraduationCap className="inline-block h-[1em] w-[1em] align-[-0.125em]" aria-hidden="true" /></span><span className="font-black">الطلاب</span></div>
           <div className="dashboard-stat-value">{students.length}</div>
           <div className="text-green-100 font-medium">طالب مرتبط</div>
         </div>
 
          <div className="dashboard-stat-card dashboard-reports-stat dashboard-reports-stat-purple">
-          <div className="dashboard-stat-heading"><span className="text-3xl">📝</span><span className="font-black">الاختبارات</span></div>
+          <div className="dashboard-stat-heading"><span className="text-3xl"><IconClipboardList className="inline-block h-[1em] w-[1em] align-[-0.125em]" aria-hidden="true" /></span><span className="font-black">الاختبارات</span></div>
           <div className="dashboard-stat-value">
             {students.reduce((sum, student) => sum + calculateStudentStats(student).totalQuizzes, 0)}
           </div>
@@ -279,7 +280,7 @@ const TeacherReports: React.FC<TeacherReportsProps> = ({ teacherId }) => {
         </div>
 
          <div className="dashboard-stat-card dashboard-reports-stat dashboard-reports-stat-amber">
-          <div className="dashboard-stat-heading"><span className="text-3xl">💎</span><span className="font-black">الجواهر</span></div>
+          <div className="dashboard-stat-heading"><span className="text-3xl"><IconGem className="inline-block h-[1em] w-[1em] align-[-0.125em]" aria-hidden="true" /></span><span className="font-black">الجواهر</span></div>
           <div className="dashboard-stat-value">
             {students.reduce((sum, student) => sum + calculateStudentStats(student).gems, 0)}
           </div>
@@ -287,7 +288,7 @@ const TeacherReports: React.FC<TeacherReportsProps> = ({ teacherId }) => {
         </div>
 
          <div className="dashboard-stat-card dashboard-reports-stat dashboard-reports-stat-cyan">
-          <div className="dashboard-stat-heading"><span className="text-3xl">⚡</span><span className="font-black">الخبرة</span></div>
+          <div className="dashboard-stat-heading"><span className="text-3xl"><IconZap className="inline-block h-[1em] w-[1em] align-[-0.125em]" aria-hidden="true" /></span><span className="font-black">الخبرة</span></div>
           <div className="dashboard-stat-value">
             {students.reduce((sum, student) => sum + calculateStudentStats(student).xp, 0)}
           </div>
@@ -378,12 +379,12 @@ const TeacherReports: React.FC<TeacherReportsProps> = ({ teacherId }) => {
                        </td>
                       <td className="p-4 text-center">
                         <span className="bg-amber-100 text-amber-800 px-3 py-1 rounded-full font-bold">
-                          💎 {stats.gems}
+                          {stats.gems}
                         </span>
                       </td>
                       <td className="p-4 text-center">
                         <span className="bg-cyan-100 text-cyan-800 px-3 py-1 rounded-full font-bold">
-                          ⚡ {stats.xp}
+                          {stats.xp}
                         </span>
                       </td>
                       <td className="p-4 text-gray-600 text-sm">
@@ -417,7 +418,7 @@ const TeacherReports: React.FC<TeacherReportsProps> = ({ teacherId }) => {
              <h2>نتائج اختبارات الطلاب</h2>
              <p>فلترة النتائج حسب الطالب أو الاختبار أو ولي الأمر أو المادة.</p>
           </div>
-           <span className="dashboard-reports-section-icon">✓</span>
+           <span className="dashboard-reports-section-icon"><IconCheck className="inline-block h-[1em] w-[1em] align-[-0.125em]" aria-hidden="true" /></span>
         </div>
         {(() => {
           const teacherResultStudents = filteredStudents

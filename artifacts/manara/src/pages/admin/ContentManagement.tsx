@@ -18,6 +18,7 @@ import {
   VideoSourceType,
   LessonVideoEntry,
 } from '../../utils/video';
+import { BookOpen as IconBookOpen, Pencil as IconPencil, Trash2 as IconTrash2 } from 'lucide-react';
 
 interface ContentManagementProps {
   onUpdate: () => void;
@@ -298,7 +299,7 @@ const ContentManagement: React.FC<ContentManagementProps> = ({ onUpdate, teacher
         explanationVideoFile: null,
       }));
     } catch (error) {
-      alert(`⚠️ ${error instanceof Error ? error.message : 'فشل رفع ملف الفيديو'}`);
+      alert(`${error instanceof Error ? error.message : 'فشل رفع ملف الفيديو'}`);
     }
   };
 
@@ -421,7 +422,7 @@ const ContentManagement: React.FC<ContentManagementProps> = ({ onUpdate, teacher
           },
         ];
       } catch (error) {
-        alert(`⚠️ ${error instanceof Error ? error.message : 'فشل رفع ملف الفيديو'}`);
+        alert(`${error instanceof Error ? error.message : 'فشل رفع ملف الفيديو'}`);
         return;
       }
     }
@@ -617,7 +618,7 @@ const ContentManagement: React.FC<ContentManagementProps> = ({ onUpdate, teacher
       {!teacherId && (
         <div className="dashboard-surface dashboard-content-scope">
           <div className="dashboard-content-scope-header">
-            <span className="dashboard-content-scope-icon">📚</span>
+            <span className="dashboard-content-scope-icon"><IconBookOpen className="inline-block h-[1em] w-[1em] align-[-0.125em]" aria-hidden="true" /></span>
             <div>
               <h3>
                 اختر المعلم لإدارة المحتوى
@@ -636,7 +637,7 @@ const ContentManagement: React.FC<ContentManagementProps> = ({ onUpdate, teacher
             <option value="admin">محتوى عام (يظهر لجميع المعلمين)</option>
             {teachers.map(teacher => (
               <option key={teacher.id} value={teacher.id}>
-                👨‍🏫 {teacher.name} - {teacher.subject || 'معلم'}
+                {teacher.name} - {teacher.subject || 'معلم'}
               </option>
             ))}
           </select>
@@ -1055,13 +1056,13 @@ const ContentManagement: React.FC<ContentManagementProps> = ({ onUpdate, teacher
                 <td className="px-6 py-5 font-bold text-indigo-700">
                   {l.lesson || '—'}
                   {brokenVideosOf(l, youtubeStatuses) > 0 && (
-                  <span className="block mt-1 text-xs font-black text-amber-700" title="فيديو حذفه صاحبه من يوتيوب أو منع تضمينه — يظهر للطالب غير متاح. استبدل رابطه.">⚠️ {brokenVideosOf(l, youtubeStatuses)} فيديو غير متاح على يوتيوب</span>
+                  <span className="block mt-1 text-xs font-black text-amber-700" title="فيديو حذفه صاحبه من يوتيوب أو منع تضمينه — يظهر للطالب غير متاح. استبدل رابطه.">{brokenVideosOf(l, youtubeStatuses)} فيديو غير متاح على يوتيوب</span>
                 )}
                 </td>
                 {!teacherId && (
                   <td className="px-6 py-5">
                     <span className="bg-gradient-to-r from-purple-500 to-purple-500 text-white px-4 py-2 rounded-xl text-sm font-black inline-flex items-center gap-2">
-                      👨‍🏫 {l.createdByName || 'المشرف'}
+                      {l.createdByName || 'المشرف'}
                     </span>
                   </td>
                 )}
@@ -1099,9 +1100,9 @@ const ContentManagement: React.FC<ContentManagementProps> = ({ onUpdate, teacher
                 <header className="dashboard-record-head">
                   <div className="min-w-0 flex-1">
                     <h3 className="dashboard-record-title">{l.lesson || l.unit}</h3>
-                    <span className="dashboard-badge">👨‍🏫 {l.createdByName || 'المشرف'}</span>
+                    <span className="dashboard-badge">{l.createdByName || 'المشرف'}</span>
                     {brokenVideosOf(l, youtubeStatuses) > 0 && (
-                  <span className="dashboard-badge text-amber-700" title="فيديو حذفه صاحبه من يوتيوب أو منع تضمينه — يظهر للطالب غير متاح. استبدل رابطه.">⚠️ {brokenVideosOf(l, youtubeStatuses)} فيديو غير متاح على يوتيوب</span>
+                  <span className="dashboard-badge text-amber-700" title="فيديو حذفه صاحبه من يوتيوب أو منع تضمينه — يظهر للطالب غير متاح. استبدل رابطه.">{brokenVideosOf(l, youtubeStatuses)} فيديو غير متاح على يوتيوب</span>
                 )}
                   </div>
                   <div className="dashboard-record-actions">
@@ -1111,7 +1112,7 @@ const ContentManagement: React.FC<ContentManagementProps> = ({ onUpdate, teacher
                       title="تعديل"
                       aria-label="تعديل المحتوى"
                     >
-                      ✏️
+                      <IconPencil className="inline-block h-[1em] w-[1em] align-[-0.125em]" aria-hidden="true" />
                     </button>
                     <button
                       onClick={() => handleDelete(l.id)}
@@ -1119,7 +1120,7 @@ const ContentManagement: React.FC<ContentManagementProps> = ({ onUpdate, teacher
                       title="حذف"
                       aria-label="حذف المحتوى"
                     >
-                      🗑️
+                      <IconTrash2 className="inline-block h-[1em] w-[1em] align-[-0.125em]" aria-hidden="true" />
                     </button>
                   </div>
                 </header>
@@ -1131,7 +1132,7 @@ const ContentManagement: React.FC<ContentManagementProps> = ({ onUpdate, teacher
                   <span className="dashboard-badge">{l.subject}</span>
                   <span className="dashboard-badge">{l.term}</span>
                   <span className="dashboard-badge">{l.unit}</span>
-                  {l.lesson && <span className="dashboard-badge dashboard-badge-accent">📘 {l.lesson}</span>}
+                  {l.lesson && <span className="dashboard-badge dashboard-badge-accent">{l.lesson}</span>}
                 </div>
 
                 <dl className="dashboard-record-meta">

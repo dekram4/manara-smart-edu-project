@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { playLamsaSound } from '../../utils/sounds';
 import { managementRequest } from '../../utils/managementApi';
 import { GAME_URL_HINT, gameUrlProblem } from '../../utils/gameUrl';
+import { Gamepad2 as IconGamepad2 } from 'lucide-react';
 
 /**
  * «الترفيه والألعاب»: ألعابٌ يضيفها المشرف ويُسندها إلى معلّم.
@@ -106,7 +107,7 @@ const EntertainmentManagement: React.FC = () => {
     }
     const urlProblem = editing?.builtin ? null : gameUrlProblem(formData.embedUrl);
     if (urlProblem) {
-      alert(`⚠️ ${urlProblem}`);
+      alert(`${urlProblem}`);
       return;
     }
     setSaving(true);
@@ -127,7 +128,7 @@ const EntertainmentManagement: React.FC = () => {
       await loadGames();
       playLamsaSound('success');
     } catch (error) {
-      alert(`⚠️ ${error instanceof Error ? error.message : 'تعذر حفظ اللعبة'}`);
+      alert(`${error instanceof Error ? error.message : 'تعذر حفظ اللعبة'}`);
     } finally {
       setSaving(false);
     }
@@ -142,7 +143,7 @@ const EntertainmentManagement: React.FC = () => {
       await loadGames();
       playLamsaSound('pop');
     } catch (error) {
-      alert(`⚠️ ${error instanceof Error ? error.message : 'تعذر تحديث حالة اللعبة'}`);
+      alert(`${error instanceof Error ? error.message : 'تعذر تحديث حالة اللعبة'}`);
     }
   };
 
@@ -157,7 +158,7 @@ const EntertainmentManagement: React.FC = () => {
       await loadGames();
       playLamsaSound('pop');
     } catch (error) {
-      alert(`⚠️ ${error instanceof Error ? error.message : 'تعذر حذف اللعبة'}`);
+      alert(`${error instanceof Error ? error.message : 'تعذر حذف اللعبة'}`);
     }
   };
 
@@ -246,7 +247,7 @@ const EntertainmentManagement: React.FC = () => {
               >
                 <option value="">{editing?.builtin ? 'جميع الطلاب (الفهرس الأساسي)' : 'اختر المعلم'}</option>
                 {teachers.map(teacher => (
-                  <option key={teacher.id} value={teacher.id}>👨‍🏫 {teacher.name}</option>
+                  <option key={teacher.id} value={teacher.id}>{teacher.name}</option>
                 ))}
               </select>
               {teachers.length === 0 && !loading && (
@@ -329,7 +330,7 @@ const EntertainmentManagement: React.FC = () => {
 
       {loadError && (
         <div className="whitespace-pre-line rounded-2xl border-2 border-red-200 bg-red-50 p-4 font-bold text-red-700">
-          ⚠️ {loadError}
+          {loadError}
           <button onClick={() => void loadGames()} className="mr-3 rounded-lg bg-white px-3 py-1 text-sm text-red-700 hover:bg-red-100">إعادة المحاولة</button>
         </div>
       )}
@@ -359,7 +360,7 @@ const EntertainmentManagement: React.FC = () => {
                 className={`flex flex-col gap-3 rounded-[28px] border-2 bg-white p-5 shadow-xl transition-all hover:shadow-2xl ${game.isActive ? 'border-violet-100' : 'border-slate-200 opacity-75'}`}
               >
                 <div className="flex items-start gap-3">
-                  <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-violet-500 to-fuchsia-500 text-2xl shadow-md" aria-hidden="true">🎮</div>
+                  <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-violet-500 to-fuchsia-500 text-2xl shadow-md" aria-hidden="true"><IconGamepad2 className="inline-block h-[1em] w-[1em] align-[-0.125em]" aria-hidden="true" /></div>
                   <div className="min-w-0 flex-1">
                     <h3 className="break-words text-xl font-black text-violet-950">{game.title}</h3>
                     {game.builtin && (
@@ -372,7 +373,7 @@ const EntertainmentManagement: React.FC = () => {
                   {game.embedUrl}
                 </p>
                 <div className="flex flex-wrap gap-2">
-                  <span className="rounded-lg bg-orange-100 px-2 py-1 text-xs font-bold text-orange-700">{game.teacherId ? `👨‍🏫 ${game.teacherName || game.teacherId}` : 'جميع الطلاب'}</span>
+                  <span className="rounded-lg bg-orange-100 px-2 py-1 text-xs font-bold text-orange-700">{game.teacherId ? `${game.teacherName || game.teacherId}` : 'جميع الطلاب'}</span>
                   <span className={`rounded-lg px-2 py-1 text-xs font-bold ${game.isActive ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-600'}`}>
                     {game.isActive ? 'مفعّلة' : 'معطّلة'}
                   </span>

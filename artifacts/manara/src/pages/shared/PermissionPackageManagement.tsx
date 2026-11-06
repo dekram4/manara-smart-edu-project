@@ -518,7 +518,7 @@ const PermissionPackageManagement: React.FC<PermissionPackageManagementProps> = 
                      <div className="mt-2 flex flex-wrap gap-1.5">
                        {activePermissionLabels.length > 0 ? activePermissionLabels.map(label => (
                          <span key={label} className="rounded-full bg-indigo-50 px-2 py-1 text-[11px] font-black text-indigo-700">
-                           ✓ {label}
+                           {label}
                          </span>
                        )) : (
                          <span className="text-xs font-bold text-slate-400">لا توجد صلاحيات إضافية مفعلة</span>

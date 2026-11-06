@@ -10,6 +10,11 @@ import { getTeacherParents, getTeacherStudents, getRecordTeacherId, normalizeSco
 import { resetGamificationForStudent } from '../../utils/gamification';
 import { getStudentEmoji, STUDENT_GENDER_OPTIONS, StudentGender } from '../../utils/studentAppearance';
 import { useRevealForm } from '../../hooks/useRevealForm';
+import { filterAccounts } from '../../utils/accountFilters';
+import { Badge, EmptyState, PageHeader, Panel, StatCard, relativeDay } from '../../components/portal/PortalUI';
+import { initialOf } from '../../components/portal/PortalShell';
+import { GraduationCap, Link2Off, Pencil, RotateCcw, Search, ShieldCheck, Trash2, UserPlus, UsersRound, X } from 'lucide-react';
+import { X as IconX } from 'lucide-react';
 
 interface ParentStudentManagementProps {
   teacherId: string;
@@ -54,6 +59,7 @@ const ParentStudentManagement: React.FC<ParentStudentManagementProps> = ({ teach
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedParentId, setSelectedParentId] = useState<string>('all');
   const [selectedStudentId, setSelectedStudentId] = useState<string>('all');
+  const [accountsView, setAccountsView] = useState<'students' | 'parents'>('students');
 
   const [studentForm, setStudentForm] = useState({
     name: '',
@@ -495,115 +501,61 @@ const ParentStudentManagement: React.FC<ParentStudentManagementProps> = ({ teach
     return students.filter(s => s.parentId === parentId).length;
   };
 
+  const startEditStudent = (student: StudentInfo) => {
+    setEditingStudent(student);
+    setStudentForm({ name: student.name, gender: student.gender || 'male', username: student.username || '', password: '', parentPhoneNumber: student.parentPhoneNumber, parentId: student.parentId || '', studentIdNumber: student.studentIdNumber || '', nationalId: student.nationalId || '', primaryGrade: student.primaryGrade, gradeEnrollments: student.gradeEnrollments || [], assignedSubjects: student.assignedSubjects || [], permissionPackageId: student.permissionPackageId || '' });
+    setShowStudentForm(true);
+    studentFormView.reveal();
+  };
+
+  const startEditParent = (parent: ParentInfo) => {
+    setEditingParent(parent);
+    setParentForm({ name: parent.name, username: parent.username, password: '', phoneNumber: parent.phoneNumber, nationalId: parent.nationalId || '', permissionPackageId: parent.permissionPackageId || '' });
+    setShowParentForm(true);
+    parentFormView.reveal();
+  };
+
+  const visible = filterAccounts(students, parents, {
+    query: searchQuery,
+    parentId: selectedParentId,
+    studentId: selectedStudentId,
+  });
+  const parentName = (parentId?: string) => parents.find(p => p.id === parentId)?.name;
+  const hasFilter = selectedParentId !== 'all' || selectedStudentId !== 'all' || searchQuery.trim() !== '';
+  const unlinkedCount = students.filter(s => !s.parentId || !parents.some(p => p.id === s.parentId)).length;
+
   return (
-    <div className="dashboard-page dashboard-account-page animate-fadeIn">
-      {/* العنوان والبحث */}
-      <div className="dashboard-filter-surface dashboard-account-toolbar">
-        <div className="dashboard-section-header">
-          <div>
-            <h1 className="text-3xl font-black text-slate-900">إدارة أولياء الأمور والطلاب</h1>
-            <p className="text-slate-500 font-medium">
-              يمكنك إنشاء حسابات أولياء الأمور وإضافة الطلاب لهم
-            </p>
-          </div>
-        </div>
-        {/* حقل البحث */}
-        <div className="dashboard-account-search">
-          <div className="relative">
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="ابحث عن ولي أمر أو طالب بالاسم، اسم المستخدم، رقم الجوال، أو رقم الهوية..."
-              className="dashboard-form-control w-full p-4 pr-12 rounded-xl border-2 border-slate-200 bg-slate-50 text-slate-800 placeholder-slate-400 focus:bg-white focus:border-amber-500 outline-none font-bold text-lg"
-            />
-            {searchQuery && (
-              <button
-                onClick={() => setSearchQuery('')}
-                className="absolute left-4 top-1/2 -translate-y-1/2 bg-slate-200 hover:bg-slate-300 text-slate-700 px-3 py-1 rounded-lg font-bold text-sm transition-all"
-              >
-                مسح
+    <div className="portal-page">
+      <PageHeader
+        eyebrow="بوابة المعلم"
+        title="الطلاب وأولياء الأمور"
+        description="إنشاء حسابات أولياء الأمور والطلاب وربطها، وإدارتها من جدولٍ واحد."
+        icon={UsersRound}
+        actions={!showParentForm && !showStudentForm ? (
+          <>
+            {permissions.canCreateStudents && (
+              <button type="button" onClick={() => setShowStudentForm(true)} className="portal-btn portal-btn-primary">
+                <UserPlus aria-hidden="true" /> إضافة طالب
               </button>
             )}
-          </div>
-        </div>
-        {/* قوائم منسدلة لأولياء الأمور والطلاب */}
-        <div className="dashboard-filter-grid dashboard-filter-grid-wide">
-          <div>
-            <label className="text-slate-600 text-xs font-bold mb-1 block">ولي الأمر</label>
-            <select
-              value={selectedParentId}
-              onChange={(e) => { setSelectedParentId(e.target.value); setSelectedStudentId('all'); }}
-              className="dashboard-form-control w-full p-2.5 rounded-xl bg-white text-slate-800 border border-slate-200 font-bold text-sm focus:border-amber-500 outline-none"
-            >
-              <option value="all" className="text-gray-800">جميع أولياء الأمور</option>
-              {parents.map(p => (
-                <option key={p.id} value={p.id} className="text-gray-800">{p.name} — {p.phoneNumber}</option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label className="text-slate-600 text-xs font-bold mb-1 block">الطالب</label>
-            <select
-              value={selectedStudentId}
-              onChange={(e) => { setSelectedStudentId(e.target.value); setSelectedParentId('all'); }}
-              className="dashboard-form-control w-full p-2.5 rounded-xl bg-white text-slate-800 border border-slate-200 font-bold text-sm focus:border-amber-500 outline-none"
-            >
-              <option value="all" className="text-gray-800">جميع الطلاب</option>
-              {(selectedParentId === 'all' ? students : students.filter(s => s.parentId === selectedParentId)).map(s => (
-                <option key={s.id} value={s.id} className="text-gray-800">{s.name} — {s.primaryGrade}</option>
-              ))}
-            </select>
-          </div>
-        </div>
-      </div>
-
-      {/* إحصائيات */}
-      <div className="dashboard-stats-grid dashboard-stats-grid-compact">
-        <div className="dashboard-stat-card dashboard-account-stat dashboard-account-stat-green">
-          <div className="text-3xl font-black text-slate-900">{parents.length}</div>
-          <div className="text-slate-500 font-medium">ولي أمر</div>
-        </div>
-
-        <div className="dashboard-stat-card dashboard-account-stat dashboard-account-stat-blue">
-          <div className="text-3xl font-black text-slate-900">{students.length}</div>
-          <div className="text-slate-500 font-medium">طالب</div>
-        </div>
-      </div>
-
-      {/* قسم أولياء الأمور */}
-      <div className="dashboard-surface">
-        {/* إذا كان نموذج ولي الأمر مفتوحاً، اخفِ القائمة */}
-        {!showParentForm && !showStudentForm && (
-          <>
-             <div className="dashboard-section-header dashboard-account-section-header mb-4">
-              <h2 className="text-2xl font-black text-gray-800">أولياء الأمور والطلاب</h2>
-               <div className="dashboard-account-actions flex gap-3">
-                {permissions.canCreateStudents && (
-                  <button
-                    onClick={() => setShowStudentForm(true)}
-                    className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-xl font-bold transition-all"
-                  >
-                    إضافة طالب
-                  </button>
-                )}
-                {permissions.canCreateParents && (
-                  <button
-                    onClick={() => setShowParentForm(true)}
-                    className="bg-green-600 hover:bg-green-700 text-white px-6 py-3 rounded-xl font-bold transition-all"
-                  >
-                    إضافة ولي أمر
-                  </button>
-                )}
-                {!permissions.canCreateStudents && !permissions.canCreateParents && (
-                  <div className="text-amber-600 font-bold text-sm bg-amber-50 px-4 py-3 rounded-xl">
-                    ليس لديك صلاحيات لإضافة حسابات جديدة
-                  </div>
-                )}
-              </div>
-            </div>
+            {permissions.canCreateParents && (
+              <button type="button" onClick={() => setShowParentForm(true)} className="portal-btn portal-btn-secondary">
+                <UserPlus aria-hidden="true" /> إضافة ولي أمر
+              </button>
+            )}
           </>
-        )}
+        ) : undefined}
+      />
+
+      <div className="portal-stats">
+        <StatCard label="الطلاب" value={students.length} hint="مرتبطون بك" icon={GraduationCap} onClick={() => { setAccountsView('students'); setSelectedParentId('all'); setSelectedStudentId('all'); }} />
+        <StatCard label="أولياء الأمور" value={parents.length} hint="حسابات أنشأتها" icon={UsersRound} tone="accent" onClick={() => { setAccountsView('parents'); setSelectedParentId('all'); setSelectedStudentId('all'); }} />
+        <StatCard label="طلاب بلا ولي أمر" value={unlinkedCount} hint={unlinkedCount ? 'اربطهم من «تعديل»' : 'كل الطلاب مرتبطون'} icon={Link2Off} tone={unlinkedCount ? 'warning' : 'neutral'} />
+      </div>
+
+      {!permissions.canCreateStudents && !permissions.canCreateParents && (
+        <p className="rounded-lg bg-amber-50 px-4 py-3 text-sm font-bold text-amber-800">ليس لديك صلاحيات لإضافة حسابات جديدة</p>
+      )}
 
          {showParentForm && (
            <div ref={parentFormView.formRef} className="dashboard-surface dashboard-account-form bg-slate-50">
@@ -618,7 +570,7 @@ const ParentStudentManagement: React.FC<ParentStudentManagementProps> = ({ teach
                 className="text-gray-500 hover:text-gray-700 text-2xl font-bold"
                 title="إغلاق"
               >
-                ✖
+                <IconX className="inline-block h-[1em] w-[1em] align-[-0.125em]" aria-hidden="true" />
               </button>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -699,179 +651,182 @@ const ParentStudentManagement: React.FC<ParentStudentManagementProps> = ({ teach
           </div>
         )}
 
-        {/* عرض أولياء الأمور والطلاب بشكل هرمي - يظهر فقط عندما لا يكون هناك نموذج مفتوح */}
+        {/* الجدولان: الطلاب وأولياء الأمور — يظهران حين لا نموذجَ مفتوح */}
         {!showParentForm && !showStudentForm && (
-        <div className="space-y-4">
-          {(() => {
-            const search = searchQuery.toLowerCase();
-
-            // ── فلترة الطلاب المنفردة ──
-            if (selectedStudentId !== 'all') {
-              let filteredStudents = students.filter(s => {
-                if (!searchQuery) return true;
-                return s.name.toLowerCase().includes(search) ||
-                  (s.username || '').toLowerCase().includes(search) ||
-                  (s.nationalId || '').includes(search) ||
-                  (s.studentIdNumber || '').includes(search);
-              });
-              if (selectedStudentId !== 'all') {
-                filteredStudents = filteredStudents.filter(s => s.id === selectedStudentId);
-              }
-              if (filteredStudents.length === 0) return (
-                <div className="text-center py-20">
-                  <p className="text-gray-600 font-bold text-xl mb-2">لا يوجد طلاب</p>
-                </div>
-              );
-              return (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {filteredStudents.map(student => {
-                    const parent = parents.find(p => p.id === student.parentId);
-                    return (
-                 <div key={student.id} className="dashboard-account-record bg-gradient-to-r from-amber-50 to-orange-50 p-4 rounded-xl border-2 border-amber-200">
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-3">
-                             <div className="w-12 h-12 bg-gradient-to-br from-amber-500 to-orange-600 rounded-full flex items-center justify-center text-white text-2xl">{getStudentEmoji(student)}</div>
-                            <div>
-                              <h3 className="text-lg font-black text-gray-800">{student.name}</h3>
-                              <p className="text-xs text-gray-500">الصف: {student.primaryGrade} {parent && `· ولي الأمر: ${parent.name}`}</p>
-                            </div>
-                          </div>
-                          <div className="flex gap-2">
-                             <button onClick={() => handleResetStudentCounter(student)} className="bg-indigo-500 hover:bg-indigo-600 text-white px-3 py-1 rounded-lg font-bold text-sm">♻️</button>
-                            {permissions.canEditStudents && (
-                               <button onClick={() => { setEditingStudent(student); setStudentForm({ name: student.name, gender: student.gender || 'male', username: student.username || '', password: '', parentPhoneNumber: student.parentPhoneNumber, parentId: student.parentId || '', studentIdNumber: student.studentIdNumber || '', nationalId: student.nationalId || '', primaryGrade: student.primaryGrade, gradeEnrollments: student.gradeEnrollments || [], assignedSubjects: student.assignedSubjects || [], permissionPackageId: student.permissionPackageId || '' }); setShowStudentForm(true); studentFormView.reveal(); }} className="bg-yellow-500 hover:bg-yellow-600 text-white px-3 py-1 rounded-lg font-bold text-sm">✏️</button>
-                            )}
-                            {permissions.canDeleteStudents && (
-                              <button onClick={() => handleDeleteStudent(student.id)} className="bg-red-500 hover:bg-red-600 text-white px-3 py-1 rounded-lg font-bold text-sm">🗑️</button>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              );
-            }
-
-            // ── فلترة أولياء الأمور ──
-            let filteredParents = parents.filter(parent => {
-              const parentMatches = parent.name.toLowerCase().includes(search) ||
-                parent.phoneNumber.includes(search) ||
-                (parent.nationalId || '').includes(search) ||
-                (parent.username || '').toLowerCase().includes(search);
-              if (parentMatches) return true;
-              const parentStudents = students.filter(s => s.parentId === parent.id);
-              const hasMatchingStudent = parentStudents.some(student =>
-                student.name.toLowerCase().includes(search) ||
-                (student.username || '').toLowerCase().includes(search) ||
-                (student.nationalId || '').includes(search) ||
-                (student.studentIdNumber || '').includes(search)
-              );
-              return hasMatchingStudent;
-            });
-            if (selectedParentId !== 'all') {
-              filteredParents = filteredParents.filter(p => p.id === selectedParentId);
-            }
-
-            if (filteredParents.length === 0) return (
-              <div className="text-center py-20">
-                <p className="text-gray-600 font-bold text-xl mb-2">لا توجد نتائج</p>
+          <Panel flush>
+            <div className="portal-directory-toolbar">
+              <div className="portal-tabs" role="tablist" aria-label="نوع الحسابات">
+                <button type="button" role="tab" aria-selected={accountsView === 'students'} className={accountsView === 'students' ? 'is-active' : ''} onClick={() => setAccountsView('students')}>
+                  <GraduationCap aria-hidden="true" /> الطلاب <span>{visible.students.length}</span>
+                </button>
+                <button type="button" role="tab" aria-selected={accountsView === 'parents'} className={accountsView === 'parents' ? 'is-active' : ''} onClick={() => setAccountsView('parents')}>
+                  <UsersRound aria-hidden="true" /> أولياء الأمور <span>{visible.parents.length}</span>
+                </button>
               </div>
-            );
+              <div className="portal-directory-filters">
+                <label className="portal-search">
+                  <Search aria-hidden="true" />
+                  <input
+                    type="search"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    placeholder="بحث بالاسم أو اسم المستخدم أو الجوال أو الهوية"
+                    aria-label="بحث"
+                  />
+                </label>
+                <select
+                  value={selectedParentId}
+                  onChange={(e) => { setSelectedParentId(e.target.value); setSelectedStudentId('all'); if (e.target.value !== 'all') setAccountsView('parents'); }}
+                  aria-label="ولي الأمر"
+                >
+                  <option value="all">جميع أولياء الأمور</option>
+                  {parents.map(p => (
+                    <option key={p.id} value={p.id}>{p.name} — {p.phoneNumber}</option>
+                  ))}
+                </select>
+                <select
+                  value={selectedStudentId}
+                  onChange={(e) => { setSelectedStudentId(e.target.value); if (e.target.value !== 'all') setAccountsView('students'); }}
+                  aria-label="الطالب"
+                >
+                  <option value="all">جميع الطلاب</option>
+                  {(selectedParentId === 'all' ? students : students.filter(s => s.parentId === selectedParentId)).map(s => (
+                    <option key={s.id} value={s.id}>{s.name} — {s.primaryGrade}</option>
+                  ))}
+                </select>
+                {hasFilter && (
+                  <button type="button" className="portal-btn portal-btn-ghost portal-btn-sm" onClick={() => { setSearchQuery(''); setSelectedParentId('all'); setSelectedStudentId('all'); }}>
+                    <X aria-hidden="true" /> مسح الفلاتر
+                  </button>
+                )}
+              </div>
+            </div>
 
-               return filteredParents.map((parent) => {
-              const parentStudents = students.filter(s => s.parentId === parent.id);
-              return (
-                <div key={parent.id} className="dashboard-account-record bg-gradient-to-r from-gray-50 to-orange-50 p-4 rounded-xl border-2 border-amber-200">
-                  {/* معلومات ولي الأمر */}
-                  <div className="flex items-center justify-between mb-3">
-                    <div className="flex items-center gap-3">
-                      <div className="w-12 h-12 bg-gradient-to-br from-green-500 to-green-600 rounded-full flex items-center justify-center text-white text-2xl">👤</div>
-                      <div>
-                        <h3 className="text-xl font-black text-gray-800">{parent.name}</h3>
-                        <p className="text-sm text-gray-600">📱 {parent.phoneNumber}</p>
-                        {parent.nationalId && <p className="text-sm text-gray-600">🆔 {parent.nationalId}</p>}
-                      </div>
-                      <span className="bg-blue-600 text-white px-3 py-1 rounded-full font-bold text-sm">{parentStudents.length} طالب/طلاب</span>
-                    </div>
-                    <div className="flex gap-2">
-                      {permissions.canEditParents && (
-                         <button onClick={() => { setEditingParent(parent); setParentForm({ name: parent.name, username: parent.username, password: '', phoneNumber: parent.phoneNumber, nationalId: parent.nationalId || '', permissionPackageId: parent.permissionPackageId || '' }); setShowParentForm(true); parentFormView.reveal(); }} className="bg-yellow-500 hover:bg-yellow-600 text-white px-4 py-2 rounded-lg font-bold">تعديل</button>
-                      )}
-                      {permissions.canManageParentPermissions && (
-                        <button
-                          onClick={() => openParentPermissions(parent)}
-                          className="bg-indigo-500 hover:bg-indigo-600 text-white px-4 py-2 rounded-lg font-bold"
-                        >
-                          الصلاحيات
-                        </button>
-                      )}
-                      {permissions.canDeleteParents && (
-                        <button onClick={() => handleDeleteParent(parent.id)} className="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-lg font-bold">حذف</button>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* قائمة الطلاب التابعين — تُعرض فقط في وضع الكل أو أولياء الأمور */}
-                  {parentStudents.length > 0 && (
-                     <div className="dashboard-account-students mt-3 mr-16 space-y-2">
-                      <h4 className="text-sm font-bold text-gray-700 mb-2">الطلاب:</h4>
-                      {parentStudents.map((student) => {
-                        const studentMatches = searchQuery && (
-                          student.name.toLowerCase().includes(search) ||
-                          (student.username || '').toLowerCase().includes(search) ||
-                          (student.nationalId || '').includes(search) ||
-                          (student.studentIdNumber || '').includes(search)
-                        );
+            {accountsView === 'students' ? (
+              visible.students.length === 0 ? (
+                <EmptyState title="لا طلاب مطابقين" description={hasFilter ? 'غيّر البحث أو الفلاتر.' : 'أضف طلابك من زر «إضافة طالب».'} icon={GraduationCap} />
+              ) : (
+                <div className="portal-table-wrap">
+                  <table className="portal-table">
+                    <thead>
+                      <tr>
+                        <th>الطالب</th>
+                        <th>الصف</th>
+                        <th>ولي الأمر</th>
+                        <th>رقم الطالب</th>
+                        <th>مرّات الدخول</th>
+                        <th>آخر نشاط</th>
+                        <th aria-label="إجراءات" />
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {visible.students.map(student => {
+                        const pName = parentName(student.parentId);
                         return (
-                         <div
-                          key={student.id}
-                          className={`dashboard-account-student bg-white p-3 rounded-lg border-2 flex items-center justify-between transition-all ${
-                            studentMatches
-                              ? 'border-yellow-400 bg-yellow-50 shadow-lg'
-                              : 'border-gray-200'
-                          }`}
-                        >
-                          <div className="flex items-center gap-3">
-                            <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xl ${
-                              studentMatches ? 'bg-yellow-200' : 'bg-blue-100'
-                            }`}>
-                              {getStudentEmoji(student)}
-                            </div>
-                            <div>
-                              <p className="font-bold text-gray-800">
-                                {student.name}
-                                {studentMatches && <span className="mr-2 text-yellow-600">⭐</span>}
-                              </p>
-                              <p className="text-xs text-gray-500">الصف: {student.primaryGrade}</p>
-                            </div>
-                          </div>
-                          <div className="flex gap-2">
-                            <button onClick={() => handleResetStudentCounter(student)} className="bg-indigo-500 hover:bg-indigo-600 text-white px-3 py-1 rounded-lg font-bold text-sm">♻️</button>
-                            {permissions.canEditStudents && (
-                                <button onClick={() => { setEditingStudent(student); setStudentForm({ name: student.name, gender: student.gender || 'male', username: student.username || '', password: '', parentPhoneNumber: student.parentPhoneNumber, parentId: student.parentId || '', studentIdNumber: student.studentIdNumber || '', nationalId: student.nationalId || '', primaryGrade: student.primaryGrade, gradeEnrollments: student.gradeEnrollments || [], assignedSubjects: student.assignedSubjects || [], permissionPackageId: student.permissionPackageId || '' }); setShowStudentForm(true); studentFormView.reveal(); }} className="bg-yellow-500 hover:bg-yellow-600 text-white px-3 py-1 rounded-lg font-bold text-sm">✏️</button>
-                            )}
-                            {permissions.canDeleteStudents && (
-                              <button onClick={() => handleDeleteStudent(student.id)} className="bg-red-500 hover:bg-red-600 text-white px-3 py-1 rounded-lg font-bold text-sm">🗑️</button>
-                            )}
-                          </div>
-                        </div>
+                          <tr key={student.id}>
+                            <td>
+                              <div className="flex items-center gap-2.5">
+                                <span className="portal-avatar" style={{ width: '2.1rem', height: '2.1rem', fontSize: '0.85rem', background: 'var(--pt-primary-soft)', color: 'var(--pt-primary)' }} aria-hidden="true">{initialOf(student.name)}</span>
+                                <div className="min-w-0">
+                                  <p className="font-bold text-slate-800">{student.name}</p>
+                                  {student.username && <p className="text-xs text-slate-500" dir="ltr">{student.username}</p>}
+                                </div>
+                              </div>
+                            </td>
+                            <td>{student.primaryGrade || student.grade || '—'}</td>
+                            <td>
+                              {pName ? (
+                                <button type="button" className="portal-link" onClick={() => { setSelectedParentId(student.parentId || 'all'); setSelectedStudentId('all'); setAccountsView('parents'); }}>{pName}</button>
+                              ) : (
+                                <Badge tone="warning">غير مرتبط</Badge>
+                              )}
+                            </td>
+                            <td className="is-num">{student.studentIdNumber || '—'}</td>
+                            <td className="is-num">{typeof student.loginCount === 'number' ? student.loginCount : '—'}</td>
+                            <td className="is-num text-slate-500">{relativeDay(student.lastLoginAt || student.lastActivity)}</td>
+                            <td>
+                              <div className="flex justify-end gap-1">
+                                <button type="button" onClick={() => handleResetStudentCounter(student)} className="portal-icon-btn" title="تصفير العدّاد" aria-label={`تصفير عدّاد ${student.name}`}><RotateCcw aria-hidden="true" /></button>
+                                {permissions.canEditStudents && (
+                                  <button type="button" onClick={() => startEditStudent(student)} className="portal-icon-btn" title="تعديل" aria-label={`تعديل ${student.name}`}><Pencil aria-hidden="true" /></button>
+                                )}
+                                {permissions.canDeleteStudents && (
+                                  <button type="button" onClick={() => handleDeleteStudent(student.id)} className="portal-icon-btn is-danger" title="حذف" aria-label={`حذف ${student.name}`}><Trash2 aria-hidden="true" /></button>
+                                )}
+                              </div>
+                            </td>
+                          </tr>
                         );
                       })}
-                    </div>
-                  )}
-                  {parentStudents.length === 0 && (
-                    <div className="mt-3 mr-16 text-sm text-gray-500 italic">
-                      لا يوجد طلاب لهذا ولي الأمر
-                    </div>
-                  )}
+                    </tbody>
+                  </table>
                 </div>
-              );
-            });
-          })()}
-        </div>
-      )}
-      </div>
+              )
+            ) : visible.parents.length === 0 ? (
+              <EmptyState title="لا أولياء أمور مطابقين" description={hasFilter ? 'غيّر البحث أو الفلاتر.' : 'أضف ولي أمر من زر «إضافة ولي أمر».'} icon={UsersRound} />
+            ) : (
+              <div className="portal-table-wrap">
+                <table className="portal-table">
+                  <thead>
+                    <tr>
+                      <th>ولي الأمر</th>
+                      <th>الجوال</th>
+                      <th>رقم الهوية</th>
+                      <th>الأبناء</th>
+                      <th aria-label="إجراءات" />
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {visible.parents.map(parent => {
+                      const children = students.filter(s => s.parentId === parent.id);
+                      return (
+                        <tr key={parent.id}>
+                          <td>
+                            <div className="flex items-center gap-2.5">
+                              <span className="portal-avatar" style={{ width: '2.1rem', height: '2.1rem', fontSize: '0.85rem', background: 'var(--pt-accent-soft)', color: 'var(--pt-accent)' }} aria-hidden="true">{initialOf(parent.name)}</span>
+                              <div className="min-w-0">
+                                <p className="font-bold text-slate-800">{parent.name}</p>
+                                {parent.username && <p className="text-xs text-slate-500" dir="ltr">{parent.username}</p>}
+                              </div>
+                            </div>
+                          </td>
+                          <td className="is-num" dir="ltr">{parent.phoneNumber || '—'}</td>
+                          <td className="is-num">{parent.nationalId || '—'}</td>
+                          <td>
+                            {children.length === 0 ? (
+                              <span className="text-slate-400">لا أبناء</span>
+                            ) : (
+                              <div className="flex flex-wrap gap-1">
+                                {children.map(child => (
+                                  <button key={child.id} type="button" className="portal-chip" onClick={() => { setSelectedStudentId(child.id); setSelectedParentId(parent.id); setAccountsView('students'); }}>
+                                    {child.name}
+                                  </button>
+                                ))}
+                              </div>
+                            )}
+                          </td>
+                          <td>
+                            <div className="flex justify-end gap-1">
+                              {permissions.canEditParents && (
+                                <button type="button" onClick={() => startEditParent(parent)} className="portal-icon-btn" title="تعديل" aria-label={`تعديل ${parent.name}`}><Pencil aria-hidden="true" /></button>
+                              )}
+                              {permissions.canManageParentPermissions && (
+                                <button type="button" onClick={() => openParentPermissions(parent)} className="portal-icon-btn" title="الصلاحيات" aria-label={`صلاحيات ${parent.name}`}><ShieldCheck aria-hidden="true" /></button>
+                              )}
+                              {permissions.canDeleteParents && (
+                                <button type="button" onClick={() => handleDeleteParent(parent.id)} className="portal-icon-btn is-danger" title="حذف" aria-label={`حذف ${parent.name}`}><Trash2 aria-hidden="true" /></button>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </Panel>
+        )}
 
       {/* نموذج إضافة/تعديل طالب */}
       {showStudentForm && (
@@ -889,7 +844,7 @@ const ParentStudentManagement: React.FC<ParentStudentManagementProps> = ({ teach
                 className="text-gray-500 hover:text-gray-700 text-2xl font-bold"
                 title="إغلاق"
               >
-                ✖
+                <IconX className="inline-block h-[1em] w-[1em] align-[-0.125em]" aria-hidden="true" />
               </button>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

@@ -36,6 +36,7 @@ import { getStudentProgressSummary } from '../../utils/studentProgress';
 import { getQuizResultPercentage, getQuizResultScore } from '../../utils/quizScoring';
 import { CERTIFICATE_TYPES, certificateNumber, studentReportDocument } from '../../utils/officialDocuments';
 import DocumentPreview from '../../components/portal/DocumentPreview';
+import { ActivityArea } from '../../components/portal/PortalCharts';
 import { initialOf } from '../../components/portal/PortalShell';
 import {
   Badge,
@@ -274,6 +275,9 @@ const ParentHome: React.FC<ParentHomeProps> = (props) => {
 
       {children.length > 0 && (
         <div className="portal-grid-2">
+          <Panel title="نشاط الأبناء" subtitle="الاختبارات المنجزة في آخر ١٤ يوماً" icon={Activity}>
+            <ActivityArea dates={results.map((result) => result.createdAt)} />
+          </Panel>
           {children.length > 1 && (
             <Panel title="مقارنة الأبناء" subtitle="معدّل كلّ ابن في الاختبارات" icon={ChartColumn}>
               <ResponsiveContainer width="100%" height={240}>

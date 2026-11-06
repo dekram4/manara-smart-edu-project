@@ -134,12 +134,12 @@ const AdminVideoNotifications: React.FC = () => {
                   {n.message}
                 </p>
                 <div className="flex items-center gap-4 mt-3 text-sm text-purple-500 font-medium">
-                  <span>👨‍🏫 {n.teacherName}</span>
-                  {n.grade && <span>🎓 {n.grade}</span>}
-                  {n.subject && <span>📖 {n.subject}</span>}
-                  {n.term && <span>📑 {n.term}</span>}
-                  {n.unit && <span>📦 {n.unit}</span>}
-                  <span>🕒 {new Date(n.createdAt).toLocaleString('ar-SA')}</span>
+                  <span>{n.teacherName}</span>
+                  {n.grade && <span>{n.grade}</span>}
+                  {n.subject && <span>{n.subject}</span>}
+                  {n.term && <span>{n.term}</span>}
+                  {n.unit && <span>{n.unit}</span>}
+                  <span>{new Date(n.createdAt).toLocaleString('ar-SA')}</span>
                 </div>
               </div>
               {!n.read && (

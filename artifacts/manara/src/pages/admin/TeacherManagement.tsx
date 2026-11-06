@@ -5,6 +5,7 @@ import { STORAGE_KEYS, DEFAULT_PASSWORD } from '../../constants';
 import { hashPassword, ensureHashed } from '../../utils/password';
 import { normalizeScopeValue } from '../../utils/scope';
 import { getPermissionPackages } from '../../permissions';
+import { Pencil as IconPencil, Presentation as IconPresentation, RefreshCw as IconRefreshCw, Trash2 as IconTrash2 } from 'lucide-react';
 
 interface TeacherManagementProps {
   onUpdate: () => void;
@@ -323,7 +324,7 @@ const TeacherManagement: React.FC<TeacherManagementProps> = ({ onUpdate }) => {
                 <div className="teacher-record-head">
                   <div className="teacher-record-identity">
                     <div className="w-14 h-14 shrink-0 bg-gradient-to-br from-purple-500 to-violet-600 rounded-full flex items-center justify-center text-2xl">
-                      👨‍🏫
+                      <IconPresentation className="inline-block h-[1em] w-[1em] align-[-0.125em]" aria-hidden="true" />
                     </div>
                     <div className="min-w-0">
                       <h3 className="teacher-record-name text-xl font-black text-purple-900">{teacher.name}</h3>
@@ -337,21 +338,21 @@ const TeacherManagement: React.FC<TeacherManagementProps> = ({ onUpdate }) => {
                       className="p-3 bg-blue-100 text-blue-600 rounded-xl hover:bg-blue-200 transition-all"
                       title="تعديل"
                     >
-                      ✏️
+                      <IconPencil className="inline-block h-[1em] w-[1em] align-[-0.125em]" aria-hidden="true" />
                     </button>
                     <button
                       onClick={() => resetPassword(teacher.id)}
                       className="p-3 bg-orange-100 text-orange-600 rounded-xl hover:bg-orange-200 transition-all"
                       title="إعادة تعيين كلمة المرور"
                     >
-                      🔄
+                      <IconRefreshCw className="inline-block h-[1em] w-[1em] align-[-0.125em]" aria-hidden="true" />
                     </button>
                     <button
                       onClick={() => handleDelete(teacher.id)}
                       className="p-3 bg-red-100 text-red-600 rounded-xl hover:bg-red-200 transition-all"
                       title="حذف"
                     >
-                      🗑️
+                      <IconTrash2 className="inline-block h-[1em] w-[1em] align-[-0.125em]" aria-hidden="true" />
                     </button>
                   </div>
                 </div>

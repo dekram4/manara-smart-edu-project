@@ -13,6 +13,7 @@ import { readActiveSession } from '../../utils/storage';
 import ConfirmDialog, { ConfirmRequest } from '../../components/ConfirmDialog';
 import { ownedTreeArrived, saveKvConfirmed } from '../../db/confirmedSave';
 import { refreshFromServer } from '../../db/sync';
+import { Plus as IconPlus, Search as IconSearch } from 'lucide-react';
 
 interface MyAcademicSettingsProps {
   teacher?: TeacherInfo | null;
@@ -841,7 +842,7 @@ const MyAcademicSettings: React.FC<MyAcademicSettingsProps> = ({ teacher: teache
                   placeholder="مثال: الصف الأول الابتدائي"
                   style={styles.input}
                 />
-                <button onClick={handleAddGrade} style={styles.addButton}>➕</button>
+                <button onClick={handleAddGrade} style={styles.addButton}><IconPlus className="inline-block h-[1em] w-[1em] align-[-0.125em]" aria-hidden="true" /></button>
               </div>
             </div>
 
@@ -871,7 +872,7 @@ const MyAcademicSettings: React.FC<MyAcademicSettingsProps> = ({ teacher: teache
                   style={styles.input}
                   disabled={!selectedGrade}
                 />
-                <button onClick={handleAddSubject} style={styles.addButton} disabled={!selectedGrade}>➕</button>
+                <button onClick={handleAddSubject} style={styles.addButton} disabled={!selectedGrade}><IconPlus className="inline-block h-[1em] w-[1em] align-[-0.125em]" aria-hidden="true" /></button>
               </div>
             </div>
 
@@ -901,7 +902,7 @@ const MyAcademicSettings: React.FC<MyAcademicSettingsProps> = ({ teacher: teache
                   style={styles.input}
                   disabled={!selectedSubject}
                 />
-                <button onClick={handleAddTerm} style={styles.addButton} disabled={!selectedSubject}>➕</button>
+                <button onClick={handleAddTerm} style={styles.addButton} disabled={!selectedSubject}><IconPlus className="inline-block h-[1em] w-[1em] align-[-0.125em]" aria-hidden="true" /></button>
               </div>
             </div>
 
@@ -932,7 +933,7 @@ onChange={e => {
                   style={styles.input}
                   disabled={!selectedTerm}
                 />
-                <button onClick={handleAddUnit} style={styles.addButton} disabled={!selectedTerm}>➕</button>
+                <button onClick={handleAddUnit} style={styles.addButton} disabled={!selectedTerm}><IconPlus className="inline-block h-[1em] w-[1em] align-[-0.125em]" aria-hidden="true" /></button>
               </div>
             </div>
 
@@ -960,7 +961,7 @@ onChange={e => {
                   style={styles.input}
                   disabled={!selectedUnit}
                 />
-                <button onClick={handleAddLessonFromForm} style={styles.addButton} disabled={!selectedUnit}>➕</button>
+                <button onClick={handleAddLessonFromForm} style={styles.addButton} disabled={!selectedUnit}><IconPlus className="inline-block h-[1em] w-[1em] align-[-0.125em]" aria-hidden="true" /></button>
               </div>
             </div>
           </div>
@@ -1070,7 +1071,7 @@ onChange={e => {
               }
               noMatchState={
                 <div style={styles.emptyState}>
-                  <div style={{ fontSize: '2rem', marginBottom: '8px' }}>🔍</div>
+                  <div style={{ fontSize: '2rem', marginBottom: '8px' }}><IconSearch className="inline-block h-[1em] w-[1em] align-[-0.125em]" aria-hidden="true" /></div>
                   <p>لا يطابق هذا البحث أي صف.</p>
                 </div>
               }
@@ -1098,10 +1099,10 @@ onChange={e => {
                 <div key={idx} style={{ ...styles.configCard, backgroundColor: '#f0f9ff', border: '2px solid #3b82f6' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
                     <div>
-                      <h4 style={styles.configTitle}>🏫 {config.grade}</h4>
+                      <h4 style={styles.configTitle}>{config.grade}</h4>
                       {config.createdByName && (
                         <span style={{ backgroundColor: '#f1f5f9', color: '#92400e', padding: '2px 8px', borderRadius: '12px', fontSize: '0.75rem' }}>
-                          👨‍💼 {config.createdByName}
+                          {config.createdByName}
                         </span>
                       )}
                     </div>
@@ -1115,15 +1116,15 @@ onChange={e => {
                   
                   {config.subjects && config.subjects.map((subject, sIdx) => (
                         <div key={sIdx} style={styles.subjectCard}>
-                          <span>📖 {subject.subject}</span>
+                          <span>{subject.subject}</span>
                           {subject.terms && subject.terms.map((term, tIdx) => (
                             <div key={tIdx} style={styles.termCard}>
-                              <span>📚 {term.term}</span>
+                              <span>{term.term}</span>
                               {term.units && term.units.length > 0 && (
                                 <div style={styles.unitsContainer}>
                                   {term.units.map((unit, uIdx) => (
                                     <span key={uIdx} style={styles.unitBadge}>
-                                      📄 {unit}
+                                      {unit}
                                     </span>
                                   ))}
                                 </div>

@@ -467,7 +467,7 @@ const DuelQuestionReview: React.FC<{ role: Role }> = ({ role }) => {
                     </span>
                     {question.lessonTitle && (
                       <span className="rounded-full bg-emerald-50 px-3 py-1 text-emerald-800">
-                        📘 {question.lessonTitle}
+                        {question.lessonTitle}
                       </span>
                     )}
                     {!question.active && (
@@ -485,7 +485,7 @@ const DuelQuestionReview: React.FC<{ role: Role }> = ({ role }) => {
                             : 'bg-gray-50 text-gray-600'
                         }`}
                       >
-                        {index === 0 ? '✓ ' : ''}{choice}
+                        {index === 0 ? '' : ''}{choice}
                       </span>
                     ))}
                   </div>

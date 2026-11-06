@@ -49,6 +49,7 @@ import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line,
   PieChart, Pie, Cell, Legend, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar
 } from 'recharts';
+import { BookOpen as IconBookOpen, TriangleAlert as IconTriangleAlert } from 'lucide-react';
 
 const CERT_KEY = 'smartEdu_certificates';
 
@@ -920,8 +921,8 @@ const ParentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
                           <div className="min-w-0">
                             <h1 className="text-xl font-black">{activeChild.name}</h1>
                             <div className="flex gap-2 flex-wrap mt-1">
-                              <span className="bg-white/20 text-white px-2 py-0.5 rounded-full font-bold text-xs">🎓 {activeChild.primaryGrade || activeChild.grade}</span>
-                              <span className="bg-white/20 text-white px-2 py-0.5 rounded-full font-bold text-xs">👨‍🏫 {parent?.name}</span>
+                              <span className="bg-white/20 text-white px-2 py-0.5 rounded-full font-bold text-xs">{activeChild.primaryGrade || activeChild.grade}</span>
+                              <span className="bg-white/20 text-white px-2 py-0.5 rounded-full font-bold text-xs">{parent?.name}</span>
                             </div>
                           </div>
                         </div>
@@ -1012,14 +1013,14 @@ const ParentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
                         */}
                         {syncError && (
                           <div role="status" className="flex items-center gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-[11px] font-bold text-amber-700">
-                            <span aria-hidden="true">⚠️</span>
+                            <span aria-hidden="true"><IconTriangleAlert className="inline-block h-[1em] w-[1em] align-[-0.125em]" aria-hidden="true" /></span>
                             <span>تعذّر تحديث البيانات من الخادم — ما يُعرض قد لا يكون الأحدث.</span>
                           </div>
                         )}
                         <div className="bg-gradient-to-r from-rose-500 to-rose-600 p-4 rounded-2xl shadow-xl text-white">
                           <div className="flex flex-wrap items-center justify-between gap-3">
                             <div className="min-w-0">
-                              <h2 className="text-lg font-black">📚 {activeSubject}</h2>
+                              <h2 className="text-lg font-black">{activeSubject}</h2>
                               {/* والحقولُ الناقصةُ تُحجب لا تُطبع «undefined». */}
                               <div className="flex gap-3 text-rose-200 font-bold text-xs mt-1">
                                 <span>{activeChild.name || '—'}</span>
@@ -1312,7 +1313,7 @@ const ParentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
       {showChangeGradeModal && studentToChangeGrade && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-3 safe-area-x safe-area-top safe-area-bottom">
           <div className="mobile-modal-panel w-full max-w-sm rounded-2xl bg-white p-5 shadow-2xl sm:p-6">
-            <div className="text-center mb-4"><div className="text-4xl mb-2">📚</div><h2 className="text-lg font-black text-rose-900 mb-1">تغيير الصف</h2><p className="text-rose-400 font-bold text-xs">{studentToChangeGrade.name}</p></div>
+            <div className="text-center mb-4"><div className="text-4xl mb-2"><IconBookOpen className="inline-block h-[1em] w-[1em] align-[-0.125em]" aria-hidden="true" /></div><h2 className="text-lg font-black text-rose-900 mb-1">تغيير الصف</h2><p className="text-rose-400 font-bold text-xs">{studentToChangeGrade.name}</p></div>
             <div className="mb-4 space-y-2">
               <label className="block text-xs font-bold text-rose-600">الصف الحالي: <span className="text-rose-500">{studentToChangeGrade.primaryGrade || studentToChangeGrade.grade}</span></label>
               <select value={selectedNewGrade} onChange={e => setSelectedNewGrade(e.target.value)} className="w-full p-3 rounded-xl border border-rose-200 focus:border-rose-400 focus:ring-4 focus:ring-rose-100 outline-none font-bold text-sm bg-rose-50">

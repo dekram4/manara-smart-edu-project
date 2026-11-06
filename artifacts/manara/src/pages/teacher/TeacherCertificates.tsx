@@ -6,18 +6,30 @@ import { getRecordTeacherId, getTeacherParents, getTeacherStudents, normalizeSco
 import { getQuizResultPercentage } from '../../utils/quizScoring';
 import { normalizeQuizType } from '../../utils/quizTypes';
 import { Award, Eye, GraduationCap, Pencil, Plus, Star, Trash2, Trophy } from 'lucide-react';
-import { CERTIFICATE_TYPES, certificateDocument, certificateNumber } from '../../utils/officialDocuments';
+import { CERTIFICATE_TYPES, certificateDocument, certificateNumber, issuerOf } from '../../utils/officialDocuments';
 import DocumentPreview from '../../components/portal/DocumentPreview';
 import { Badge, EmptyState, PageHeader, Panel, StatCard, relativeDay, scoreTone } from '../../components/portal/PortalUI';
 
 interface TeacherCertificatesProps {
+  /** معرّفُ المعلم — وفي وضع المشرف يُترك فارغاً. */
   teacherId: string;
+  /** اسمُ المستخدم المسجّل الآن: يُكتب على الشهادة في خانة الاعتماد. */
   teacherName: string;
+  /** المشرفُ يرى طلابَ المنصّة كلَّهم ويُصدر لهم. */
+  issuerRole?: 'teacher' | 'admin';
 }
 
 const CERT_KEY = 'smartEdu_certificates';
+const SIGNATORY_KEY = 'manara_admin_certificate_signatory';
 
-const TeacherCertificates: React.FC<TeacherCertificatesProps> = ({ teacherId, teacherName }) => {
+const TeacherCertificates: React.FC<TeacherCertificatesProps> = ({ teacherId, teacherName, issuerRole = 'teacher' }) => {
+  const isAdmin = issuerRole === 'admin';
+  // ‏المشرفُ لا اسمَ له في النظام (يدخل باسم مستخدمٍ من إعدادات الخادم)، فيكتب
+  // ‏الاسمَ الذي تُعتمد به الشهادات مرّةً، ويُحفظ في هذا المتصفّح.
+  const [adminSignatory, setAdminSignatory] = useState(() => {
+    try { return localStorage.getItem(SIGNATORY_KEY) || teacherName; } catch { return teacherName; }
+  });
+  const issuerName = isAdmin ? (adminSignatory.trim() || teacherName) : teacherName;
   const [students, setStudents] = useState<StudentInfo[]>([]);
   const [parents, setParents] = useState<ParentInfo[]>([]);
   const [allQuizzes, setAllQuizzes] = useState<QuizResult[]>([]);
@@ -46,10 +58,10 @@ const TeacherCertificates: React.FC<TeacherCertificatesProps> = ({ teacherId, te
 
   const loadData = () => {
     const allParents: ParentInfo[] = JSON.parse(localStorage.getItem(STORAGE_KEYS.PARENTS) || '[]');
-    const teacherParents = getTeacherParents(allParents, teacherId);
+    const teacherParents = isAdmin ? allParents : getTeacherParents(allParents, teacherId);
 
     const allStudents: StudentInfo[] = JSON.parse(localStorage.getItem(STORAGE_KEYS.STUDENTS) || '[]');
-    const teacherStudents = getTeacherStudents(allStudents, teacherId, teacherParents);
+    const teacherStudents = isAdmin ? allStudents : getTeacherStudents(allStudents, teacherId, teacherParents);
     const teacherStudentIds = new Set(teacherStudents.map(student => student.id));
 
     setParents(teacherParents);
@@ -61,7 +73,7 @@ const TeacherCertificates: React.FC<TeacherCertificatesProps> = ({ teacherId, te
     const allCertificates: CertificateRecord[] = JSON.parse(
       localStorage.getItem(CERT_KEY) || '[]',
     );
-    setCertificates(allCertificates.filter(cert =>
+    setCertificates(isAdmin ? allCertificates : allCertificates.filter(cert =>
       cert.teacherId
         ? cert.teacherId === teacherId
         : teacherStudentIds.has(cert.studentId),
@@ -69,7 +81,7 @@ const TeacherCertificates: React.FC<TeacherCertificatesProps> = ({ teacherId, te
 
     setAcademicConfigs(
       readHierarchicalConfigs().filter((c: HierarchicalConfig) =>
-        getRecordTeacherId(c) === normalizeScopeValue(teacherId),
+        isAdmin || getRecordTeacherId(c) === normalizeScopeValue(teacherId),
       ),
     );
   };
@@ -182,12 +194,20 @@ const TeacherCertificates: React.FC<TeacherCertificatesProps> = ({ teacherId, te
     const average = getTeacherSubjectAverage(student.id, subject, grade);
 
     const saved: CertificateRecord[] = JSON.parse(localStorage.getItem(CERT_KEY) || '[]');
+    // ‏شهادةُ المشرف تُنسب إلى معلّم الطالب، ويوقّعها المشرف.
+    const studentTeacherId = isAdmin ? String(student.teacherId || student.createdBy || '') : teacherId;
+    const studentTeacherName = isAdmin
+      ? (JSON.parse(localStorage.getItem(STORAGE_KEYS.TEACHERS) || '[]') as { id: string; name: string }[])
+          .find(t => t.id === studentTeacherId)?.name || ''
+      : teacherName;
     const newCertificate: CertificateRecord = {
       id: Date.now().toString(),
       studentId: student.id,
       studentName: student.name,
-      teacherId,
-      teacherName,
+      teacherId: studentTeacherId,
+      teacherName: studentTeacherName,
+      issuedBy: issuerName,
+      issuedByRole: issuerRole,
       type,
       subject,
       grade,
@@ -197,7 +217,7 @@ const TeacherCertificates: React.FC<TeacherCertificatesProps> = ({ teacherId, te
     };
     saved.push(newCertificate);
     localStorage.setItem(CERT_KEY, JSON.stringify(saved));
-    setCertificates(saved.filter(cert =>
+    setCertificates(isAdmin ? saved : saved.filter(cert =>
       cert.teacherId
         ? cert.teacherId === teacherId
         : students.some(teacherStudent => teacherStudent.id === cert.studentId),
@@ -222,17 +242,34 @@ const TeacherCertificates: React.FC<TeacherCertificatesProps> = ({ teacherId, te
   return (
     <div className="portal-page">
       <PageHeader
-        eyebrow="بوابة المعلم"
+        eyebrow={isAdmin ? 'لوحة المشرف' : 'بوابة المعلم'}
         title="الشهادات"
-        description="إصدار شهادات التفوّق والتقدير والمشاركة لطلابك، ومعاينتها وطباعتها بتنسيقٍ رسمي."
+        description={isAdmin
+          ? 'إصدار الشهادات لطلاب المنصّة، ومعاينتها وطباعتها بتنسيقٍ رسمي.'
+          : 'إصدار شهادات التفوّق والتقدير والمشاركة لطلابك، ومعاينتها وطباعتها بتنسيقٍ رسمي.'}
         icon={Award}
+        actions={isAdmin ? (
+          <label className="flex items-center gap-2 text-sm font-bold text-slate-600">
+            يُوقَّع باسم
+            <input
+              type="text"
+              value={adminSignatory}
+              onChange={(e) => {
+                setAdminSignatory(e.target.value);
+                try { localStorage.setItem(SIGNATORY_KEY, e.target.value); } catch { /* تخزينٌ محجوب: يبقى للجلسة */ }
+              }}
+              className="rounded-lg border px-3 py-2 text-sm"
+              style={{ minWidth: '12rem' }}
+            />
+          </label>
+        ) : <Badge tone="accent">يُوقَّع باسم: {teacherName}</Badge>}
       />
 
       <div className="portal-stats">
         <StatCard label="متفوّقون (٩٠٪ فأكثر)" value={students.filter(s => getStudentAverage(s.id) >= 90).length} hint="في اختبارات المعلم" icon={Trophy} tone="gold" />
         <StatCard label="مجتهدون (٧٠–٨٩٪)" value={students.filter(s => getStudentAverage(s.id) >= 70 && getStudentAverage(s.id) < 90).length} hint="في اختبارات المعلم" icon={Star} />
-        <StatCard label="الطلاب" value={students.length} hint="طلابك المرتبطون" icon={GraduationCap} tone="accent" />
-        <StatCard label="الشهادات الصادرة" value={certificates.length} hint="منك لطلابك" icon={Award} tone="success" />
+        <StatCard label="الطلاب" value={students.length} hint={isAdmin ? 'طلاب المنصّة' : 'طلابك المرتبطون'} icon={GraduationCap} tone="accent" />
+        <StatCard label="الشهادات الصادرة" value={certificates.length} hint={isAdmin ? 'لكل الطلاب' : 'منك لطلابك'} icon={Award} tone="success" />
       </div>
 
       <Panel
@@ -331,6 +368,7 @@ const TeacherCertificates: React.FC<TeacherCertificatesProps> = ({ teacherId, te
                   <th>الطالب</th>
                   <th>المادة</th>
                   <th>الصف والفصل</th>
+                  <th>المُصدِر</th>
                   <th>رقم الشهادة</th>
                   <th>التاريخ</th>
                   <th aria-label="إجراءات" />
@@ -343,6 +381,7 @@ const TeacherCertificates: React.FC<TeacherCertificatesProps> = ({ teacherId, te
                     <td className="font-bold text-slate-800">{cert.studentName}</td>
                     <td>{cert.subject}</td>
                     <td>{cert.grade} · {cert.term}</td>
+                    <td>{issuerOf(cert).name || '—'}</td>
                     <td className="is-num text-slate-500">{certificateNumber(cert)}</td>
                     <td className="is-num text-slate-500">{relativeDay(cert.date)}</td>
                     <td>

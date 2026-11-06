@@ -6,6 +6,7 @@ import { QuizQuestion, QuizType, LessonConfig, CreatedQuiz } from '../../types';
 import { STORAGE_KEYS, QUIZ_TYPES } from '../../constants';
 import { getRecordTeacherId, normalizeScopeValue } from '../../utils/scope';
 import { getPeriodicQuizLabel, getQuizTypeLabel, normalizeCreatedQuiz, normalizeQuizType } from '../../utils/quizTypes';
+import { Check as IconCheck, Pencil as IconPencil, Trash2 as IconTrash2, TriangleAlert as IconTriangleAlert } from 'lucide-react';
 
 interface QuizManagementProps {
   onUpdate: () => void;
@@ -1088,7 +1089,7 @@ const QuizManagement: React.FC<QuizManagementProps> = ({ onUpdate, teacherId, te
               <label className="block font-black text-purple-900 mb-2">اختيار المعلم</label>
               {teacherId ? (
                 <div className="w-full p-4 border-2 border-purple-200 rounded-2xl bg-purple-50 font-bold text-lg text-purple-800">
-                  👨‍🏫 {teacherName || selectedTeacherName}
+                  {teacherName || selectedTeacherName}
                 </div>
               ) : (
                 <select
@@ -1099,7 +1100,7 @@ const QuizManagement: React.FC<QuizManagementProps> = ({ onUpdate, teacherId, te
                 >
                   <option value="admin">محتوى عام (المشرف)</option>
                   {teachers.map((t: any) => (
-                    <option key={t.id} value={t.id}>👨‍🏫 {t.name} - {t.subject || 'معلم'}</option>
+                    <option key={t.id} value={t.id}>{t.name} - {t.subject || 'معلم'}</option>
                   ))}
                 </select>
               )}
@@ -1216,7 +1217,7 @@ const QuizManagement: React.FC<QuizManagementProps> = ({ onUpdate, teacherId, te
                 {lessonFound ? (
                   <div className="space-y-3">
                     <div className="flex items-center gap-2 text-green-700 font-black">
-                      <span className="text-2xl">✅</span>
+                      <span className="text-2xl"><IconCheck className="inline-block h-[1em] w-[1em] align-[-0.125em]" aria-hidden="true" /></span>
                       <span>
                         {mergedLessons > 1
                           ? `دُمجت نصوص ${mergedLessons} دروس من هذه الوحدة`
@@ -1232,7 +1233,7 @@ const QuizManagement: React.FC<QuizManagementProps> = ({ onUpdate, teacherId, te
                   </div>
                 ) : (
                   <div className="flex items-center gap-2 text-orange-600 font-bold">
-                    <span className="text-2xl">⚠️</span>
+                    <span className="text-2xl"><IconTriangleAlert className="inline-block h-[1em] w-[1em] align-[-0.125em]" aria-hidden="true" /></span>
                     <span>
                       {quizFormData.lesson
                         ? 'لا يوجد نصّ مكتوب لهذا الدرس! أضفه في إدارة المحتوى أولاً'
@@ -1367,7 +1368,7 @@ const QuizManagement: React.FC<QuizManagementProps> = ({ onUpdate, teacherId, te
                               className="p-2 bg-blue-100 text-blue-600 rounded-lg hover:bg-blue-200 transition-all"
                               title="تعديل السؤال"
                             >
-                              ✏️
+                              <IconPencil className="inline-block h-[1em] w-[1em] align-[-0.125em]" aria-hidden="true" />
                             </button>
                             <button
                               type="button"
@@ -1375,7 +1376,7 @@ const QuizManagement: React.FC<QuizManagementProps> = ({ onUpdate, teacherId, te
                               className="p-2 bg-red-100 text-red-600 rounded-lg hover:bg-red-200 transition-all"
                               title="حذف السؤال"
                             >
-                              🗑️
+                              <IconTrash2 className="inline-block h-[1em] w-[1em] align-[-0.125em]" aria-hidden="true" />
                             </button>
                           </div>
                         </div>
@@ -1541,7 +1542,7 @@ const QuizManagement: React.FC<QuizManagementProps> = ({ onUpdate, teacherId, te
                       title="تعديل"
                       aria-label="تعديل الاختبار"
                     >
-                      ✏️
+                      <IconPencil className="inline-block h-[1em] w-[1em] align-[-0.125em]" aria-hidden="true" />
                     </button>
                     <button
                       onClick={() => handleDelete(quiz.id)}
@@ -1549,7 +1550,7 @@ const QuizManagement: React.FC<QuizManagementProps> = ({ onUpdate, teacherId, te
                       title="حذف"
                       aria-label="حذف الاختبار"
                     >
-                      🗑️
+                      <IconTrash2 className="inline-block h-[1em] w-[1em] align-[-0.125em]" aria-hidden="true" />
                     </button>
                   </div>
                 </header>
@@ -1564,7 +1565,7 @@ const QuizManagement: React.FC<QuizManagementProps> = ({ onUpdate, teacherId, te
                       يُعلَن أنه يغطي الوحدة كاملة — فلا يبقى المستوى السادس
                       غامضاً على من يقرأ البطاقة. */}
                   <span className="dashboard-badge">
-                    {quiz.lesson ? `📘 ${quiz.lesson}` : 'كل دروس الوحدة'}
+                    {quiz.lesson ? `${quiz.lesson}` : 'كل دروس الوحدة'}
                   </span>
                   <span className="dashboard-badge dashboard-badge-accent">
                     {normalizeQuizType(quiz.quizType) === QuizType.PERIODIC
