@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import type { LucideIcon } from 'lucide-react';
 import { LogOut, Menu, X } from 'lucide-react';
 import { sceneFor } from './PortalUI';
+import { installActionGuard } from '../../utils/actionGuard';
 
 export interface PortalNavItem {
   id: string;
@@ -59,6 +60,8 @@ const PortalShell: React.FC<PortalShellProps> = ({
   children,
 }) => {
   const [drawerOpen, setDrawerOpen] = useState(false);
+  // ‏أزرارُ الحفظ في كل صفحات اللوحة: ضغطةٌ واحدة حتى ينتهي ما بدأته (utils/actionGuard).
+  useEffect(() => installActionGuard(), []);
   // ‏خلفيةُ الصفحة الجارية: رسمٌ من أقسام التطبيق في زاوية المحتوى.
   const scene = sceneFor(nav.find((item) => item.active)?.id);
 
