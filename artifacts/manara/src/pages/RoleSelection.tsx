@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import type { LucideIcon } from 'lucide-react';
-import { ArrowLeft, Check, Download, Presentation, ShieldCheck, Smartphone, UsersRound } from 'lucide-react';
+import { ArrowLeft, Check, Cog, Download, Presentation, Settings, Smartphone, UsersRound } from 'lucide-react';
 import { GameAudioEngine } from '../utils/gameAudioEngine';
 import { fetchStudentApk } from '../utils/studentApk';
 import { ART } from '../components/portal/PortalUI';
@@ -18,8 +18,8 @@ interface RoleCard {
   features: string[];
   icon: LucideIcon;
   tone: 'primary' | 'accent' | 'gold';
-  /** رسمٌ من رسوم المنصّة يملأ زاوية البطاقة. */
-  art: string;
+  /** شخصيةُ الدور من رسوم التطبيق؛ والمشرفُ بلا شخصية: ترسُ الإدارة. */
+  art?: string;
 }
 
 const roles: RoleCard[] = [
@@ -30,7 +30,7 @@ const roles: RoleCard[] = [
     features: ['الدروس والاختبارات', 'تقارير الطلاب وأولياء الأمور', 'إصدار الشهادات'],
     icon: Presentation,
     tone: 'primary',
-    art: ART.board,
+    art: ART.teacher,
   },
   {
     id: 'parent',
@@ -39,26 +39,24 @@ const roles: RoleCard[] = [
     features: ['الدرجات ونتائج الاختبارات', 'المستوى والنشاط والجواهر', 'التقارير والشهادات للطباعة'],
     icon: UsersRound,
     tone: 'accent',
-    art: ART.kidsRun,
+    art: ART.family,
   },
   {
     id: 'admin',
     title: 'لوحة المشرف',
     description: 'الإدارة الشاملة للمنصّة والحسابات والإعدادات الأكاديمية.',
     features: ['المعلمون والحسابات', 'الإعدادات الأكاديمية والمحتوى', 'الصلاحيات وإعدادات النظام'],
-    icon: ShieldCheck,
+    icon: Settings,
     tone: 'gold',
-    art: ART.school,
   },
 ];
 
 /**
  * صفحةُ الدخول الأولى: اختيارُ البوابة.
  *
- * كانت خلفيةً داكنة تطفو فوقها رموزٌ تعبيرية تدور في مدارات، وبطاقاتٌ زجاجية
- * تتوهّج وتهتزّ ويصدر عنها صوتٌ عند المرور. صارت صفحةَ بوابةٍ رسمية: شريطُ
- * الهوية، ثم ثلاثُ بطاقات تقول كلٌّ منها لمن هي وماذا فيها، بأيقوناتٍ خطّية
- * وألوانٍ هادئة. وزرُّ تطبيق الطالب يبقى كما كان: يظهر حين يصل رابطه.
+ * خلفيتُها خلفيةُ شاشة الدخول في تطبيق الطالب نفسُها (سماءٌ ومرجٌ وكتب)،
+ * والبرجُ — منارةُ المنصّة — قائمٌ في الجهة اليمنى كما في رئيسية التطبيق.
+ * ولكلّ بوابةٍ شخصيتها: المعلمُ أمام سبورته، والعائلة، وترسُ الإدارة للمشرف.
  */
 const RoleSelection: React.FC<RoleSelectionProps> = (props) => {
   // رابطُ تطبيق الطالب من إعدادات النظام في الخادم — يغيّره المشرف من لوحته.
@@ -79,13 +77,11 @@ const RoleSelection: React.FC<RoleSelectionProps> = (props) => {
   };
 
   return (
-    <div className="portal-auth portal-roles" dir="rtl">
-      <div className="portal-roles-band" aria-hidden="true">
-        {/* ‏المنارةُ رمزُ المنصّة في طرف الشريط، والكرةُ الأرضية تطفو بجانبها؛
-            وتحتهما خامةُ الفصل الدراسي باهتةً تحت الكحلي (portal.css). */}
-        <img className="portal-roles-lighthouse" src={ART.lighthouse} alt="" />
-        <img className="portal-float portal-float-globe" src={ART.globe} alt="" />
-      </div>
+    <div className="portal-auth portal-roles is-sky" dir="rtl">
+      <div className="portal-roles-sky" aria-hidden="true" />
+      <aside className="portal-roles-tower" aria-hidden="true">
+        <img src={ART.lighthouse} alt="" />
+      </aside>
       <div className="portal-roles-inner">
         <header className="portal-roles-header">
           <div className="portal-roles-brand">
@@ -129,7 +125,16 @@ const RoleSelection: React.FC<RoleSelectionProps> = (props) => {
                   handlers[role.id]();
                 }}
               >
-                <img className="portal-role-art" src={role.art} alt="" aria-hidden="true" />
+                <span className="portal-role-stage" aria-hidden="true">
+                  {role.art ? (
+                    <img className="portal-role-art" src={role.art} alt="" />
+                  ) : (
+                    <span className="portal-role-gear">
+                      <Settings className="is-big" />
+                      <Cog className="is-small" />
+                    </span>
+                  )}
+                </span>
                 <span className="portal-role-icon" aria-hidden="true">
                   <Icon />
                 </span>

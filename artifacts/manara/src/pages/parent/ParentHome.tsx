@@ -47,6 +47,8 @@ interface ParentHomeProps {
   certificates: CertificateRecord[];
   teacherName?: string;
   activeChild: StudentInfo | null;
+  /** داخل صفحة «تفاصيل الابن» المستقلّة: رأسُها يكفي، فلا يُكرَّر الرأس هنا. */
+  embedded?: boolean;
   getChildSubjects: (child: StudentInfo) => string[];
   quizTypeLabel: (quizType: string | undefined) => string;
   isTeacherQuiz: (quizType: string | undefined) => boolean;
@@ -321,7 +323,7 @@ const ChildReport: React.FC<
     };
     onPrintReport: () => void;
   }
-> = ({ row, onBack, onPrintReport, getChildSubjects, quizTypeLabel, isTeacherQuiz, onOpenSubject, onPrintSubject, onPrintTeacherResults, onPreviewCertificate, teacherName }) => {
+> = ({ row, embedded, onBack, onPrintReport, getChildSubjects, quizTypeLabel, isTeacherQuiz, onOpenSubject, onPrintSubject, onPrintTeacherResults, onPreviewCertificate, teacherName }) => {
   const { child, progress } = row;
   const sorted = [...row.own].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
   const subjects = Array.from(new Set([...getChildSubjects(child), ...row.own.map((result) => result.subject).filter(Boolean)]));
@@ -341,6 +343,16 @@ const ChildReport: React.FC<
 
   return (
     <div className="portal-page">
+      {embedded ? (
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <p className="text-sm font-bold text-slate-500">
+            {teacherName ? `المعلم: ${teacherName} · ` : ''}آخر نشاط: {relativeDay(row.seen)}
+          </p>
+          <button type="button" className="portal-btn portal-btn-primary" onClick={onPrintReport}>
+            <Printer aria-hidden="true" /> طباعة التقرير الشامل
+          </button>
+        </div>
+      ) : (
       <header className="portal-page-header">
         <ChildAvatar child={child} index={row.index} large />
         <div className="portal-page-header-text">
@@ -360,6 +372,7 @@ const ChildReport: React.FC<
           </button>
         </div>
       </header>
+      )}
 
       <div className="portal-stats">
         <StatCard

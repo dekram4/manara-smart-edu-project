@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import type { LucideIcon } from 'lucide-react';
 import { LogOut, Menu, X } from 'lucide-react';
+import { sceneFor } from './PortalUI';
 
 export interface PortalNavItem {
   id: string;
@@ -58,6 +59,8 @@ const PortalShell: React.FC<PortalShellProps> = ({
   children,
 }) => {
   const [drawerOpen, setDrawerOpen] = useState(false);
+  // ‏خلفيةُ الصفحة الجارية: رسمٌ من أقسام التطبيق في زاوية المحتوى.
+  const scene = sceneFor(nav.find((item) => item.active)?.id);
 
   const renderItem = (item: PortalNavItem) => {
     const Icon = item.icon;
@@ -155,6 +158,7 @@ const PortalShell: React.FC<PortalShellProps> = ({
           </div>
         </header>
         <div className="dashboard-content-area min-w-0 flex-1 safe-area-x safe-area-bottom">
+          {scene && <img key={scene} className="portal-scene" src={scene} alt="" aria-hidden="true" />}
           <div className="dashboard-content-fluid">{children}</div>
         </div>
       </main>

@@ -22,7 +22,44 @@ export const ART = {
   kidsRun: '/illustrations/kids-run.webp',
   /** خامةُ الخلفية: الفصلُ الدراسي، يُعرض باهتاً تحت الكحلي. */
   classroom: '/illustrations/classroom.webp',
+  /** خلفيةُ شاشة الدخول في التطبيق: سماءٌ ومرجٌ وكتب. */
+  loginSky: '/illustrations/login-sky.webp',
+  /** شخصيةُ المعلم الرسمية في التطبيق (أمام السبورة). */
+  teacher: '/illustrations/teacher.webp',
+  /** شخصيةُ العائلة: أخوان يقرآن معاً. */
+  family: '/illustrations/family.webp',
 } as const;
+
+/**
+ * خلفيةُ كلّ صفحةٍ داخلية — من خلفيات أقسام التطبيق (`back_*.png`)، فتتنوّع
+ * الصفحاتُ وتبقى الهويةُ واحدة. المفتاحُ معرّفُ الصفحة في القائمة، وهو نفسه
+ * في البوابات الثلاث.
+ */
+const SCENES: Record<string, string> = {
+  DASHBOARD: 'classroom',
+  ACADEMIC_SETTINGS: 'board',
+  STUDENT_MANAGEMENT: 'library',
+  ACCOUNT_MANAGEMENT: 'library',
+  TEACHER_MANAGEMENT: 'classroom',
+  CONTENT_MANAGEMENT: 'books',
+  VIDEO_MANAGEMENT: 'computer',
+  VIDEO_NOTIFICATIONS: 'computer',
+  ENTERTAINMENT: 'games',
+  QUIZ_MANAGEMENT: 'quiz',
+  DUEL_QUESTIONS: 'games',
+  CARD_PERMISSIONS: 'tools',
+  PERMISSION_PACKAGES: 'tools',
+  REPORTS: 'lab',
+  CERTIFICATES: 'trophy',
+  SYSTEM_SETTINGS: 'computer',
+  SETTINGS: 'computer',
+  MY_ACCOUNT: 'computer',
+  CHILDREN: 'books',
+  ADD_CHILDREN: 'library',
+};
+
+export const sceneFor = (pageId: string | undefined): string | undefined =>
+  pageId && SCENES[pageId] ? `/illustrations/scenes/${SCENES[pageId]}.webp` : undefined;
 
 /** صورةُ المادة من اسمها: القرآن والنورانية، الرياضيات، العلوم، الإنجليزية، العربية. */
 export const subjectArt = (subject: string): string => {
