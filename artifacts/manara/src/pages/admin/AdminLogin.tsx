@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ShieldCheck } from 'lucide-react';
+import { Settings } from 'lucide-react';
 import { PortalField, PortalLoginLayout } from '../../components/portal/PortalLogin';
 
 interface AdminLoginProps {
@@ -50,7 +50,7 @@ const AdminLogin: React.FC<AdminLoginProps> = ({ onLoginSuccess, onBack }) => {
       portalName="لوحة المشرف"
       title="تسجيل الدخول"
       subtitle="للمشرفين المخوّلين بإدارة المنصّة."
-      icon={ShieldCheck}
+      icon={Settings}
       features={['المعلمون والحسابات والصلاحيات', 'الإعدادات الأكاديمية والمحتوى', 'التقارير وإعدادات النظام']}
       onBack={onBack}
       error={error}

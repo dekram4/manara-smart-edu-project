@@ -15,8 +15,10 @@ import { formatAcademicPath, pathCell, quizResultPath } from '../../utils/academ
 import { getParentChildren, getParentTeacherId, getRecordTeacherId, getStudentTeacherScope } from '../../utils/scope';
 import PortalShell, { PortalNavItem } from '../../components/portal/PortalShell';
 import DocumentPreview from '../../components/portal/DocumentPreview';
-import { Badge, EmptyState, PageHeader, Panel, ART } from '../../components/portal/PortalUI';
+import { Badge, EmptyState, PageHeader, Panel, ART, studentArt, subjectArt } from '../../components/portal/PortalUI';
 import ParentHome from './ParentHome';
+import ParentChildren, { SubjectDetails } from './ParentChildren';
+import PortalDialog from '../../components/portal/PortalDialog';
 import { CERTIFICATE_TYPES, certificateDocument, certificateNumber } from '../../utils/officialDocuments';
 import type { LucideIcon } from 'lucide-react';
 import {
@@ -84,6 +86,8 @@ const ParentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
   const [allQuizzes, setAllQuizzes] = useState<QuizResult[]>([]);
   const [needsPasswordChange, setNeedsPasswordChange] = useState(false);
   const [showChat, setShowChat] = useState(false);
+  // ‏«تفاصيل الابن» من صفحة الأبناء والمواد: صفحةٌ مستقلّة فوق اللوحة.
+  const [childDialog, setChildDialog] = useState<StudentInfo | null>(null);
   const [showChangeGradeModal, setShowChangeGradeModal] = useState(false);
   const [studentToChangeGrade, setStudentToChangeGrade] = useState<StudentInfo | null>(null);
   const [availableGrades, setAvailableGrades] = useState<string[]>([]);
@@ -568,10 +572,6 @@ const ParentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
   const getQuizTypeLabel = (quizType: string | undefined) => {
     return formatQuizTypeLabel(quizType);
   };
-  const getChildAverage = (childId: string) => {
-    const qs = getChildQuizzes(childId);
-    return qs.length > 0 ? (qs.reduce((a, q) => a + q.percentage, 0) / qs.length).toFixed(0) : '0';
-  };
   const getChildSubjects = (child: StudentInfo) => {
     const set = new Set<string>();
     try {
@@ -761,9 +761,6 @@ const ParentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
       <ParentLogin onLogin={handleLogin} onBack={onLogout} />;
   }
 
-  /* ===== Derived data ===== */
-  const myChildQuizzes = activeChild ? allQuizzes.filter(q => q.studentId === activeChild.id) : [];
-  const subjectsOfChild = activeChild ? getChildSubjects(activeChild).map(s => ({ subject: s })) : [];
 
   /* ===== المعلم المرتبط ===== */
   const teacherName = (() => {
@@ -845,284 +842,28 @@ const ParentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
             onAddChild={() => setMenuType(ParentMenuType.ADD_CHILDREN)}
             onOpenChild={(child) => { setActiveChild(child); setActiveSubject(null); }}
             onBack={goHome}
-            onOpenSubject={(child, subject) => { setActiveChild(child); setActiveSubject(subject); setMenuType(ParentMenuType.CHILDREN); }}
+            onOpenSubject={(child, subject) => { setActiveChild(child); setActiveSubject(subject); }}
             onPrintSubject={printSubjectReport}
             onPrintTeacherResults={printTeacherResultsReport}
             onPreviewCertificate={setPreviewCert}
           />
         )}
 
-        {/* ---------- CHILDREN (dropdown + detail) ---------- */}
+        {/* ---------- CHILDREN ---------- */}
         {menuType === ParentMenuType.CHILDREN && (
-          <div className="dashboard-internal-layout animate-fadeIn min-h-[calc(100dvh-8rem)]">
-            {/* Left sidebar — dropdown selector */}
-            <div className="w-full lg:w-72 bg-white rounded-2xl shadow-md border border-rose-100 p-4 flex flex-col shrink-0">
-              <h3 className="text-xs font-black text-rose-700 mb-3 border-b border-rose-100 pb-2 flex items-center gap-2">
-                اختيار الابن
-              </h3>
-              <div className="space-y-3">
-                <select
-                  value={activeChild?.id || ''}
-                  onChange={e => {
-                    const selectedId = e.target.value;
-                    const ch = children.find(c => c.id === selectedId);
-                    if (ch) { setActiveChild(ch); setActiveSubject(null); }
-                  }}
-                  className="w-full p-3 bg-rose-50 border border-rose-200 rounded-xl font-bold text-sm text-rose-800 focus:border-rose-400 focus:ring-4 focus:ring-rose-100 focus:ring-2 focus:ring-rose-100 outline-none transition-all cursor-pointer"
-                >
-                  <option value="" disabled>اختر الابن</option>
-                  {children.map(child => (
-                    <option key={child.id} value={child.id}>{child.name}</option>
-                  ))}
-                </select>
-
-                {/* Mini summary of selected child */}
-                {activeChild && (() => {
-                  const qs = getChildQuizzes(activeChild.id);
-                  const avg = getChildAverage(activeChild.id);
-                  const initials = activeChild.name.split(' ').map(n => n[0]).join('').slice(0, 2);
-                  const colors = [
-                    {bg: 'from-rose-400 to-orange-400', ring: 'ring-rose-200'},
-                    {bg: 'from-emerald-400 to-teal-400', ring: 'ring-emerald-200'},
-                    {bg: 'from-sky-400 to-rose-400', ring: 'ring-sky-200'},
-                    {bg: 'from-violet-400 to-purple-400', ring: 'ring-violet-200'},
-                    {bg: 'from-amber-400 to-yellow-400', ring: 'ring-amber-200'},
-                  ];
-                  const c = colors[activeChild.name.length % colors.length];
-                  return (
-                    <div className="bg-rose-500 text-white p-4 rounded-2xl shadow-md animate-fadeIn">
-                      <div className="flex items-center gap-3 mb-3">
-                        <div className={`w-12 h-12 rounded-xl bg-gradient-to-br ${c.bg} flex items-center justify-center text-white font-black text-lg ring-2 ${c.ring}`}>{initials}</div>
-                        <div>
-                          <p className="font-black text-sm">{activeChild.name}</p>
-                          <p className="text-rose-200 text-[10px] font-bold">{activeChild.primaryGrade || activeChild.grade}</p>
-                        </div>
-                      </div>
-                       <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-center">
-                        <div className="bg-white/10 rounded-lg p-2"><p className="font-black text-sm">{subjectsOfChild.length}</p><p className="text-[9px] text-rose-200 font-bold">مواد</p></div>
-                        <div className="bg-white/10 rounded-lg p-2"><p className="font-black text-sm">{qs.length}</p><p className="text-[9px] text-rose-200 font-bold">اختبارات</p></div>
-                        <div className="bg-white/10 rounded-lg p-2"><p className="font-black text-sm">{avg}%</p><p className="text-[9px] text-rose-200 font-bold">معدل</p></div>
-                      </div>
-                    </div>
-                  );
-                })()}
-              </div>
-            </div>
-
-            {/* Main detail area */}
-            <div className="min-w-0 flex-1 flex flex-col">
-              <div className="flex-1 overflow-y-auto pr-1 min-h-0">
-                {activeChild ? (
-                  <div className="space-y-5 pb-4">
-                    {/* Profile Card — compact */}
-                    <div className="bg-gradient-to-r from-rose-500 to-rose-600 p-5 rounded-2xl shadow-xl text-white">
-                      <div className="flex flex-wrap items-center justify-between gap-3">
-                        <div className="flex min-w-0 flex-1 items-center gap-3">
-                          <div className="min-w-0">
-                            <h1 className="text-xl font-black">{activeChild.name}</h1>
-                            <div className="flex gap-2 flex-wrap mt-1">
-                              <span className="bg-white/20 text-white px-2 py-0.5 rounded-full font-bold text-xs">{activeChild.primaryGrade || activeChild.grade}</span>
-                              <span className="bg-white/20 text-white px-2 py-0.5 rounded-full font-bold text-xs">{parent?.name}</span>
-                            </div>
-                          </div>
-                        </div>
-                         {permissions.canResetStudentPassword && (
-                           <button onClick={() => handleResetStudentPassword(activeChild)} className="bg-white text-rose-500 px-4 py-2 rounded-xl font-black hover:bg-rose-100 shadow-lg transition-all text-xs shrink-0">
-                             تغيير المرور
-                           </button>
-                         )}
-                      </div>
-                    </div>
-
-                    {/* Quick Stats — compact 3-col */}
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                      <div className="bg-blue-50 p-3 rounded-xl border border-blue-100 text-center">
-                        <p className="text-blue-900 font-black text-lg">{subjectsOfChild.length}</p>
-                        <p className="text-blue-500 text-[10px] font-bold">مواد</p>
-                      </div>
-                      <div className="bg-purple-50 p-3 rounded-xl border border-purple-100 text-center">
-                        <p className="text-purple-900 font-black text-lg">{myChildQuizzes.length}</p>
-                        <p className="text-purple-500 text-[10px] font-bold">اختبارات</p>
-                      </div>
-                      <div className="bg-green-50 p-3 rounded-xl border border-green-100 text-center">
-                        <p className="text-green-900 font-black text-lg">{myChildQuizzes.length > 0 ? (myChildQuizzes.reduce((acc, q) => acc + q.percentage, 0) / myChildQuizzes.length).toFixed(0) : '0'}%</p>
-                        <p className="text-green-500 text-[10px] font-bold">معدل</p>
-                      </div>
-                    </div>
-
-                    {/* Subject Cards — compact grid */}
-                    <div>
-                      <h3 className="text-base font-black mb-3 text-rose-800 flex items-center gap-2">
-                        <span className="w-1 h-4 bg-rose-500 rounded-full"></span> المواد والتحصيل
-                      </h3>
-                      <div className="dashboard-card-grid dashboard-card-grid-wide">
-                        {subjectsOfChild.length > 0 ? subjectsOfChild.map(subObj => {
-                          const subQuizzes = myChildQuizzes.filter(q => q.subject === subObj.subject);
-                          const avg = subQuizzes.length > 0 ? (subQuizzes.reduce((acc, q) => acc + q.percentage, 0) / subQuizzes.length).toFixed(0) : '0';
-                          const lastQuiz = subQuizzes.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())[0];
-                          const level = subQuizzes.length === 0 ? 'لم يبدأ' : parseInt(avg as string) >= 90 ? 'ممتاز' : parseInt(avg as string) >= 70 ? 'جيد جداً' : parseInt(avg as string) >= 60 ? 'جيد' : 'يحتاج تحسين';
-                          const barColor = subQuizzes.length === 0 ? 'bg-rose-200' : parseInt(avg as string) >= 90 ? 'bg-gradient-to-r from-emerald-400 to-emerald-600' : parseInt(avg as string) >= 70 ? 'bg-gradient-to-r from-blue-400 to-blue-600' : parseInt(avg as string) >= 60 ? 'bg-gradient-to-r from-amber-400 to-amber-600' : 'bg-gradient-to-r from-red-400 to-red-600';
-                          return (
-                            <div key={`${subObj.subject}`} className="bg-white p-4 rounded-2xl shadow-sm border border-rose-100 hover:shadow-md hover:border-rose-300 transition-all">
-                              <div className="flex items-start justify-between mb-2">
-                                <div className="flex-1 min-w-0">
-                                  <h4 className="text-sm font-black text-rose-800 truncate">{subObj.subject}</h4>
-                                </div>
-                                <div className={`text-white px-2 py-1 rounded-lg text-center shadow-md text-sm font-black ${subQuizzes.length === 0 ? 'bg-rose-300' : 'bg-rose-500'}`}>
-                                  {avg}%
-                                </div>
-                              </div>
-                              <div className="flex items-center justify-between text-[10px] font-bold text-rose-400 mb-1.5">
-                                <span>{subQuizzes.length} اختبار</span>
-                                <span className={parseInt(avg as string) >= 70 ? 'text-emerald-600' : parseInt(avg as string) >= 60 ? 'text-amber-600' : 'text-red-500'}>{level}</span>
-                              </div>
-                              <div className="w-full bg-rose-100 rounded-full h-1.5 mb-2.5">
-                                <div className={`h-full rounded-full ${barColor}`} style={{width: subQuizzes.length === 0 ? '0%' : `${avg}%`}}></div>
-                              </div>
-                              <div className="flex gap-2">
-                                <button onClick={() => { setActiveSubject(subObj.subject); setMenuType(ParentMenuType.CHILDREN); }} className="flex-1 bg-rose-500 text-white py-1.5 rounded-xl font-bold hover:bg-rose-600 transition-all text-xs">التفاصيل</button>
-                                {subQuizzes.length > 0 && <button onClick={() => printSubjectReport(activeChild, subObj.subject)} className="px-2.5 bg-rose-100 text-rose-500 py-1.5 rounded-xl font-bold hover:bg-rose-500 hover:text-white transition-all text-xs">🖨️</button>}
-                              </div>
-                            </div>
-                          );
-                        }) : (
-                          <div className="col-span-full rounded-2xl border-2 border-dashed border-rose-200 bg-rose-50 p-5 text-center sm:p-10">
-                            <p className="text-rose-500 font-bold text-sm">لم يتم رصد نتائج بعد</p>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-
-                    {/* Active subject detail */}
-                    {/*
-                      ── ويُحاط بحاجزِ خطأ ──
-                      هذه اللوحةُ تقرأ نتائجَ وشهاداتٍ وتواريخَ كتبها الخادمُ
-                      أو نسخةٌ أقدمُ من التطبيق. وحقلٌ ناقصٌ واحدٌ كان يرمي في
-                      أثناء البناء فيُفرَغ الفرعُ كلُّه — واللوحةُ تبدو متجمّدةً
-                      لا تُعلن خطأً. والحاجزُ يُبقي الخطأَ في بطاقةٍ فيها زرُّ
-                      إعادة، ويبقى بقيّةُ ملفّ الابن يُقرأ.
-                    */}
-                    {activeSubject && (
-                      <CardErrorBoundary label={`تفاصيل مادة ${activeSubject}`}>
-                      <div className="space-y-5 animate-fadeIn">
-                        <button onClick={() => setActiveSubject(null)} className="bg-white px-4 py-1.5 rounded-full font-black text-rose-500 border border-rose-200 shadow-sm hover:bg-rose-50 transition-all text-xs">← جميع المواد</button>
-                        {/*
-                          تعذُّرُ السحب لا يُفرِغ الشاشة: النسخةُ المحليّة تُعرض،
-                          ويُقال إنها قد لا تكون الأحدث. وشريطٌ يحجب اللوحةَ على
-                          انقطاعٍ لحظيٍّ أسوأُ من رقمٍ متأخّرٍ بدقيقة.
-                        */}
-                        {syncError && (
-                          <div role="status" className="flex items-center gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-[11px] font-bold text-amber-700">
-                            <span aria-hidden="true"><IconTriangleAlert className="inline-block h-[1em] w-[1em] align-[-0.125em]" aria-hidden="true" /></span>
-                            <span>تعذّر تحديث البيانات من الخادم — ما يُعرض قد لا يكون الأحدث.</span>
-                          </div>
-                        )}
-                        <div className="bg-gradient-to-r from-rose-500 to-rose-600 p-4 rounded-2xl shadow-xl text-white">
-                          <div className="flex flex-wrap items-center justify-between gap-3">
-                            <div className="min-w-0">
-                              <h2 className="text-lg font-black">{activeSubject}</h2>
-                              {/* والحقولُ الناقصةُ تُحجب لا تُطبع «undefined». */}
-                              <div className="flex gap-3 text-rose-200 font-bold text-xs mt-1">
-                                <span>{activeChild.name || '—'}</span>
-                                {activeChild.grade && <span>• {activeChild.grade}</span>}
-                                {activeChild.term && <span>• {activeChild.term}</span>}
-                                {syncing && <span className="animate-pulse">• يُحدّث…</span>}
-                              </div>
-                            </div>
-                            {myChildQuizzes.filter(q => q.subject === activeSubject).length > 0 && (
-                              <button onClick={() => printSubjectReport(activeChild, activeSubject)} className="bg-white text-rose-500 px-4 py-2 rounded-xl font-black shadow-lg hover:shadow-xl transition-all text-xs shrink-0">طباعة</button>
-                            )}
-                          </div>
-                        </div>
-                        {(() => {
-                          const subQuizzes = myChildQuizzes.filter(q => q.subject === activeSubject);
-                          const avg = subQuizzes.length > 0 ? (subQuizzes.reduce((acc, q) => acc + q.percentage, 0) / subQuizzes.length).toFixed(0) : '0';
-                          return (
-                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-                              <div className="bg-emerald-50 p-3 rounded-xl border border-emerald-100 text-center"><p className="text-emerald-600 text-[10px] font-bold">المعدل</p><p className="text-xl font-black text-emerald-700">{avg}%</p></div>
-                              <div className="bg-blue-50 p-3 rounded-xl border border-blue-100 text-center"><p className="text-blue-600 text-[10px] font-bold">أعلى</p><p className="text-xl font-black text-blue-700">{subQuizzes.length > 0 ? Math.max(...subQuizzes.map(q => q.percentage)) : 0}%</p></div>
-                              <div className="bg-purple-50 p-3 rounded-xl border border-purple-100 text-center"><p className="text-purple-600 text-[10px] font-bold">أقل</p><p className="text-xl font-black text-purple-700">{subQuizzes.length > 0 ? Math.min(...subQuizzes.map(q => q.percentage)) : 0}%</p></div>
-                              <div className="bg-orange-50 p-3 rounded-xl border border-orange-100 text-center"><p className="text-orange-600 text-[10px] font-bold">العدد</p><p className="text-xl font-black text-orange-700">{subQuizzes.length}</p></div>
-                            </div>
-                          );
-                        })()}
-                        {/* Quiz results list */}
-                         <div className="dashboard-surface dashboard-results-panel">
-                          <h3 className="text-sm font-black text-rose-800 mb-3">نتائج الاختبارات</h3>
-                          <div className="space-y-2">
-                            {myChildQuizzes.filter(q => q.subject === activeSubject).reverse().length > 0 ?
-                              myChildQuizzes.filter(q => q.subject === activeSubject).reverse().map((q, i) => (
-                                <div key={i} className="flex items-center justify-between p-3 bg-rose-50 rounded-xl border border-rose-100 hover:border-rose-300 transition-all">
-                                  <div className="flex-1 min-w-0">
-                                    <h5 className="font-bold text-sm text-rose-800">{getQuizTypeLabel(q.quizType)}</h5>
-                                    <p className="text-rose-500 font-bold text-[10px]">{formatAcademicPath(quizResultPath(q, createdQuizzes)) || '—'}</p>
-                                    <p className="text-rose-400 font-bold text-[10px]">{formatSafeDate(q.createdAt)}</p>
-                                  </div>
-                                  <div className="text-center mr-3 shrink-0">
-                                    <div className={`text-lg font-black rounded-lg px-3 py-1 ${q.percentage >= 80 ? 'bg-emerald-100 text-emerald-700' : q.percentage >= 60 ? 'bg-amber-100 text-amber-700' : 'bg-red-100 text-red-700'}`}>{q.percentage}%</div>
-                                  </div>
-                                </div>
-                              )) :
-                              <div className="p-6 text-center bg-rose-50 rounded-xl border border-dashed border-rose-200"><p className="text-rose-400 font-bold text-sm">لا توجد نتائج بعد</p></div>
-                            }
-                          </div>
-                        </div>
-
-                        {/* Certificates for this subject */}
-                        {(() => {
-                          const subCerts = getAllCertificates().filter((c: CertificateRecord) => c.studentId === activeChild.id && c.subject === activeSubject);
-                          if (subCerts.length === 0) return null;
-                          return (
-                            <div className="bg-white p-4 rounded-2xl shadow-sm border border-rose-100">
-                              <h3 className="text-sm font-black text-rose-800 mb-3">الشهادات في هذه المادة</h3>
-                              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                                {subCerts.map((cert, i) => (
-                                  <div key={i} className={`p-3 rounded-xl border ${cert.type === 'excellence' ? 'bg-amber-50 border-amber-200' : cert.type === 'appreciation' ? 'bg-blue-50 border-blue-200' : 'bg-emerald-50 border-emerald-200'} flex items-center gap-3`}>
-                                    <div className="text-2xl shrink-0">{cert.type === 'excellence' ? '🏆' : cert.type === 'appreciation' ? '⭐' : '🌟'}</div>
-                                    <div className="flex-1 min-w-0">
-                                      <p className="font-bold text-xs text-rose-800 truncate">{cert.type === 'excellence' ? 'شهادة تفوق' : cert.type === 'appreciation' ? 'شهادة شكر' : 'شهادة مشاركة'}</p>
-                                      <p className="text-[10px] text-rose-400 font-bold">{formatSafeDate(cert.date, { month: 'short', day: 'numeric', year: 'numeric' })}</p>
-                                    </div>
-                                    <button onClick={() => setPreviewCert(cert)} className="text-xs font-bold text-rose-500 hover:text-rose-800 shrink-0">معاينة</button>
-                                  </div>
-                                ))}
-                              </div>
-                            </div>
-                          );
-                        })()}
-
-                        {/* Level analysis */}
-                        {(() => {
-                          const subQuizzes = myChildQuizzes.filter(q => q.subject === activeSubject);
-                          const avg = subQuizzes.length > 0 ? (subQuizzes.reduce((acc, q) => acc + q.percentage, 0) / subQuizzes.length).toFixed(0) : '0';
-                          const trend = subQuizzes.length >= 2 ? subQuizzes.sort((a,b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()).map(q => q.percentage) : [];
-                          const improving = trend.length >= 2 && trend[trend.length - 1] > trend[0];
-                          const declining = trend.length >= 2 && trend[trend.length - 1] < trend[0];
-                          return (
-                            <div className="bg-rose-50 p-4 rounded-2xl border border-rose-100">
-                              <h3 className="text-sm font-black text-rose-800 mb-2">تحليل المستوى</h3>
-                              <div className="flex flex-wrap gap-2">
-                                <span className="px-3 py-1.5 rounded-full bg-white text-xs font-bold text-rose-700 border border-rose-200">المعدل: {avg}%</span>
-                                {improving && <span className="px-3 py-1.5 rounded-full bg-emerald-100 text-xs font-bold text-emerald-700 border border-emerald-200">تحسن مستمر</span>}
-                                {declining && <span className="px-3 py-1.5 rounded-full bg-red-100 text-xs font-bold text-red-700 border border-red-200">تراجع ملاحظ</span>}
-                                {!improving && !declining && trend.length >= 2 && <span className="px-3 py-1.5 rounded-full bg-amber-100 text-xs font-bold text-amber-700 border border-amber-200">مستوى مستقر</span>}
-                              </div>
-                            </div>
-                          );
-                        })()}
-                      </div>
-                      </CardErrorBoundary>
-                    )}
-                  </div>
-                ) : (
-                  <div className="flex flex-col items-center justify-center h-full text-center">
-                    <p className="text-rose-500 font-black text-base mb-1">اختر الابن من قائمة «اختيار الابن»</p>
-                    <p className="text-rose-400 text-xs font-bold">انقر على أي ابن لعرض تفاصيله</p>
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
+          <ParentChildren
+            children={children}
+            results={allQuizzes}
+            certificates={childCertificates}
+            selected={activeChild}
+            onSelect={(child) => { setActiveChild(child); setActiveSubject(null); }}
+            getChildSubjects={getChildSubjects}
+            teacherName={teacherName}
+            onOpenChild={setChildDialog}
+            onOpenSubject={(child, subject) => { setActiveChild(child); setActiveSubject(subject); }}
+            onPrintSubject={printSubjectReport}
+            onResetPassword={permissions.canResetStudentPassword ? handleResetStudentPassword : undefined}
+          />
         )}
 
         {/* ---------- ADD CHILDREN ---------- */}
@@ -1294,6 +1035,71 @@ const ParentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
           </div>
         )}
       </PortalShell>
+
+      {childDialog && parent && (
+        <PortalDialog
+          title={childDialog.name}
+          subtitle={`التقرير التفصيلي · ${childDialog.primaryGrade || childDialog.grade || 'بلا صف'}`}
+          media={<img src={studentArt(childDialog.gender)} alt="" />}
+          onClose={() => setChildDialog(null)}
+        >
+          <ParentHome
+            parent={parent}
+            children={children}
+            results={allQuizzes}
+            certificates={childCertificates}
+            teacherName={teacherName}
+            activeChild={childDialog}
+            embedded
+            getChildSubjects={getChildSubjects}
+            quizTypeLabel={getQuizTypeLabel}
+            isTeacherQuiz={(quizType) => normalizeQuizType(quizType) === QuizType.TEACHER}
+            canAddChild={false}
+            onAddChild={() => undefined}
+            onOpenChild={setChildDialog}
+            onBack={() => setChildDialog(null)}
+            onOpenSubject={(child, subject) => { setActiveChild(child); setActiveSubject(subject); }}
+            onPrintSubject={printSubjectReport}
+            onPrintTeacherResults={printTeacherResultsReport}
+            onPreviewCertificate={setPreviewCert}
+          />
+        </PortalDialog>
+      )}
+
+      {activeChild && activeSubject && (
+        <PortalDialog
+          title={`مادة ${activeSubject}`}
+          subtitle={`${activeChild.name} · ${activeChild.primaryGrade || activeChild.grade || 'بلا صف'}${syncing ? ' · يُحدَّث…' : ''}`}
+          media={<img src={subjectArt(activeSubject)} alt="" />}
+          onClose={() => setActiveSubject(null)}
+          actions={
+            allQuizzes.some((quiz) => quiz.studentId === activeChild.id && quiz.subject === activeSubject) ? (
+              <button type="button" className="portal-btn portal-btn-secondary" onClick={() => printSubjectReport(activeChild, activeSubject)}>
+                <Printer aria-hidden="true" /> طباعة
+              </button>
+            ) : undefined
+          }
+        >
+          <CardErrorBoundary label={`تفاصيل مادة ${activeSubject}`}>
+            {syncError && (
+              <div role="status" className="mb-4 flex items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-bold text-amber-700">
+                <IconTriangleAlert className="h-4 w-4" aria-hidden="true" />
+                <span>تعذّر تحديث البيانات من الخادم — ما يُعرض قد لا يكون الأحدث.</span>
+              </div>
+            )}
+            <SubjectDetails
+              child={activeChild}
+              subject={activeSubject}
+              results={allQuizzes}
+              certificates={childCertificates}
+              quizTypeLabel={getQuizTypeLabel}
+              isTeacherQuiz={(quizType) => normalizeQuizType(quizType) === QuizType.TEACHER}
+              pathOf={(result) => formatAcademicPath(quizResultPath(result, createdQuizzes))}
+              onPreviewCertificate={setPreviewCert}
+            />
+          </CardErrorBoundary>
+        </PortalDialog>
+      )}
 
       {/* ===== معاينة الشهادة ===== */}
       {previewCert && (
