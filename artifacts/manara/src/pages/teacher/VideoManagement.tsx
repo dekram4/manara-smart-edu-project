@@ -187,7 +187,7 @@ const VideoManagement: React.FC<VideoManagementProps> = ({ teacherId, teacherNam
           sourceType: 'mp4',
         });
       } catch (error) {
-        alert(`⚠️ ${error instanceof Error ? error.message : 'فشل رفع ملف الفيديو'}`);
+        alert(`${error instanceof Error ? error.message : 'فشل رفع ملف الفيديو'}`);
         return null;
       }
     }
@@ -273,7 +273,7 @@ const VideoManagement: React.FC<VideoManagementProps> = ({ teacherId, teacherNam
             showVideoStorageNotice(uploaded);
             videoUrl = uploaded.url;
           } catch (error) {
-            alert(`⚠️ ${error instanceof Error ? error.message : 'فشل رفع ملف الفيديو'}`);
+            alert(`${error instanceof Error ? error.message : 'فشل رفع ملف الفيديو'}`);
             return;
           }
         } else if (formData.sourceType === 'mp4') {
@@ -339,7 +339,7 @@ const VideoManagement: React.FC<VideoManagementProps> = ({ teacherId, teacherNam
       await loadVideos();
       playLamsaSound('success');
     } catch (error) {
-      alert(`⚠️ ${error instanceof Error ? error.message : 'تعذر حفظ فيديو السينما'}`);
+      alert(`${error instanceof Error ? error.message : 'تعذر حفظ فيديو السينما'}`);
     } finally {
       setSaving(false);
     }
@@ -357,7 +357,7 @@ const VideoManagement: React.FC<VideoManagementProps> = ({ teacherId, teacherNam
       await loadVideos();
       playLamsaSound('pop');
     } catch (error) {
-      alert(`⚠️ ${error instanceof Error ? error.message : 'تعذر حذف الفيديو'}`);
+      alert(`${error instanceof Error ? error.message : 'تعذر حذف الفيديو'}`);
     }
   };
 
@@ -467,12 +467,12 @@ const VideoManagement: React.FC<VideoManagementProps> = ({ teacherId, teacherNam
                 >
                   <option value="">اختر المعلم</option>
                   {teachers.map(teacher => (
-                    <option key={teacher.id} value={teacher.id}>👨‍🏫 {teacher.name}</option>
+                    <option key={teacher.id} value={teacher.id}>{teacher.name}</option>
                   ))}
                 </select>
               ) : (
                 <div className="w-full rounded-2xl border-[3px] border-amber-100 bg-amber-50/60 p-4 text-lg font-black text-amber-900">
-                  👨‍🏫 {teacherName || 'أنت'}
+                  {teacherName || 'أنت'}
                 </div>
               )}
               {isAdmin && teachers.length === 0 && !loading && (
@@ -642,7 +642,7 @@ const VideoManagement: React.FC<VideoManagementProps> = ({ teacherId, teacherNam
 
       {loadError && (
         <div className="rounded-2xl border-2 border-red-200 bg-red-50 p-4 font-bold text-red-700">
-          ⚠️ {loadError}
+          {loadError}
           <button onClick={() => void loadVideos()} className="mr-3 rounded-lg bg-white px-3 py-1 text-sm text-red-700 hover:bg-red-100">إعادة المحاولة</button>
         </div>
       )}
@@ -662,9 +662,9 @@ const VideoManagement: React.FC<VideoManagementProps> = ({ teacherId, teacherNam
                 <h3 className="text-xl font-black text-amber-900 mb-2">{video.title}</h3>
                 <p className="text-amber-600 text-sm font-medium mb-3 line-clamp-2">{video.description}</p>
                 <div className="flex flex-wrap gap-2 mb-4">
-                  {video.gradeId && <span className="px-2 py-1 bg-amber-100 text-amber-700 rounded-lg text-xs font-bold">🎓 {video.gradeId}</span>}
+                  {video.gradeId && <span className="px-2 py-1 bg-amber-100 text-amber-700 rounded-lg text-xs font-bold">{video.gradeId}</span>}
                   {(video.teacherName || video.teacherId) && (
-                    <span className="px-2 py-1 bg-orange-100 text-orange-700 rounded-lg text-xs font-bold">👨‍🏫 {video.teacherName || video.teacherId}</span>
+                    <span className="px-2 py-1 bg-orange-100 text-orange-700 rounded-lg text-xs font-bold">{video.teacherName || video.teacherId}</span>
                   )}
                   {video.createdBy === 'admin' && <span className="px-2 py-1 bg-sky-100 text-sky-700 rounded-lg text-xs font-bold">أضافه المشرف</span>}
                 </div>

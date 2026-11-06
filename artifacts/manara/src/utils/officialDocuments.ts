@@ -41,6 +41,15 @@ export const certificateNumber = (cert: Pick<CertificateRecord, 'id' | 'date'>):
   return `MNR-${year}-${String(hash % 1000000).padStart(6, '0')}`;
 };
 
+/**
+ * مَن يوقّع الشهادة: من أصدرها فعلاً — المعلم أو المشرف المسجّل حينها
+ * (`issuedBy`). والشهاداتُ الأقدم من الحقل يوقّعها معلّمُها كما كانت.
+ */
+export const issuerOf = (cert: CertificateRecord): { name: string; role: string } =>
+  cert.issuedBy
+    ? { name: cert.issuedBy, role: cert.issuedByRole === 'admin' ? 'مشرف المنصّة' : 'معلّم/ة المادة' }
+    : { name: cert.teacherName || '', role: 'معلّم/ة المادة' };
+
 const certificateMessage = (cert: CertificateRecord): SafeHtml => {
   const average = typeof cert.average === 'number' && Number.isFinite(cert.average) ? `${Math.round(cert.average)}%` : null;
   switch (cert.type) {
@@ -136,7 +145,7 @@ body { font-family: 'Tajawal', sans-serif; color: #13243a; -webkit-print-color-a
       ${typeof cert.average === 'number' && Number.isFinite(cert.average) ? html`<div><small>المعدّل</small><strong>${Math.round(cert.average)}%</strong></div>` : ''}
     </div>
     <div class="footer">
-      <div class="sign"><strong>${cert.teacherName || ''}</strong><div class="line"></div><span>معلّم/ة المادة</span></div>
+      <div class="sign"><strong>${issuerOf(cert).name}</strong><div class="line"></div><span>${issuerOf(cert).role}</span></div>
       <div class="seal"><div><img src="${logoUrl()}" alt=""><span>منارة المعرفة</span></div></div>
       <div class="sign"><strong></strong><div class="line"></div><span>إدارة المنصّة</span></div>
     </div>

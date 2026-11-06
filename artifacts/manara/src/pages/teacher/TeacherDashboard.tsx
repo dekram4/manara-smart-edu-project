@@ -274,7 +274,7 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onLogout }) => {
       case TeacherMenuType.REPORTS:
         return <TeacherReports teacherId={currentTeacher.id} />;
       case TeacherMenuType.CERTIFICATES:
-        return <TeacherCertificates teacherId={currentTeacher.id} teacherName={currentTeacher.name} />;
+        return <TeacherCertificates teacherId={currentTeacher.id} teacherName={effectiveTeacher.name || currentTeacher.name} />;
       case TeacherMenuType.VIDEO_MANAGEMENT:
          return <VideoManagement teacherId={currentTeacher.id} teacherName={currentTeacher.name} permissionPackageId={currentTeacher.permissionPackageId} />;
       case TeacherMenuType.MY_ACCOUNT:

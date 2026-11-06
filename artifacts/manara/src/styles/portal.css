@@ -1572,3 +1572,522 @@ button.portal-stat:hover {
   min-height: 0;
   padding: 0;
 }
+
+/* ==========================================================================
+   جدول الحسابات (الطلاب وأولياء الأمور)
+   ========================================================================== */
+
+.portal-directory-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.85rem 1.25rem;
+  border-bottom: 1px solid var(--pt-line);
+}
+
+.portal-tabs {
+  display: inline-flex;
+  padding: 0.25rem;
+  border-radius: 10px;
+  background: #eef2f7;
+}
+
+.manara-enterprise.portal-shell .portal-tabs button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  min-height: 2.25rem;
+  padding: 0.35rem 0.9rem;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--pt-muted);
+  font-size: 0.86rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.portal-tabs button svg {
+  width: 1rem;
+  height: 1rem;
+}
+
+.portal-tabs button span {
+  min-width: 1.5rem;
+  padding: 0 0.4rem;
+  border-radius: 999px;
+  background: rgb(15 31 53 / 0.06);
+  font-size: 0.74rem;
+  text-align: center;
+}
+
+.manara-enterprise.portal-shell .portal-tabs button.is-active {
+  background: #fff;
+  color: var(--pt-primary);
+  box-shadow: var(--pt-shadow);
+}
+
+.portal-directory-filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.portal-directory-filters select {
+  min-height: 2.4rem;
+  max-width: 15rem;
+  padding: 0.35rem 0.75rem;
+  font-size: 0.86rem;
+}
+
+.portal-search {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.portal-search svg {
+  position: absolute;
+  inset-inline-start: 0.7rem;
+  width: 1rem;
+  height: 1rem;
+  color: var(--pt-subtle);
+  pointer-events: none;
+}
+
+.portal-shell .dashboard-main .portal-search input {
+  min-width: 16rem;
+  min-height: 2.4rem;
+  padding: 0.35rem 2.2rem;
+  font-size: 0.86rem;
+}
+
+@media (max-width: 639px) {
+  .portal-search,
+  .portal-directory-filters select,
+  .portal-shell .dashboard-main .portal-search input {
+    width: 100%;
+    max-width: none;
+    min-width: 0;
+  }
+
+  .portal-directory-filters {
+    width: 100%;
+  }
+}
+
+.manara-enterprise.portal-shell button.portal-icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.1rem;
+  height: 2.1rem;
+  min-height: 0;
+  padding: 0;
+  border: 1px solid var(--pt-line);
+  border-radius: var(--pt-radius-sm);
+  background: #fff;
+  color: var(--pt-muted);
+  cursor: pointer;
+}
+
+.portal-icon-btn svg {
+  width: 1rem;
+  height: 1rem;
+}
+
+.manara-enterprise.portal-shell button.portal-icon-btn:hover {
+  color: var(--pt-primary);
+  border-color: var(--pt-primary-line);
+  background: var(--pt-primary-soft);
+}
+
+.manara-enterprise.portal-shell button.portal-icon-btn.is-danger:hover {
+  color: var(--pt-danger);
+  border-color: #f5c2c2;
+  background: var(--pt-danger-soft);
+}
+
+.manara-enterprise.portal-shell button.portal-chip {
+  min-height: 0;
+  padding: 0.15rem 0.6rem;
+  border: 1px solid var(--pt-line);
+  border-radius: 999px;
+  background: var(--pt-surface-muted);
+  color: var(--pt-text);
+  font-size: 0.78rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.manara-enterprise.portal-shell button.portal-chip:hover {
+  border-color: var(--pt-primary-line);
+  color: var(--pt-primary);
+}
+
+.manara-enterprise.portal-shell button.portal-link {
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--pt-primary);
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.manara-enterprise.portal-shell button.portal-link:hover {
+  text-decoration: underline;
+}
+
+/* ==========================================================================
+   الرسوم: حلقة التوزيع وأشرطة الصفوف
+   ========================================================================== */
+
+.portal-donut {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 1.5rem;
+  min-height: 230px;
+}
+
+.portal-donut-chart {
+  position: relative;
+  width: 190px;
+  height: 190px;
+  flex: 0 0 auto;
+}
+
+.portal-donut-center {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+}
+
+.portal-donut-center strong {
+  font-size: 2rem;
+  font-weight: 800;
+  color: var(--pt-ink);
+  line-height: 1;
+}
+
+.portal-donut-center span {
+  margin-top: 0.25rem;
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--pt-muted);
+}
+
+.portal-legend {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  min-width: 13rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.portal-legend li {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--pt-text);
+}
+
+.portal-legend i {
+  width: 0.7rem;
+  height: 0.7rem;
+  border-radius: 3px;
+  flex: 0 0 auto;
+}
+
+.portal-legend span {
+  flex: 1 1 auto;
+}
+
+.portal-legend b {
+  font-weight: 800;
+  color: var(--pt-ink);
+  font-variant-numeric: tabular-nums;
+}
+
+.portal-bars {
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+}
+
+.portal-bar-row {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+}
+
+.portal-bar-label {
+  flex: 0 0 9rem;
+  font-size: 0.86rem;
+  font-weight: 700;
+  color: var(--pt-text);
+}
+
+.portal-bar-row b {
+  flex: 0 0 2.5rem;
+  text-align: end;
+  font-weight: 800;
+  color: var(--pt-ink);
+}
+
+.portal-bar-row .portal-progress {
+  height: 0.6rem;
+}
+
+/* ==========================================================================
+   المؤثرات: تدرّجاتٌ هادئة وظهورٌ متدرّج
+   ========================================================================== */
+
+.portal-page-header {
+  position: relative;
+  overflow: hidden;
+  background:
+    radial-gradient(ellipse 45% 120% at 0% 0%, rgb(15 118 110 / 0.07), transparent 70%),
+    radial-gradient(ellipse 40% 100% at 100% 100%, rgb(31 78 140 / 0.06), transparent 70%),
+    var(--pt-surface);
+}
+
+.portal-stat {
+  position: relative;
+  overflow: hidden;
+  background: linear-gradient(180deg, #fff 0%, #fbfcfe 100%);
+  transition: border-color 160ms ease, box-shadow 160ms ease, transform 160ms ease;
+}
+
+.portal-stat::after {
+  content: "";
+  position: absolute;
+  inset-inline: 0;
+  top: 0;
+  height: 3px;
+  background: var(--tone, var(--pt-primary));
+  opacity: 0.85;
+}
+
+.portal-stat::before {
+  content: "";
+  position: absolute;
+  inset-inline-end: -2.5rem;
+  bottom: -2.5rem;
+  width: 6.5rem;
+  height: 6.5rem;
+  border-radius: 50%;
+  background: var(--tone-soft, var(--pt-primary-soft));
+  opacity: 0.55;
+  pointer-events: none;
+}
+
+.portal-stat > * {
+  position: relative;
+}
+
+button.portal-stat:hover,
+.portal-panel.portal-child-card:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--pt-shadow-raised);
+}
+
+.portal-panel.portal-child-card {
+  transition: transform 160ms ease, box-shadow 160ms ease;
+}
+
+.portal-progress > span {
+  transition: width 700ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@keyframes portalRise {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: none; }
+}
+
+.portal-page > * {
+  animation: portalRise 420ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.portal-page > *:nth-child(2) { animation-delay: 50ms; }
+.portal-page > *:nth-child(3) { animation-delay: 100ms; }
+.portal-page > *:nth-child(4) { animation-delay: 150ms; }
+.portal-page > *:nth-child(5) { animation-delay: 200ms; }
+.portal-page > *:nth-child(n + 6) { animation-delay: 250ms; }
+
+.portal-stats > .portal-stat {
+  animation: portalRise 420ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.portal-stats > .portal-stat:nth-child(2) { animation-delay: 40ms; }
+.portal-stats > .portal-stat:nth-child(3) { animation-delay: 80ms; }
+.portal-stats > .portal-stat:nth-child(4) { animation-delay: 120ms; }
+.portal-stats > .portal-stat:nth-child(5) { animation-delay: 160ms; }
+.portal-stats > .portal-stat:nth-child(n + 6) { animation-delay: 200ms; }
+
+/* ——— صفحة البوابات: بطاقاتٌ تفاعلية ——— */
+.portal-roles-band::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image: radial-gradient(rgb(255 255 255 / 0.07) 1px, transparent 1px);
+  background-size: 22px 22px;
+  mask-image: linear-gradient(180deg, #000 30%, transparent 100%);
+}
+
+.portal-roles-hero,
+.portal-roles-header {
+  animation: portalRise 500ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.portal-role-card {
+  position: relative;
+  overflow: hidden;
+  animation: portalRise 520ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.portal-roles-grid > .portal-role-card:nth-child(2) { animation-delay: 80ms; }
+.portal-roles-grid > .portal-role-card:nth-child(3) { animation-delay: 160ms; }
+
+.portal-role-card::before {
+  content: "";
+  position: absolute;
+  inset-inline: 0;
+  top: 0;
+  height: 4px;
+  background: var(--tone);
+  transform: scaleX(0.25);
+  transform-origin: right;
+  transition: transform 320ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.portal-role-card::after {
+  content: "";
+  position: absolute;
+  top: -40%;
+  inset-inline-end: -30%;
+  width: 70%;
+  height: 80%;
+  border-radius: 50%;
+  background: radial-gradient(circle, var(--tone-soft), transparent 70%);
+  opacity: 0;
+  transition: opacity 260ms ease;
+  pointer-events: none;
+}
+
+.portal-role-card > * {
+  position: relative;
+  z-index: 1;
+}
+
+.portal-role-card:hover::before,
+.portal-role-card:focus-visible::before {
+  transform: scaleX(1);
+}
+
+.portal-role-card:hover::after {
+  opacity: 1;
+}
+
+.portal-role-icon {
+  transition: transform 260ms cubic-bezier(0.22, 1, 0.36, 1), background-color 200ms ease, color 200ms ease;
+}
+
+.portal-role-card:hover .portal-role-icon {
+  transform: translateY(-2px) scale(1.06);
+  background: var(--tone);
+  color: #fff;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .portal-page > *,
+  .portal-stats > .portal-stat,
+  .portal-role-card,
+  .portal-roles-hero,
+  .portal-roles-header {
+    animation: none !important;
+  }
+
+  .portal-role-card,
+  .portal-role-icon,
+  button.portal-stat {
+    transition: none !important;
+  }
+}
+
+/* ==========================================================================
+   النماذج داخل اللوحات: حقولٌ وتسمياتٌ وأزرار بمقاسٍ واحد
+   ========================================================================== */
+
+.portal-shell .dashboard-main :is(input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]):not([type="color"]), select) {
+  min-height: 2.6rem;
+  border-width: 1px !important;
+  border-style: solid;
+  border-color: var(--pt-line-strong) !important;
+  border-radius: var(--pt-radius-sm) !important;
+  font-size: 0.92rem;
+  box-shadow: none;
+}
+
+.portal-shell .dashboard-main textarea {
+  border-width: 1px !important;
+  border-color: var(--pt-line-strong) !important;
+  border-radius: var(--pt-radius-sm) !important;
+  font-size: 0.92rem;
+}
+
+.portal-shell .dashboard-main :is(input, select, textarea):disabled {
+  background-color: #f1f4f8 !important;
+  color: var(--pt-subtle);
+  cursor: not-allowed;
+}
+
+.portal-shell .dashboard-main :is(input, textarea)::placeholder {
+  color: #9aa7b8;
+  font-weight: 500;
+}
+
+.portal-shell .dashboard-main input[type="checkbox"],
+.portal-shell .dashboard-main input[type="radio"] {
+  accent-color: var(--pt-primary);
+}
+
+/* أزرارُ الشاشات القديمة: زوايا واحدة، وألوانُ دلالةٍ هادئة. */
+.portal-shell .dashboard-main button[class*="rounded-"]:not(.portal-tabs button) {
+  border-radius: var(--pt-radius-sm) !important;
+}
+
+.portal-shell .dashboard-main button[class*="bg-red-5"],
+.portal-shell .dashboard-main button[class*="bg-red-6"] {
+  background-color: var(--pt-danger) !important;
+}
+
+.portal-shell .dashboard-main button[class*="bg-green-5"],
+.portal-shell .dashboard-main button[class*="bg-green-6"],
+.portal-shell .dashboard-main button[class*="bg-emerald-5"],
+.portal-shell .dashboard-main button[class*="bg-emerald-6"] {
+  background-color: var(--pt-success) !important;
+}
+
+.portal-shell .dashboard-main button[class*="bg-yellow-5"],
+.portal-shell .dashboard-main button[class*="bg-amber-5"],
+.portal-shell .dashboard-main button[class*="bg-indigo-5"] {
+  background-color: var(--pt-primary) !important;
+}
+
+.portal-shell .dashboard-main :is(h1, h2, h3) {
+  color: var(--pt-ink);
+}

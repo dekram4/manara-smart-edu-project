@@ -428,6 +428,9 @@ export interface CertificateRecord {
   date: string;
   average: number;
   note?: string;
+  /** من أصدرها: اسمُ المستخدم الذي كان مسجّلاً حين صدرت — معلّماً أو مشرفاً. */
+  issuedBy?: string;
+  issuedByRole?: 'teacher' | 'admin';
 }
 
 export interface TeacherInfo {

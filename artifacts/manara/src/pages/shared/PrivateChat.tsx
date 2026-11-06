@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { STORAGE_KEYS, COLORS } from '../../constants';
 import { getParentTeacherId, getTeacherParents, normalizeScopeValue } from '../../utils/scope';
+import { MessageSquareText as IconMessageSquareText, Phone as IconPhone, Presentation as IconPresentation, ShieldCheck as IconShieldCheck, UserRound as IconUserRound, UsersRound as IconUsersRound, X as IconX } from 'lucide-react';
 
 interface Message {
   id: string;
@@ -170,10 +171,10 @@ const PrivateChat: React.FC<PrivateChatProps> = ({
 
   const getRoleIcon = (role: string) => {
     switch(role) {
-      case 'admin': return '👨‍💼';
-      case 'teacher': return '👨‍🏫';
-      case 'parent': return '👨‍👦';
-      default: return '👤';
+      case 'admin': return <IconShieldCheck className="h-[1em] w-[1em]" aria-hidden="true" />;
+      case 'teacher': return <IconPresentation className="h-[1em] w-[1em]" aria-hidden="true" />;
+      case 'parent': return <IconUsersRound className="h-[1em] w-[1em]" aria-hidden="true" />;
+      default: return <IconUserRound className="h-[1em] w-[1em]" aria-hidden="true" />;
     }
   };
 
@@ -192,7 +193,7 @@ const PrivateChat: React.FC<PrivateChatProps> = ({
         {/* Header */}
          <div className="dashboard-chat-header" style={styles.header}>
           <h2 style={styles.headerTitle}>الدردشة الخاصة</h2>
-          <button onClick={onClose} style={styles.closeButton}>✖</button>
+          <button onClick={onClose} style={styles.closeButton}><IconX className="inline-block h-[1em] w-[1em] align-[-0.125em]" aria-hidden="true" /></button>
         </div>
 
          <div className="dashboard-chat-content" style={styles.content}>
@@ -202,7 +203,7 @@ const PrivateChat: React.FC<PrivateChatProps> = ({
             
             {adminContact && currentUserRole === 'teacher' && (
               <div style={styles.contactInfoBox}>
-                <div style={styles.contactInfoIcon}>📞</div>
+                <div style={styles.contactInfoIcon}><IconPhone className="h-[1em] w-[1em]" aria-hidden="true" /></div>
                 <div>
                   <div style={styles.contactInfoLabel}>رقم المشرف للتواصل</div>
                   <div style={styles.contactInfoValue}>{adminContact}</div>
@@ -254,7 +255,7 @@ const PrivateChat: React.FC<PrivateChatProps> = ({
                  <div className="dashboard-chat-messages" style={styles.messagesContainer}>
                   {messages.length === 0 ? (
                     <div style={styles.emptyMessages}>
-                      <div style={styles.emptyIcon}>💬</div>
+                      <div style={styles.emptyIcon}><IconMessageSquareText className="inline-block h-[1em] w-[1em] align-[-0.125em]" aria-hidden="true" /></div>
                       <p style={styles.emptyText}>لا توجد رسائل بعد</p>
                       <p style={styles.emptySubtext}>ابدأ محادثة الآن!</p>
                     </div>
@@ -310,7 +311,7 @@ const PrivateChat: React.FC<PrivateChatProps> = ({
               </>
             ) : (
               <div style={styles.emptyMessages}>
-                <div style={styles.emptyIcon}>👈</div>
+                <div style={styles.emptyIcon}><IconMessageSquareText className="h-[1em] w-[1em]" aria-hidden="true" /></div>
                 <p style={styles.emptyText}>اختر جهة اتصال للبدء</p>
               </div>
             )}

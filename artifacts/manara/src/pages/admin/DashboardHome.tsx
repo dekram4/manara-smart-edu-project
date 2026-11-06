@@ -26,6 +26,7 @@ import {
   scoreLabel,
   scoreTone,
 } from '../../components/portal/PortalUI';
+import { ActivityArea, ScoreDonut } from '../../components/portal/PortalCharts';
 
 interface DashboardHomeProps {
   stats: SystemStats;
@@ -52,6 +53,24 @@ const DashboardHome: React.FC<DashboardHomeProps> = ({ stats, onRefresh }) => {
         : null;
       return { teacher, students: students.length, parents: parents.length, quizzes: own.length, average };
     });
+  }, [stats]);
+
+  const activity = useMemo(() => {
+    const results = readStorageArray<QuizResult>(STORAGE_KEYS.QUIZ_RESULTS);
+    const byStudent = new Map<string, number[]>();
+    results.forEach((result) => {
+      byStudent.set(result.studentId, [...(byStudent.get(result.studentId) || []), getQuizResultPercentage(result)]);
+    });
+    const byGrade = new Map<string, number>();
+    readStorageArray<StudentInfo>(STORAGE_KEYS.STUDENTS).forEach((student) => {
+      const grade = (student.primaryGrade || student.grade || 'بلا صف').trim();
+      byGrade.set(grade, (byGrade.get(grade) || 0) + 1);
+    });
+    return {
+      dates: results.map((result) => result.createdAt),
+      averages: Array.from(byStudent.values()).map((scores) => Math.round(scores.reduce((a, b) => a + b, 0) / scores.length)),
+      grades: Array.from(byGrade.entries()).map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value),
+    };
   }, [stats]);
 
   const average = Math.round(stats.averageQuizScore);
@@ -85,6 +104,33 @@ const DashboardHome: React.FC<DashboardHomeProps> = ({ stats, onRefresh }) => {
           tone={hasResults ? scoreTone(average) : 'neutral'}
         />
       </div>
+
+      <div className="portal-grid-2">
+        <Panel title="نشاط الاختبارات" subtitle="الاختبارات المنجزة في المنصّة خلال آخر ٣٠ يوماً" icon={Activity}>
+          <ActivityArea dates={activity.dates} days={30} />
+        </Panel>
+        <Panel title="توزيع مستوى الطلاب" subtitle="معدّل كل طالبٍ في اختباراته" icon={GraduationCap}>
+          <ScoreDonut averages={activity.averages} />
+        </Panel>
+      </div>
+
+      <Panel title="الطلاب حسب الصف" subtitle="عدد الطلاب المسجّلين في كل صف" icon={Layers}>
+        {activity.grades.length === 0 ? (
+          <EmptyState title="لا طلاب بعد" />
+        ) : (
+          <div className="portal-bars">
+            {activity.grades.map((row) => (
+              <div key={row.name} className="portal-bar-row">
+                <span className="portal-bar-label">{row.name}</span>
+                <div className="flex-1">
+                  <ProgressBar value={(row.value / Math.max(...activity.grades.map((g) => g.value))) * 100} tone="primary" label={row.name} />
+                </div>
+                <b className="is-num">{row.value}</b>
+              </div>
+            ))}
+          </div>
+        )}
+      </Panel>
 
       <Panel title="المعلمون" subtitle="الطلاب وأولياء الأمور والمعدّل لكل معلم" icon={School} flush>
         {teachers.length === 0 ? (

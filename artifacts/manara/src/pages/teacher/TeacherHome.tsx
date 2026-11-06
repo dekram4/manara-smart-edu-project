@@ -31,6 +31,7 @@ import {
   scoreLabel,
   scoreTone,
 } from '../../components/portal/PortalUI';
+import { ActivityArea, ScoreDonut } from '../../components/portal/PortalCharts';
 
 interface TeacherHomeProps {
   teacher: TeacherInfo;
@@ -146,6 +147,8 @@ const TeacherHome: React.FC<TeacherHomeProps> = ({
       attention,
       top,
       recent,
+      averages: scoredRows.map((row) => row.average),
+      resultDates: results.map((result) => result.createdAt),
     };
     // ‏refreshToken يُعيد القراءة عمداً: البيانات في التخزين لا في الحالة.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -205,6 +208,15 @@ const TeacherHome: React.FC<TeacherHomeProps> = ({
           tone="neutral"
           onClick={go(TeacherMenuType.ACADEMIC_SETTINGS)}
         />
+      </div>
+
+      <div className="portal-grid-2">
+        <Panel title="توزيع مستوى الطلاب" subtitle="معدّل كل طالبٍ في اختباراته" icon={Activity}>
+          <ScoreDonut averages={data.averages} />
+        </Panel>
+        <Panel title="نشاط الاختبارات" subtitle="عدد الاختبارات المنجزة في آخر ١٤ يوماً" icon={ChartColumn}>
+          <ActivityArea dates={data.resultDates} />
+        </Panel>
       </div>
 
       <div className="portal-grid-2">

@@ -5,6 +5,7 @@ import AcademicSettings from '../admin/AcademicSettings';
 import { STORAGE_KEYS } from '../../constants';
 import { TeacherInfo } from '../../types';
 import { getTeacherPermissionDetails } from '../../permissions';
+import { Lock as IconLock } from 'lucide-react';
 
 interface TeacherAcademicSettingsProps {
   teacherId: string;
@@ -35,7 +36,7 @@ const TeacherAcademicSettings: React.FC<TeacherAcademicSettingsProps> = ({ teach
   if (!canManageAcademicSettings) {
     return (
       <div style={styles.noPermissionContainer}>
-        <div style={styles.noPermissionIcon}>🔒</div>
+        <div style={styles.noPermissionIcon}><IconLock className="inline-block h-[1em] w-[1em] align-[-0.125em]" aria-hidden="true" /></div>
         <h2 style={styles.noPermissionTitle}>لا توجد صلاحية</h2>
         <p style={styles.noPermissionText}>
           عذراً، ليس لديك صلاحية الوصول إلى الإعدادات الأكاديمية.

@@ -11,6 +11,7 @@ import { resetGamificationForStudent } from '../../utils/gamification';
 import { getStudentEmoji, STUDENT_GENDER_OPTIONS, StudentGender } from '../../utils/studentAppearance';
 import { getPermissionPackages } from '../../permissions';
 import { useRevealForm } from '../../hooks/useRevealForm';
+import { GraduationCap as IconGraduationCap, UsersRound as IconUsersRound } from 'lucide-react';
 
 interface StudentManagementProps {
   onUpdate: () => void;
@@ -519,11 +520,11 @@ const StudentManagement: React.FC<StudentManagementProps> = ({ onUpdate }) => {
         </div>
          <div className="dashboard-stats-grid dashboard-stats-grid-compact" style={styles.quickAddStats}>
           <div style={styles.statCard}>
-             <div style={styles.statIcon}>👨‍🎓</div>
+             <div style={styles.statIcon}><IconGraduationCap className="inline-block h-[1em] w-[1em] align-[-0.125em]" aria-hidden="true" /></div>
              <div style={styles.statContent}><div style={styles.statValue}>{students.length}</div><div style={styles.statLabel}>طالب</div></div>
           </div>
           <div style={styles.statCard}>
-             <div style={styles.statIcon}>👨‍👦</div>
+             <div style={styles.statIcon}><IconUsersRound className="inline-block h-[1em] w-[1em] align-[-0.125em]" aria-hidden="true" /></div>
              <div style={styles.statContent}><div style={styles.statValue}>{parents.length}</div><div style={styles.statLabel}>ولي أمر</div></div>
           </div>
         </div>
@@ -555,7 +556,7 @@ const StudentManagement: React.FC<StudentManagementProps> = ({ onUpdate }) => {
                   <label style={styles.label}>المعلم *</label>
                   <select value={studentForm.teacherId} onChange={e => setStudentForm({...studentForm, teacherId: e.target.value})} style={styles.select} required>
                     <option value="">اختر المعلم</option>
-                    {teachers.map((t) => <option key={t.id} value={t.id}>👨‍🏫 {t.name} - {t.subject || 'معلم'}</option>)}
+                    {teachers.map((t) => <option key={t.id} value={t.id}>{t.name} - {t.subject || 'معلم'}</option>)}
                   </select>
                </div>
                <div style={styles.formGroup}>
@@ -655,7 +656,7 @@ const StudentManagement: React.FC<StudentManagementProps> = ({ onUpdate }) => {
                   <label style={styles.label}>المعلم *</label>
                   <select value={parentForm.teacherId} onChange={e => setParentForm({...parentForm, teacherId: e.target.value})} style={styles.select} required>
                     <option value="">اختر المعلم</option>
-                    {teachers.map((t) => <option key={t.id} value={t.id}>👨‍🏫 {t.name} - {t.subject || 'معلم'}</option>)}
+                    {teachers.map((t) => <option key={t.id} value={t.id}>{t.name} - {t.subject || 'معلم'}</option>)}
                   </select>
                </div>
                 <div style={styles.formGroup}>
@@ -773,7 +774,7 @@ const StudentManagement: React.FC<StudentManagementProps> = ({ onUpdate }) => {
                         const parent = parentOf(item);
                         return parent ? (
                           <span className="inline-flex items-center gap-1 bg-green-50 text-green-700 px-3 py-1 rounded-full text-xs font-bold">
-                            👨‍👧‍👦 {parent.name}
+                            {parent.name}
                           </span>
                         ) : (
                           <span className="text-purple-400 text-sm italic">غير مرتبط</span>
@@ -787,11 +788,11 @@ const StudentManagement: React.FC<StudentManagementProps> = ({ onUpdate }) => {
                         const teacher = teachers.find(t => t.id === item.createdBy);
                         return teacher ? (
                           <span className="inline-flex items-center gap-1 bg-gradient-to-r from-purple-500 to-purple-500 text-white px-3 py-1 rounded-full text-xs font-bold">
-                            👨‍🏫 {teacher.name}
+                            {teacher.name}
                           </span>
                         ) : item.createdBy ? (
                           <span className="inline-flex items-center gap-1 bg-purple-100 text-purple-600 px-3 py-1 rounded-full text-xs font-bold">
-                            👨‍🏫 {item.createdByName || item.createdBy}
+                            {item.createdByName || item.createdBy}
                           </span>
                         ) : (
                           <span className="text-purple-400 text-sm italic">غير محدد</span>
@@ -805,11 +806,11 @@ const StudentManagement: React.FC<StudentManagementProps> = ({ onUpdate }) => {
                         const teacher = teachers.find(t => t.id === item.createdBy);
                         return teacher ? (
                           <span className="inline-flex items-center gap-1 bg-gradient-to-r from-purple-500 to-purple-500 text-white px-3 py-1 rounded-full text-xs font-bold">
-                            👨‍🏫 {teacher.name}
+                            {teacher.name}
                           </span>
                         ) : item.createdBy ? (
                           <span className="inline-flex items-center gap-1 bg-purple-100 text-purple-600 px-3 py-1 rounded-full text-xs font-bold">
-                            👨‍🏫 {item.createdByName || item.createdBy}
+                            {item.createdByName || item.createdBy}
                           </span>
                         ) : (
                           <span className="text-purple-400 text-sm italic">غير محدد</span>
@@ -877,7 +878,7 @@ const StudentManagement: React.FC<StudentManagementProps> = ({ onUpdate }) => {
                       <dd>{item.username || '-'}</dd>
                     </div>
                     <div>
-                      <dt>🆔 {activeTab === 'students' ? 'رقم الهوية' : 'المعرّف'}</dt>
+                      <dt>{activeTab === 'students' ? 'رقم الهوية' : 'المعرّف'}</dt>
                       <dd>{activeTab === 'students' ? (item.studentIdNumber || '-') : (item.id || '-')}</dd>
                     </div>
                     <div>
