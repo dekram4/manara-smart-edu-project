@@ -4,7 +4,8 @@ import { PortalField, PortalLoginLayout, PortalSubmitButton } from '../../compon
 import { useSubmitLock } from '../../hooks/useSubmitLock';
 
 interface AdminLoginProps {
-  onLoginSuccess: () => void;
+  /** يُنتظر: الزرُّ يبقى مقفلاً حتى تُحمَّل بياناتُ الحساب وتُفتح اللوحة. */
+  onLoginSuccess: () => void | Promise<void>;
   onBack?: () => void;
 }
 
@@ -29,7 +30,7 @@ const AdminLogin: React.FC<AdminLoginProps> = ({ onLoginSuccess, onBack }) => {
           // ‏تُفتح لوحةُ المشرف بدورٍ يؤكّده ردُّ الخادم لا بنجاح الطلب وحده.
           const result = await response.json().catch(() => ({}));
           if (!result.role || result.role === 'admin') {
-            onLoginSuccess();
+            await onLoginSuccess();
             return;
           }
         }

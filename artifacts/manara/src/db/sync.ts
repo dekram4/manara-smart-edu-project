@@ -1409,13 +1409,15 @@ export function resetSyncState(): void {
  * و`nativeRemoveItem` لا `localStorage.removeItem`: الثانيةُ معترَضةٌ بالكتابة
  * المزامِنة، ومحوُ مفتاحٍ بها يُرسَل إلى الخادم حذفاً.
  */
-export function clearSyncedCache(): void {
+export function clearSyncedCache(options: { keepPending?: boolean } = {}): void {
+  // ‏`keepPending`: جلسةٌ انتهت بلا خروجٍ صريح. طابورُها موسومٌ بنطاق حسابه ولا
+  // ‏يُرسَل إلا تحته، فيبقى ليصل إن عاد الحسابُ نفسُه — ونسختُه من البيانات تُمحى.
   const keys = [
     ...Object.keys(ROW_TABLES),
     ...KV_KEYS,
     PUBLIC_MESSAGES_KEY,
     LEGACY_PUBLIC_MESSAGES_KEY,
-    PENDING_KEY,
+    ...(options.keepPending ? [] : [PENDING_KEY]),
   ];
   for (const key of new Set(keys)) {
     try {

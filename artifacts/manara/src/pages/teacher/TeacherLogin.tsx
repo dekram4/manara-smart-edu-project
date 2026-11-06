@@ -9,7 +9,8 @@ import { useSubmitLock } from '../../hooks/useSubmitLock';
 import { readStorageArray, writeActiveSession } from '../../utils/storage';
 
 interface TeacherLoginProps {
-  onLoginSuccess: (teacher: TeacherInfo) => void;
+  /** يُنتظر: الزرُّ يبقى مقفلاً حتى تُحمَّل بياناتُ الحساب وتُفتح اللوحة. */
+  onLoginSuccess: (teacher: TeacherInfo) => void | Promise<void>;
   onBack?: () => void;
 }
 
@@ -102,7 +103,7 @@ const TeacherLogin: React.FC<TeacherLoginProps> = ({ onLoginSuccess, onBack }) =
         );
       }
       writeActiveSession(STORAGE_KEYS.CURRENT_TEACHER, teacher);
-      onLoginSuccess(teacher);
+      await onLoginSuccess(teacher);
     }
   };
 
@@ -164,7 +165,7 @@ const TeacherLogin: React.FC<TeacherLoginProps> = ({ onLoginSuccess, onBack }) =
 
     const updatedTeacher = { ...currentTeacher, password: hashedPassword, mustChangePassword: false };
     writeActiveSession(STORAGE_KEYS.CURRENT_TEACHER, updatedTeacher);
-    onLoginSuccess(updatedTeacher);
+    await onLoginSuccess(updatedTeacher);
   };
 
   const teacherFeatures = ['الفصول والطلاب وأولياء الأمور', 'الدروس والاختبارات والمحتوى', 'التقارير والشهادات'];
