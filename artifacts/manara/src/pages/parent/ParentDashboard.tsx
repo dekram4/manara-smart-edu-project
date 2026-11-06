@@ -1119,7 +1119,7 @@ const ParentDashboard: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
       {/* ===== Change Grade Modal ===== */}
       {showChangeGradeModal && studentToChangeGrade && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-3 safe-area-x safe-area-top safe-area-bottom">
-          <div className="mobile-modal-panel w-full max-w-sm rounded-2xl bg-white p-5 shadow-2xl sm:p-6">
+          <div className="mobile-modal-panel w-full max-w-sm rounded-2xl bg-white p-5 shadow-2xl sm:p-6" role="dialog" aria-modal="true" aria-label="تغيير الصف">
             <div className="text-center mb-4"><div className="text-4xl mb-2"><IconBookOpen className="inline-block h-[1em] w-[1em] align-[-0.125em]" aria-hidden="true" /></div><h2 className="text-lg font-black text-rose-900 mb-1">تغيير الصف</h2><p className="text-rose-400 font-bold text-xs">{studentToChangeGrade.name}</p></div>
             <div className="mb-4 space-y-2">
               <label className="block text-xs font-bold text-rose-600">الصف الحالي: <span className="text-rose-500">{studentToChangeGrade.primaryGrade || studentToChangeGrade.grade}</span></label>

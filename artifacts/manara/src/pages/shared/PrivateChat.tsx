@@ -189,7 +189,7 @@ const PrivateChat: React.FC<PrivateChatProps> = ({
 
   return (
      <div className="dashboard-chat-overlay" style={styles.overlay}>
-       <div className="dashboard-chat-container" style={styles.container}>
+       <div className="dashboard-chat-container" style={styles.container} role="dialog" aria-modal="true" aria-label="الدردشة">
         {/* Header */}
          <div className="dashboard-chat-header" style={styles.header}>
           <h2 style={styles.headerTitle}>الدردشة الخاصة</h2>
