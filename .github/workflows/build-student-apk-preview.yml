@@ -1,0 +1,160 @@
+name: Build Student APK (preview branch)
+
+# ‏── بناءٌ تجريبيّ لفرع تحديثات تطبيق الطالب وحده ──
+# ‏كلُّ دفعٍ إلى `student-app-1.1.63` يبني APK بمفتاح الإصدار نفسه ومعرّف
+# ‏الحزمة نفسه (com.manara.student)، ويرفعه ملفّاً مؤقّتاً (Artifact) في تبويب
+# ‏Actions للتجربة على المحاكي أو الجهاز.
+# ‏ولا يمسّ النسخةَ الأساسية: لا إصدارَ GitHub (رابطُ التحميل في لوحة المشرف
+# ‏يتبع releases/latest، وهذا لا يُنشئ إصداراً)، ولا حزمةَ AAB لـ Google Play،
+# ‏ولا شيءَ يُكتب في المستودع. والبناءُ الأساسيّ (build-student-apk.yml) باقٍ
+# ‏على main كما هو.
+on:
+  push:
+    branches: [ student-app-1.1.63 ]
+
+# ‏قراءةٌ فقط: هذا البناءُ لا يكتب في المستودع ولا يُنشئ إصداراً.
+permissions:
+  contents: read
+
+# ‏دفعٌ جديدٌ يُلغي بناءً سابقاً لم ينتهِ على الفرع نفسه.
+concurrency:
+  group: student-apk-preview-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Set up Java
+        uses: actions/setup-java@v5
+        with:
+          distribution: 'zulu'
+          java-version: '17'
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          # ‏النسخةُ نفسها في البناء الأساسيّ.
+          flutter-version: '3.44.8'
+
+      - name: Fix Kotlin Gradle Plugin Version
+        # ‏كما في البناء الأساسيّ حرفاً بحرف.
+        run: |
+          if [ -f android/settings.gradle ]; then
+            sed -i -E 's/id "org.jetbrains.kotlin.android" version "[^"]+"/id "org.jetbrains.kotlin.android" version "2.1.0"/g' android/settings.gradle
+          fi
+
+          if [ -f android/build.gradle ]; then
+            sed -i -E 's/ext\.kotlin_version = .*/ext.kotlin_version = "2.1.0"/' android/build.gradle
+            sed -i -E 's/kotlin-gradle-plugin:[0-9\.]+/kotlin-gradle-plugin:2.1.0/' android/build.gradle
+          fi
+
+          cat << 'EOF' >> android/build.gradle
+
+          allprojects {
+              configurations.all {
+                  resolutionStrategy {
+                      force 'org.jetbrains.kotlin:kotlin-stdlib:2.1.0'
+                      force 'org.jetbrains.kotlin:kotlin-stdlib-jdk7:2.1.0'
+                      force 'org.jetbrains.kotlin:kotlin-stdlib-jdk8:2.1.0'
+                      force 'org.jetbrains.kotlin:kotlin-reflect:2.1.0'
+                  }
+              }
+          }
+          EOF
+        working-directory: artifacts/manara-student-flutter
+
+      - name: Install Dependencies
+        run: flutter pub get
+        working-directory: artifacts/manara-student-flutter
+
+      - name: Restore release signing key
+        # ‏مفتاحُ الإصدار نفسه من أسرار المستودع: النسخةُ التجريبية تُثبَّت فوق
+        # ‏تطبيق المتجر وتُحدَّث منه، بلا حذفٍ ولا تعارضِ توقيع.
+        run: |
+          set -euo pipefail
+          if [ -z "${ANDROID_KEYSTORE_BASE64:-}" ] || [ -z "${ANDROID_KEYSTORE_PASSWORD:-}" ] \
+             || [ -z "${ANDROID_KEY_ALIAS:-}" ] || [ -z "${ANDROID_KEY_PASSWORD:-}" ]; then
+            echo "::error::أسرار التوقيع ANDROID_KEYSTORE_* غير مضبوطة — لا يُبنى APK بمفتاح التطوير."
+            exit 1
+          fi
+          echo "$ANDROID_KEYSTORE_BASE64" | base64 --decode > android/app/manara-release.jks
+          {
+            echo "storeFile=manara-release.jks"
+            echo "storePassword=$ANDROID_KEYSTORE_PASSWORD"
+            echo "keyAlias=$ANDROID_KEY_ALIAS"
+            echo "keyPassword=$ANDROID_KEY_PASSWORD"
+          } > android/key.properties
+        working-directory: artifacts/manara-student-flutter
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+
+      - name: Build APK
+        # ‏APK وحده — لا حزمةَ AAB: هذا البناءُ لا يذهب إلى Google Play.
+        # ‏و`flutter build apk` يضمّ معماريةَ x86_64 مع معماريّات الهواتف،
+        # ‏فيعمل الملفُّ على محاكي الحاسوب كما على الجهاز.
+        run: |
+          set -euo pipefail
+          args=()
+          if [ -n "${SUPABASE_URL:-}" ]; then
+            args+=("--dart-define=SUPABASE_URL=$SUPABASE_URL")
+          fi
+          if [ -n "${SUPABASE_ANON_KEY:-}" ]; then
+            args+=("--dart-define=SUPABASE_ANON_KEY=$SUPABASE_ANON_KEY")
+          fi
+          if [ -n "${API_BASE_URL:-}" ]; then
+            args+=("--dart-define=API_BASE_URL=$API_BASE_URL")
+          fi
+          if [ -z "${SUPABASE_URL:-}" ] || [ -z "${SUPABASE_ANON_KEY:-}" ]; then
+            echo "::warning::SUPABASE_URL أو SUPABASE_ANON_KEY غير مضبوط في أسرار المستودع — سيُبنى تطبيق بلا اتصال بقاعدة البيانات."
+          fi
+          flutter build apk --release "${args[@]}"
+        working-directory: artifacts/manara-student-flutter
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+          API_BASE_URL: ${{ secrets.API_BASE_URL }}
+
+      - name: Verify release signature and package
+        # ‏موقَّعٌ بمفتاح الإصدار لا بمفتاح التطوير، ومعرّفُه com.manara.student.
+        run: |
+          set -euo pipefail
+          APK=build/app/outputs/flutter-apk/app-release.apk
+          SDK="${ANDROID_SDK_ROOT:-${ANDROID_HOME:-/usr/local/lib/android/sdk}}"
+          SIGNER=$(find "$SDK/build-tools" -name apksigner -type f | sort -V | tail -1)
+          AAPT2=$(find "$SDK/build-tools" -name aapt2 -type f | sort -V | tail -1)
+          CERT=$("$SIGNER" verify --print-certs "$APK")
+          echo "$CERT" | grep -E "certificate DN|SHA-256 digest"
+          if echo "$CERT" | grep -q "CN=Android Debug"; then
+            echo "::error::الملفّ موقَّعٌ بمفتاح التطوير."
+            exit 1
+          fi
+          PACKAGE=$("$AAPT2" dump packagename "$APK")
+          echo "package: $PACKAGE"
+          if [ "$PACKAGE" != "com.manara.student" ]; then
+            echo "::error::معرّف التطبيق ليس com.manara.student."
+            exit 1
+          fi
+          "$AAPT2" dump badging "$APK" | grep -E "^package:|^native-code:" || true
+          rm -f android/key.properties android/app/manara-release.jks
+        working-directory: artifacts/manara-student-flutter
+
+      - name: Name the APK by its version
+        id: name
+        run: |
+          set -euo pipefail
+          VERSION=$(grep -E '^version:' artifacts/manara-student-flutter/pubspec.yaml | sed -E 's/^version:[[:space:]]*([^[:space:]]+).*/\1/' | tr '+' '-')
+          echo "file=manara-student-$VERSION-preview.apk" >> "$GITHUB_OUTPUT"
+          cp artifacts/manara-student-flutter/build/app/outputs/flutter-apk/app-release.apk "manara-student-$VERSION-preview.apk"
+
+      - name: Upload APK Artifact
+        uses: actions/upload-artifact@v6
+        with:
+          name: student-apk-preview-${{ github.sha }}
+          path: ${{ steps.name.outputs.file }}
+          retention-days: 14
