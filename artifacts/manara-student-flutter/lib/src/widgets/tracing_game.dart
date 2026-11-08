@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:math' as math;
 
+import 'package:confetti/confetti.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -30,6 +31,11 @@ import '../theme/student_theme.dart';
 /// اسمُ الحرف العربي من تسجيلٍ ([arabicLetterClips]) لا من محرّك النطق؛
 /// وما لا تسجيلَ له (الإنجليزية والأعداد) يُنطق بالمحرّك.
 ///
+/// ── والحرفُ المكتمل يحتفل ──
+/// يقفز الحرفُ من مكانه ويتشقلب ويتلوّن ([CelebratingGlyph])، ويُسمع معه:
+/// اسمُه، ثم «أحسنت يا بطل» وخلفها التصفيق، ثم اسمُه ثانيةً، ثم التصفيق —
+/// ليقترن شكلُ الحرف باسمه. وهو هو لكل الحروف والأرقام، عربيةً وإنجليزية.
+///
 /// ── وحصراً لروضة منارة المعرفة ──
 /// الخادمُ لا يرسلها إلا للروضة في موادّها الأربع، والتطبيقُ يتحقّق كذلك
 /// ([tracingAllowedFor]) — فلا تظهر في صفٍّ آخر ولو أرسلها خادمٌ قديم.
@@ -50,6 +56,9 @@ class TracingGame extends StatefulWidget {
     this.shapeBuilder = loadTracingShape,
     this.speak,
     this.playClip,
+    this.celebrate,
+    this.cheerToEnd,
+    this.clapFinale,
     super.key,
   });
 
@@ -68,6 +77,16 @@ class TracingGame extends StatefulWidget {
   /// تشغيلُ مقطعٍ مسجّل؛ وبلا قيمةٍ مشغّلُ أصوات التطبيق
   /// ([StudentSoundService.playClip]).
   final Future<void> Function(String asset)? playClip;
+
+  /// أصواتُ الاحتفال بحرفٍ مكتمل، تنتهي حين يُقال اسمُه للمرّة الثانية (والتصفيقُ
+  /// الختاميّ يمضي بعدها وحده). وبلا قيمةٍ: [TracingGameState.celebrationAudio].
+  final Future<void> Function(TracingItem item)? celebrate;
+
+  /// خطوتا التسلسل الافتراضيّ الأخريان، تُستبدلان في الاختبار:
+  /// «أحسنت يا بطل» وخلفها التصفيق ([StudentSoundService.playCheerToEnd])،
+  /// والتصفيقُ الختاميّ ([StudentSoundService.playClappingFinale]).
+  final Future<void> Function()? cheerToEnd;
+  final void Function()? clapFinale;
 
   @override
   State<TracingGame> createState() => TracingGameState();
@@ -123,6 +142,17 @@ class TracingGameState extends State<TracingGame> with SingleTickerProviderState
   /// عبارةُ التشجيع على الحرف المكتمل، وهل كسب به جوهرة.
   String? _cheer;
   bool _gemEarned = false;
+
+  /// الحرفُ يحتفل فوق اللوحة ([CelebratingGlyph])؛ ورقمُ الاحتفال الجاري —
+  /// احتفالٌ قُطع (عاد إلى الشبكة أو تخطّاه) لا يُكمل أصواتَه ولا يُنهي غيرَه.
+  bool _celebrating = false;
+  int _celebration = 0;
+
+  /// مدّةُ رقصة الحرف — ولا يعود إلى الشبكة قبلها ولا قبل أن يُقال اسمُه ثانيةً.
+  static const celebrationDuration = Duration(milliseconds: 3400);
+
+  /// أطولُ ما يُنتظر صوتُ الاحتفال: جهازٌ لا يُكمل الصوتَ لا يحبس الطفل.
+  static const celebrationAudioLimit = Duration(seconds: 7);
 
   /// آخرُ موضعٍ للإصبع، يُملأ منه ما بينه وبين الموضع الجديد.
   Offset? _lastPos;
@@ -230,6 +260,8 @@ class TracingGameState extends State<TracingGame> with SingleTickerProviderState
     _cheer = null;
     _gemEarned = false;
     _lastPos = null;
+    _celebrating = false;
+    _celebration++;
   }
 
   /// الشكلُ يُحضَّر مع فتح العنصر.
@@ -492,12 +524,13 @@ class TracingGameState extends State<TracingGame> with SingleTickerProviderState
   final _random = math.Random();
 
   void _completeItem() {
-    StudentSoundService.instance.playCheer();
-    HapticFeedback.lightImpact();
+    HapticFeedback.mediumImpact();
     final item = _item;
     final index = _index;
+    final celebration = ++_celebration;
     setState(() {
       _itemDone = true;
+      _celebrating = true;
       _cheer = tr(_cheers[_random.nextInt(_cheers.length)]);
       _gemEarned = false;
     });
@@ -514,11 +547,73 @@ class TracingGameState extends State<TracingGame> with SingleTickerProviderState
         debugPrint('[tracing] reward failed for "${item.text}": $error');
       }
     }());
-    // لحظةٌ يرى فيها الحرفَ مكتملاً ويقرأ تشجيعه قبل العودة إلى الشبكة.
-    Future.delayed(const Duration(milliseconds: 1800), () {
-      // لم يغادره إلى غيره في الانتظار.
-      if (mounted && _itemDone && _index == index && _view == _View.board) _finishItem();
+    // ‏الحرفُ يرقص وأصواتُه تُقال معاً، ولا يعود إلى الشبكة قبل الأطول منهما.
+    final audio = (widget.celebrate ?? celebrationAudio)(item)
+        .timeout(celebrationAudioLimit)
+        .catchError((Object error) {
+      debugPrint('[tracing] celebration audio failed for "${item.text}": $error');
     });
+    unawaited(Future.wait([Future<void>.delayed(celebrationDuration), audio]).then((_) {
+      if (celebration == _celebration) _endCelebration(index);
+    }));
+  }
+
+  /// الاحتفالُ انتهى أو تخطّاه الطفل: يعود إلى الشبكة — إن لم يغادر الحرف.
+  void _endCelebration(int index) {
+    if (!mounted || !_itemDone || _index != index || _view != _View.board) return;
+    _finishItem();
+  }
+
+  /// لمسةٌ على الحرف الراقص: يكفي، إلى الحرف التالي.
+  void _skipCelebration() {
+    if (!_celebrating) return;
+    StudentSoundService.instance.playTap();
+    final index = _index;
+    _celebration++;
+    _endCelebration(index);
+  }
+
+  // ── أصواتُ الاحتفال ─────────────────────────────────────────────
+
+  /// اسمُ العنصر وينتظر انتهاءه: تسجيلُه إن كان حرفاً عربياً، وإلا المحرّك.
+  Future<void> _sayToEnd(TracingItem item) async {
+    final clip = recordedClipFor(item);
+    if (clip != null) {
+      final play = widget.playClip;
+      if (play != null) return play(clip);
+      return StudentSoundService.instance
+          .playClipToEnd(clip, volume: letterClipVolume, limit: const Duration(seconds: 4));
+    }
+    final lang = item.lang == 'en' ? 'en' : 'ar';
+    final speak = widget.speak;
+    if (speak != null) return speak(item.speech, lang);
+    final voice = StudentVoiceService.instance;
+    await voice.speakIn(item.speech, lang: lang, pitch: StudentVoiceService.childPitch);
+    // ‏المحرّكُ يعود قبل أن يُتمّ النطق: يُنتظر سكوتُه، بمهلة.
+    final until = DateTime.now().add(const Duration(seconds: 3));
+    await Future<void>.delayed(const Duration(milliseconds: 250));
+    while (voice.speaking && DateTime.now().isBefore(until)) {
+      await Future<void>.delayed(const Duration(milliseconds: 120));
+    }
+  }
+
+  /// التسلسلُ الافتراضيّ: الاسمُ، ثم «أحسنت يا بطل» وخلفها التصفيق، ثم الاسمُ
+  /// ثانيةً — ويُطلق بعدها التصفيقُ الختاميّ ولا يُنتظر. وكلُّ خطوةٍ تتحقّق أن
+  /// الاحتفالَ نفسَه ما زال جارياً.
+  @visibleForTesting
+  Future<void> celebrationAudio(TracingItem item) async {
+    final celebration = _celebration;
+    bool live() => mounted && celebration == _celebration;
+    final sound = StudentSoundService.instance;
+    final cheer = widget.cheerToEnd ?? () => sound.playCheerToEnd(StudentSoundService.ahsantClip);
+    final clap = widget.clapFinale ?? sound.playClappingFinale;
+    await _sayToEnd(item);
+    if (!live()) return;
+    await cheer();
+    if (!live()) return;
+    await _sayToEnd(item);
+    if (!live()) return;
+    clap();
   }
 
   // ── الواجهة ─────────────────────────────────────────────────────
@@ -730,6 +825,19 @@ class TracingGameState extends State<TracingGame> with SingleTickerProviderState
               ? Stack(
                   children: [
                     Positioned.fill(child: _board(context)),
+                    if (_celebrating)
+                      Positioned.fill(
+                        child: GestureDetector(
+                          key: const ValueKey('tracing-celebration'),
+                          behavior: HitTestBehavior.opaque,
+                          onTap: _skipCelebration,
+                          child: CelebratingGlyph(
+                            key: ValueKey('tracing-celebration-$_index-$_celebration'),
+                            text: item.text,
+                            duration: celebrationDuration,
+                          ),
+                        ),
+                      ),
                     if (_itemDone && _cheer != null) _cheerBadge(),
                   ],
                 )
@@ -884,6 +992,160 @@ class TracingGameState extends State<TracingGame> with SingleTickerProviderState
           ),
         );
       },
+    );
+  }
+}
+
+/// الحرفُ المكتمل يحتفل: يقفز من مكانه، ويرتدّ في أرجاء اللوحة متشقلباً
+/// دورتين، ويتلوّن بألوان قوس قزح، ثم يستقرّ في الوسط كبيراً يلمع —
+/// ومعه نثرةُ ورقٍ ملوّن. لعينٍ صغيرة: حركةٌ واضحة، وحرفٌ يبقى مقروءاً.
+class CelebratingGlyph extends StatefulWidget {
+  const CelebratingGlyph({required this.text, required this.duration, super.key});
+
+  final String text;
+  final Duration duration;
+
+  @override
+  State<CelebratingGlyph> createState() => _CelebratingGlyphState();
+}
+
+class _CelebratingGlyphState extends State<CelebratingGlyph> with SingleTickerProviderStateMixin {
+  late final AnimationController _dance = AnimationController(vsync: this, duration: widget.duration)
+    ..forward();
+  late final ConfettiController _confetti = ConfettiController(duration: const Duration(milliseconds: 700))
+    ..play();
+
+  static const _hop = 0.18;
+  static const _settle = 0.82;
+
+  @override
+  void dispose() {
+    _dance.dispose();
+    _confetti.dispose();
+    super.dispose();
+  }
+
+  /// الحركةُ عند اللحظة [t] (صفرٌ إلى واحد): الإزاحةُ نسبةً إلى اللوحة،
+  /// والدوران، والحجم.
+  ({Offset shift, double turn, double scale}) _pose(double t) {
+    if (t < _hop) {
+      // ‏يقفز من مكانه: يكبر بارتدادٍ مرِن.
+      final u = Curves.elasticOut.transform(t / _hop);
+      return (shift: Offset(0, -0.06 * u), turn: 0, scale: 0.7 + 0.6 * u);
+    }
+    if (t < _settle) {
+      // ‏ثلاثُ قفزاتٍ متمايلة، ودورتان كاملتان على مداها.
+      final u = (t - _hop) / (_settle - _hop);
+      final dx = math.sin(u * math.pi * 2) * 0.22;
+      final dy = -math.sin(u * math.pi * 3).abs() * 0.22 - 0.06 * (1 - u);
+      final turn = Curves.easeInOutCubic.transform(u) * 2;
+      return (shift: Offset(dx, dy), turn: turn, scale: 1.3 + 0.1 * math.sin(u * math.pi * 6));
+    }
+    // ‏يستقرّ في الوسط وينبض قليلاً.
+    final u = Curves.easeOutBack.transform((t - _settle) / (1 - _settle));
+    return (shift: Offset.zero, turn: 0, scale: 1.3 - 0.1 * u + 0.05 * math.sin(u * math.pi));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final size = constraints.biggest;
+        final fontSize = math.min(size.width, size.height) * 0.42;
+        return Stack(
+          alignment: Alignment.center,
+          children: [
+            // ‏اللوحةُ تخفت خلفه فيبرز.
+            Positioned.fill(
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  gradient: RadialGradient(
+                    colors: [
+                      Colors.white.withValues(alpha: 0.85),
+                      Colors.white.withValues(alpha: 0.35),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+            AnimatedBuilder(
+              animation: _dance,
+              builder: (context, _) {
+                final t = _dance.value;
+                final pose = _pose(t);
+                final color = HSVColor.fromAHSV(1, (t * 720) % 360, 0.85, 0.92).toColor();
+                return Transform.translate(
+                  offset: Offset(pose.shift.dx * size.width, pose.shift.dy * size.height),
+                  child: Transform.rotate(
+                    angle: pose.turn * 2 * math.pi,
+                    child: Transform.scale(
+                      scale: pose.scale,
+                      child: _GlyphText(text: widget.text, fontSize: fontSize, color: color),
+                    ),
+                  ),
+                );
+              },
+            ),
+            Align(
+              alignment: Alignment.center,
+              child: IgnorePointer(
+                child: ConfettiWidget(
+                  confettiController: _confetti,
+                  blastDirectionality: BlastDirectionality.explosive,
+                  emissionFrequency: 0,
+                  numberOfParticles: 26,
+                  maxBlastForce: 22,
+                  minBlastForce: 9,
+                  gravity: 0.28,
+                  shouldLoop: false,
+                ),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+}
+
+/// الحرفُ بخطّ اللوحة نفسه، بلونه وحافّةٍ بيضاء وظلّ — مقروءٌ على أيّ لون.
+class _GlyphText extends StatelessWidget {
+  const _GlyphText({required this.text, required this.fontSize, required this.color});
+
+  final String text;
+  final double fontSize;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    final base = TextStyle(
+      fontFamily: 'TracingTajawal',
+      fontWeight: FontWeight.w700,
+      fontSize: fontSize,
+      height: 1.1,
+    );
+    return Stack(
+      children: [
+        Text(
+          text,
+          textDirection: TextDirection.ltr,
+          style: base.copyWith(
+            foreground: Paint()
+              ..style = PaintingStyle.stroke
+              ..strokeWidth = fontSize * 0.07
+              ..strokeJoin = StrokeJoin.round
+              ..color = Colors.white,
+          ),
+        ),
+        Text(
+          text,
+          textDirection: TextDirection.ltr,
+          style: base.copyWith(
+            color: color,
+            shadows: [Shadow(color: color.withValues(alpha: 0.55), blurRadius: fontSize * 0.12)],
+          ),
+        ),
+      ],
     );
   }
 }

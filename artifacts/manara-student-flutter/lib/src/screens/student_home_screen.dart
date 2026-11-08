@@ -18,7 +18,9 @@ import '../services/student_challenge_service.dart';
 import 'academic_selection_screen.dart';
 import 'home_layout.dart';
 import 'kindergarten_card_screens.dart';
+import 'kindergarten_voice_games.dart';
 import '../services/quran_recitation.dart';
+import '../services/kindergarten_voice_quiz.dart';
 import '../services/tracing_scope.dart';
 import '../services/student_study_service.dart';
 import '../services/student_duel_service.dart';
@@ -347,6 +349,10 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> with RouteAware {
           grade: context?.grade,
           subject: context?.subject,
         ),
+      colorsGameModule || shapesGameModule || mathGameModule => kgVoiceGamesAllowedFor(
+          grade: context?.grade,
+          subject: context?.subject,
+        ),
       _ => true,
     };
   }
@@ -593,6 +599,24 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> with RouteAware {
           ),
         ),
       );
+      return;
+    }
+
+    if (kgVoiceGameModules.contains(index)) {
+      Navigator.of(context)
+          .push(
+            StudentPageRoute<void>(
+              immersive: true,
+              builder: (_) => KgVoiceGameScreen(
+                kind: switch (index) {
+                  colorsGameModule => KgVoiceGameKind.colors,
+                  shapesGameModule => KgVoiceGameKind.shapes,
+                  _ => KgVoiceGameKind.math,
+                },
+              ),
+            ),
+          )
+          .then((_) => _loadGamification());
       return;
     }
 
@@ -1321,6 +1345,35 @@ const _homeSections = <_HomeSection>[
     image: 'assets/images/icon_writing.png',
     colors: [Color(0xFF1D4ED8), Color(0xFF38BDF8)],
     accent: Color(0xFFBAE6FD),
+    ownsVoice: true,
+  ),
+  // Index 13–15 — ألعابُ الروضة الصوتية في «الثقافة العامة»: الألوان والأشكال
+  // والحساب. تُسأل وتُجاب بالصوت؛ وشاشتُها تشغّل أسئلتها بنفسها.
+  _HomeSection(
+    titleKey: 'portal.colors',
+    subtitleKey: 'portal.colors.sub',
+    descriptionKey: 'portal.colors.desc',
+    image: 'assets/images/kg_colors.png',
+    colors: [Color(0xFFBE185D), Color(0xFFF472B6)],
+    accent: Color(0xFFFBCFE8),
+    ownsVoice: true,
+  ),
+  _HomeSection(
+    titleKey: 'portal.shapes',
+    subtitleKey: 'portal.shapes.sub',
+    descriptionKey: 'portal.shapes.desc',
+    image: 'assets/images/kg_shapes.png',
+    colors: [Color(0xFF0369A1), Color(0xFF22D3EE)],
+    accent: Color(0xFFA5F3FC),
+    ownsVoice: true,
+  ),
+  _HomeSection(
+    titleKey: 'portal.math',
+    subtitleKey: 'portal.math.sub',
+    descriptionKey: 'portal.math.desc',
+    image: 'assets/images/kg_math.png',
+    colors: [Color(0xFF15803D), Color(0xFF84CC16)],
+    accent: Color(0xFFD9F99D),
     ownsVoice: true,
   ),
 ];

@@ -58,6 +58,9 @@ RewardResult _reward(int gems) => RewardResult(
 void main() {
   late List<String> spoken;
   late List<String> clips;
+
+  /// كلُّ صوتٍ بترتيبه: الاسمُ (تسجيلاً أو نطقاً)، والتشجيعُ، والتصفيق.
+  late List<String> events;
   late List<String> traced;
   late int builds;
 
@@ -67,6 +70,7 @@ void main() {
   Future<void> boot(WidgetTester tester, StudyGame game, {bool shapes = true, TracePlan? plan}) async {
     spoken = [];
     clips = [];
+    events = [];
     traced = [];
     builds = 0;
     rewardedLetters = {};
@@ -85,8 +89,16 @@ void main() {
               builds++;
               return shapes ? TracingShape(crop: const Rect.fromLTWH(0, 0, 90, 60), plan: shapePlan) : null;
             },
-            speak: (text, lang) async => spoken.add('$lang:$text'),
-            playClip: (asset) async => clips.add(asset),
+            speak: (text, lang) async {
+              spoken.add('$lang:$text');
+              events.add('say:$text');
+            },
+            playClip: (asset) async {
+              clips.add(asset);
+              events.add('clip:$asset');
+            },
+            cheerToEnd: () async => events.add('cheer'),
+            clapFinale: () => events.add('clap'),
           ),
         ),
       ),
@@ -125,10 +137,12 @@ void main() {
     await tester.pump(const Duration(milliseconds: 50));
   }
 
-  /// ينتظر العودةَ إلى الشبكة بعد التشجيع.
+  /// ينتظر العودةَ إلى الشبكة بعد احتفال الحرف ([TracingGameState.celebrationDuration]).
   Future<void> backToGrid(WidgetTester tester) async {
-    await tester.pump(const Duration(milliseconds: 1900));
+    await tester.pump(TracingGameState.celebrationDuration + const Duration(milliseconds: 100));
     await tester.pump(const Duration(milliseconds: 50));
+    // ‏ورقُ الاحتفال الملوّن يكمل سقوطه.
+    await tester.pump(const Duration(seconds: 3));
   }
 
   Future<void> openTile(WidgetTester tester, int index) async {
@@ -187,6 +201,72 @@ void main() {
       await openTile(tester, 0);
       expect(spoken, ['en:B']);
       expect(clips, isEmpty);
+    });
+  });
+
+  group('قلمي السحري: الحرفُ المكتمل يحتفل', () {
+    final celebration = find.byKey(const ValueKey('tracing-celebration'));
+
+    testWidgets('يقفز الحرفُ فوق اللوحة، ولا يعود إلى الشبكة قبل أن تنتهي رقصتُه', (tester) async {
+      await boot(tester, _game(_letters));
+      await openTile(tester, 1);
+      await writeOpen(tester);
+      expect(celebration, findsOneWidget, reason: 'الحرفُ يرقص فوق اللوحة');
+      expect(find.byType(CelebratingGlyph), findsOneWidget);
+      expect(
+        find.descendant(of: find.byType(CelebratingGlyph), matching: find.text('ب')),
+        findsWidgets,
+        reason: 'الحرفُ نفسُه هو الذي يرقص',
+      );
+      await tester.pump(const Duration(milliseconds: 1900));
+      expect(celebration, findsOneWidget, reason: 'ما زال يرقص بعد ثانيتين');
+      expect(find.byKey(const ValueKey('tracing-grid')), findsNothing);
+      await backToGrid(tester);
+      expect(celebration, findsNothing);
+      expect(find.byKey(const ValueKey('tracing-grid')), findsOneWidget);
+    });
+
+    testWidgets('الحرفُ العربيّ: اسمُه، ثم «أحسنت»، ثم اسمُه ثانيةً، ثم التصفيق', (tester) async {
+      await boot(tester, _game(_letters));
+      await openTile(tester, 1);
+      events.clear();
+      await writeOpen(tester);
+      await tester.pump(const Duration(milliseconds: 100));
+      expect(events, [
+        'clip:audio/ar/letter_ba.mp3',
+        'cheer',
+        'clip:audio/ar/letter_ba.mp3',
+        'clap',
+      ]);
+      await backToGrid(tester);
+    });
+
+    testWidgets('والإنجليزيةُ والأرقامُ كذلك، بالنطق', (tester) async {
+      await boot(
+        tester,
+        _game(const [], entries: [
+          {'text': 'Bb', 'kind': 'letter', 'lang': 'en', 'speech': 'B'},
+        ]),
+      );
+      await openTile(tester, 0);
+      events.clear();
+      await writeOpen(tester);
+      await tester.pump(const Duration(milliseconds: 100));
+      expect(events, ['say:B', 'cheer', 'say:B', 'clap']);
+      await backToGrid(tester);
+    });
+
+    testWidgets('لمسةٌ على الحرف الراقص تتخطّى الاحتفالَ إلى الشبكة', (tester) async {
+      await boot(tester, _game(_letters));
+      await openTile(tester, 1);
+      await writeOpen(tester);
+      expect(celebration, findsOneWidget);
+      await tester.tap(celebration);
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 50));
+      expect(find.byKey(const ValueKey('tracing-grid')), findsOneWidget);
+      await tester.pump(const Duration(seconds: 4));
+      expect(find.byKey(const ValueKey('tracing-grid')), findsOneWidget, reason: 'انتهاءُ الاحتفال المقطوع لا يفعل شيئاً');
     });
   });
 

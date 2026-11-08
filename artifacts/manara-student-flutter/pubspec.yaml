@@ -1,7 +1,7 @@
 name: manara_student
 description: تطبيق منارة المعرفة المخصص للطلاب.
 publish_to: "none"
-version: 1.1.62+64
+version: 1.1.63+65
 
 environment:
   sdk: ">=3.5.0 <4.0.0"
@@ -165,6 +165,10 @@ flutter:
     - assets/images/games/
     # فقعُ البالون وصافرةُ القطار — انظر StudentSoundService.playGameEffect.
     - assets/audio/games/
+    # ‏ألعابُ الروضة الصوتية في «الثقافة العامة» (الألوان، الأشكال، الحساب):
+    # ‏سؤالُ كل لعبةٍ وصوتُ الإجابة الخاطئة، منسوخةً بأسماءٍ لاتينية — انظر
+    # ‏kindergarten_voice_games.dart.
+    - assets/audio/kg_games/
   fonts:
     # خطُّ لعبة «تتبّع واكتب» مضمَّناً لا منزَّلاً: مساراتُ حروف الروضة
     # تُحسب مسبقاً من أشكاله (tool/generate_tracing_glyphs.dart)، فيجب أن

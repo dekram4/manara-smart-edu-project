@@ -1384,6 +1384,40 @@ class StudentSoundService with WidgetsBindingObserver {
     unawaited(_cheerOverClapping(nextEncouragementClip()));
   }
 
+  /// «أحسنت يا بطل» بعينها — لاحتفال «قلمي السحري» وألعاب الروضة الصوتية:
+  /// العبارةُ التي يُبنى عليها التسلسل («حرفُ الألف… أحسنت، حرفُ الألف»).
+  static const ahsantClip = 'audio/encouragement/encouragement_ahsant_ya_batal.mp3';
+
+  /// [playCheer] لعبارةٍ بعينها، وينتظر حتى تنتهي العبارة (والتصفيقُ تحتها
+  /// يخفت وحده بعدها) — ليُبنى عليه تسلسل: اسمُ الحرف بعد التشجيع لا فوقه.
+  Future<void> playCheerToEnd(String phrase) async {
+    if (muted.value || _backgrounded) return;
+    HapticFeedback.mediumImpact();
+    _applauseCancelled = false;
+    final done = _effectsPlayer.onPlayerComplete.first;
+    unawaited(_cheerOverClapping(phrase));
+    try {
+      await done.timeout(const Duration(seconds: 6));
+    } catch (_) {
+      // انقطع أو طال: التسلسلُ يمضي على كل حال.
+    }
+  }
+
+  /// التصفيقُ وحده بعلوٍّ كامل — ختامُ الاحتفال بعد أن يُقال الاسمُ مرّتين.
+  void playClappingFinale() {
+    if (muted.value || _backgrounded) return;
+    final generation = ++_sequence;
+    unawaited(() async {
+      try {
+        await _clapPlayer.stop();
+        if (generation != _sequence) return;
+        await _clapPlayer.play(AssetSource(clapping), volume: 0.85);
+      } catch (_) {
+        // زينةٌ صوتية: لا تكسر شيئاً.
+      }
+    }());
+  }
+
   /// نجاحٌ فوريّ قصير بلا كلام — آيةٌ صحّت في التسميع. نغمةٌ لا عبارة: المايكُ
   /// مفتوح، وعبارةٌ مسموعةٌ يكتبها محرّكُ التعرّف كأنها قراءةُ الطفل.
   void playInstantSuccess() {

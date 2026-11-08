@@ -18,7 +18,7 @@
 library;
 
 /// عددُ البطاقات في الواجهة.
-const homeModuleCount = 13;
+const homeModuleCount = 16;
 
 /// بطاقتا الروضة: «أبطال تسميع القرآن» و«قلمي السحري». لا تظهران إلا في
 /// نطاقهما — درسُ حفظ السور القصيرة، ودروسُ الحروف والأرقام — فلا يرى
@@ -26,6 +26,14 @@ const homeModuleCount = 13;
 const recitationModule = 11;
 const writingModule = 12;
 const kindergartenModules = {recitationModule, writingModule};
+
+/// ألعابُ الروضة الصوتية في «الثقافة العامة»: الألوان والأشكال والحساب. لا
+/// تظهر إلا في درس الثقافة العامة بالروضة — حيث لا تظهر بطاقتا الكتابة
+/// والتسميع — فتلي المذاكرةَ الذكية في الرفّ.
+const colorsGameModule = 13;
+const shapesGameModule = 14;
+const mathGameModule = 15;
+const kgVoiceGameModules = {colorsGameModule, shapesGameModule, mathGameModule};
 
 /// والمذاكرةُ الذكية تلي شرحَ الدرس: هي مذاكرةُ الدرس نفسه، فموضعُها
 /// بجانبه لا في آخر الرفّ.
@@ -38,4 +46,4 @@ const kindergartenModules = {recitationModule, writingModule};
 /// ── وبطاقتا الروضة بجانب شرح الدرس ──
 /// هما لبُّ درس الروضة — يكتب الحرفَ ويسمّع السورة — فتليان شرحَه مباشرةً،
 /// ثم المذاكرة.
-const homeVisualOrder = <int>[0, 11, 12, 10, 1, 2, 3, 4, 5, 6, 7, 8, 9];
+const homeVisualOrder = <int>[0, 11, 12, 10, 13, 14, 15, 1, 2, 3, 4, 5, 6, 7, 8, 9];
