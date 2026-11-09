@@ -1408,21 +1408,6 @@ class StudentSoundService with WidgetsBindingObserver {
     }
   }
 
-  /// التصفيقُ وحده بعلوٍّ كامل — ختامُ الاحتفال بعد أن يُقال الاسمُ مرّتين.
-  void playClappingFinale() {
-    if (muted.value || _backgrounded) return;
-    final generation = ++_sequence;
-    unawaited(() async {
-      try {
-        await _clapPlayer.stop();
-        if (generation != _sequence) return;
-        await _clapPlayer.play(AssetSource(clapping), volume: 0.85);
-      } catch (_) {
-        // زينةٌ صوتية: لا تكسر شيئاً.
-      }
-    }());
-  }
-
   /// نجاحٌ فوريّ قصير بلا كلام — آيةٌ صحّت في التسميع. نغمةٌ لا عبارة: المايكُ
   /// مفتوح، وعبارةٌ مسموعةٌ يكتبها محرّكُ التعرّف كأنها قراءةُ الطفل.
   void playInstantSuccess() {

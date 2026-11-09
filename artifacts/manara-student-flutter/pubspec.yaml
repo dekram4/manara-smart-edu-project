@@ -174,6 +174,7 @@ flutter:
     # ‏سؤالُ كل لعبةٍ وصوتُ الإجابة الخاطئة، منسوخةً بأسماءٍ لاتينية — انظر
     # ‏kindergarten_voice_games.dart.
     - assets/audio/kg_games/
+    - assets/audio/kg_games/general/
   fonts:
     # خطُّ لعبة «تتبّع واكتب» مضمَّناً لا منزَّلاً: مساراتُ حروف الروضة
     # تُحسب مسبقاً من أشكاله (tool/generate_tracing_glyphs.dart)، فيجب أن

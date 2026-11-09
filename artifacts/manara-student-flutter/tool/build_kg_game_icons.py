@@ -1,12 +1,13 @@
-"""Draws the three icons of the kindergarten voice games (general culture).
+"""Draws the four icons of the kindergarten voice games (general culture).
 
     py tool/build_kg_game_icons.py
 
-Writes assets/images/kg_colors.png, kg_shapes.png and kg_math.png — 512x512
+Writes assets/images/kg_colors.png, kg_shapes.png, kg_math.png and kg_general.png — 512x512
 RGBA, drawn at 4x and scaled down so every edge is smooth. Glossy, rounded
 and bright, to sit beside the 3D icons the other home cards use.
 """
 
+import math
 from pathlib import Path
 
 from PIL import Image, ImageDraw, ImageFilter, ImageFont
@@ -163,7 +164,42 @@ def math_icon():
     save(shadow(img), 'kg_math.png')
 
 
+# ── 4) أسئلةُ الروضة: علامةُ سؤالٍ لامعة، وحولها شمسٌ وغيمةٌ وورقة ─────────────
+def general_icon():
+    img = canvas()
+    font = ImageFont.truetype(str(ROOT / 'assets' / 'fonts' / 'Tajawal-Bold.ttf'), 260 * S)
+    # sun behind, top-right
+    sun = radial_ball(150 * S, (250, 204, 21))
+    sd = ImageDraw.Draw(img)
+    for k in range(12):
+        a = k * math.pi / 6
+        cx, cy = 392 * S, 112 * S
+        sd.line([(cx + math.cos(a) * 82 * S, cy + math.sin(a) * 82 * S),
+                 (cx + math.cos(a) * 106 * S, cy + math.sin(a) * 106 * S)], fill=(251, 191, 36, 255), width=14 * S)
+    img.alpha_composite(sun, (317 * S, 37 * S))
+    # leaf, bottom-left
+    leaf = Image.new('RGBA', (W, W), (0, 0, 0, 0))
+    ld = ImageDraw.Draw(leaf)
+    ld.ellipse([30 * S, 330 * S, 190 * S, 430 * S], fill=(34, 197, 94, 255))
+    ld.line([(40 * S, 420 * S), (180 * S, 340 * S)], fill=(21, 128, 61, 255), width=8 * S)
+    img.alpha_composite(leaf.rotate(18, center=(110 * S, 380 * S)))
+    # snow-blue ball, bottom-right
+    img.alpha_composite(radial_ball(110 * S, (56, 189, 248)), (380 * S, 370 * S))
+    # big question ball
+    size = 300 * S
+    ball = radial_ball(size, (124, 58, 237))
+    bd = ImageDraw.Draw(ball)
+    bbox = bd.textbbox((0, 0), '؟', font=font)
+    tw, th = bbox[2] - bbox[0], bbox[3] - bbox[1]
+    pos = ((size - tw) / 2 - bbox[0], (size - th) / 2 - bbox[1])
+    bd.text((pos[0] + 5 * S, pos[1] + 8 * S), '؟', font=font, fill=(0, 0, 0, 70))
+    bd.text(pos, '؟', font=font, fill=(255, 255, 255, 255))
+    img.alpha_composite(ball, (106 * S, 106 * S))
+    save(shadow(img), 'kg_general.png')
+
+
 if __name__ == '__main__':
     colors_icon()
     shapes_icon()
     math_icon()
+    general_icon()

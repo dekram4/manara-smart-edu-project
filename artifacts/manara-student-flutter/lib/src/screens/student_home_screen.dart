@@ -349,7 +349,7 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> with RouteAware {
           grade: context?.grade,
           subject: context?.subject,
         ),
-      colorsGameModule || shapesGameModule || mathGameModule => kgVoiceGamesAllowedFor(
+      colorsGameModule || shapesGameModule || mathGameModule || generalGameModule => kgVoiceGamesAllowedFor(
           grade: context?.grade,
           subject: context?.subject,
         ),
@@ -611,6 +611,7 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> with RouteAware {
                 kind: switch (index) {
                   colorsGameModule => KgVoiceGameKind.colors,
                   shapesGameModule => KgVoiceGameKind.shapes,
+                  generalGameModule => KgVoiceGameKind.general,
                   _ => KgVoiceGameKind.math,
                 },
               ),
@@ -1374,6 +1375,16 @@ const _homeSections = <_HomeSection>[
     image: 'assets/images/kg_math.png',
     colors: [Color(0xFF15803D), Color(0xFF84CC16)],
     accent: Color(0xFFD9F99D),
+    ownsVoice: true,
+  ),
+  // Index 16 — أسئلةُ الروضة العامة: الفصول والحيوانات والأيام والبيئة.
+  _HomeSection(
+    titleKey: 'portal.general',
+    subtitleKey: 'portal.general.sub',
+    descriptionKey: 'portal.general.desc',
+    image: 'assets/images/kg_general.png',
+    colors: [Color(0xFF6D28D9), Color(0xFFC084FC)],
+    accent: Color(0xFFE9D5FF),
     ownsVoice: true,
   ),
 ];

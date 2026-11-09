@@ -88,6 +88,26 @@ void main() {
       }
     });
 
+    test('أسئلةُ الروضة: خمسةُ موضوعاتٍ متعاقبة، بلا سؤالٍ مكرّر، ولكلٍّ مقطعُه وثلاثةُ خيارات', () {
+      expect(kgGeneralQuestions.map((q) => q.id).toSet(), hasLength(kgGeneralQuestions.length));
+      for (final q in kgGeneralQuestions) {
+        expect(File('assets/${q.clip}').existsSync(), isTrue, reason: q.clip);
+        expect(q.others, hasLength(3), reason: q.id);
+        expect(q.others.map((o) => o.id), isNot(contains(q.answer.id)), reason: q.id);
+      }
+      for (var seed = 0; seed < 30; seed++) {
+        final round = buildKgVoiceRound(KgVoiceGameKind.general, math.Random(seed));
+        expect(round.map((q) => q.general!.id).toSet(), hasLength(kgVoiceRoundLength), reason: 'لا يتكرّر سؤال');
+        expect(round.map((q) => q.general!.topic).toSet(), KgTopic.values.toSet());
+        for (var i = 1; i < round.length; i++) {
+          expect(round[i].general!.topic, isNot(round[i - 1].general!.topic));
+        }
+        for (final q in round) {
+          expect(q.promptClip, q.general!.clip);
+        }
+      }
+    });
+
     test('مقاطعُ المعادلة كلُّها في assets/', () {
       for (final clip in [...kgOperatorClips.values, kgHowMuchClip, for (var n = 0; n <= 10; n++) kgNumberClip(n)]) {
         expect(File('assets/$clip').existsSync(), isTrue, reason: clip);
@@ -159,6 +179,32 @@ void main() {
       expect(story.judge('٠١٢٣٤٥٦٧٨٩'[n == 10 ? 1 : n] + (n == 10 ? '٠' : '')), isTrue);
       expect(story.judge('${story.story!.a} زائد ${story.story!.b} يساوي $n'), isTrue, reason: 'آخرُ عددٍ هو الجواب');
       expect(story.judge('${(n + 1) % 11}'), isFalse);
+    });
+
+    test('أسئلةُ الروضة العامة', () {
+      KgVoiceQuestion general(String id) => KgVoiceQuestion.generalForTest(
+            kgGeneralQuestions.firstWhere((q) => q.id == id),
+          );
+      final winter = general('season_winter');
+      for (final said in ['الشتاء', 'شتاء', 'فصل الشتاء', 'الشتا', 'winter']) {
+        expect(winter.judge(said), isTrue, reason: said);
+      }
+      expect(winter.judge('الصيف'), isFalse);
+      expect(winter.judge('الشتاء والصيف'), isFalse, reason: 'فصلان: لا يُقبل');
+      expect(general('animal_meow').judge('القطة'), isTrue);
+      expect(general('animal_meow').judge('بسة'), isTrue);
+      expect(general('animal_milk').judge('البقرة'), isTrue);
+      expect(general('days_week').judge('سبعة'), isTrue);
+      expect(general('days_week').judge('7'), isTrue);
+      expect(general('days_week').judge('ستة'), isFalse);
+      expect(general('days_after_saturday').judge('الأحد'), isTrue);
+      expect(general('days_before_tuesday').judge('يوم الاثنين'), isTrue);
+      expect(general('days_before_tuesday').judge('الأربعاء'), isFalse);
+      expect(general('color_banana').judge('أصفر'), isTrue);
+      expect(general('env_trash').judge('في سلة المهملات'), isTrue);
+      expect(general('env_tap').judge('الحنفية'), isTrue);
+      expect(general('env_fire').judge('رجل الإطفاء'), isTrue);
+      expect(general('env_night').judge('في الليل'), isTrue);
     });
 
     test('الأعدادُ كلماتٍ بعاميّتها', () {

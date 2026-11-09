@@ -99,7 +99,6 @@ void main() {
               events.add('clip:$asset');
             },
             cheerToEnd: () async => events.add('cheer'),
-            clapFinale: () => events.add('clap'),
           ),
         ),
       ),
@@ -242,7 +241,7 @@ void main() {
       expect(find.byKey(const ValueKey('tracing-grid')), findsOneWidget);
     });
 
-    testWidgets('الحرفُ العربيّ: اسمُه، ثم «أحسنت»، ثم اسمُه ثانيةً، ثم التصفيق', (tester) async {
+    testWidgets('الحرفُ العربيّ: اسمُه، ثم «أحسنت» والتصفيقُ مرّةً، ثم اسمُه ثانيةً — ولا شيءَ بعده', (tester) async {
       await boot(tester, _game(_letters));
       await openTile(tester, 1);
       events.clear();
@@ -252,8 +251,7 @@ void main() {
         'clip:audio/ar/letter_ba.mp3',
         'cheer',
         'clip:audio/ar/letter_ba.mp3',
-        'clap',
-      ]);
+      ], reason: 'التشجيعُ والتصفيقُ مرّةً واحدة');
       await backToGrid(tester);
     });
 
@@ -272,7 +270,6 @@ void main() {
         'clip:audio/letters_en/letter_b.mp3',
         'cheer',
         'clip:audio/letters_en/letter_b.mp3',
-        'clap',
       ]);
       await backToGrid(tester);
     });

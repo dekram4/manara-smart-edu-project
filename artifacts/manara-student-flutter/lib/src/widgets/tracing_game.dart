@@ -33,8 +33,9 @@ import '../theme/student_theme.dart';
 ///
 /// ── والحرفُ المكتمل يحتفل ──
 /// يقفز الحرفُ من مكانه ويتشقلب ويتلوّن ([CelebratingGlyph])، ويُسمع معه:
-/// اسمُه، ثم «أحسنت يا بطل» وخلفها التصفيق، ثم اسمُه ثانيةً، ثم التصفيق —
-/// ليقترن شكلُ الحرف باسمه. وهو هو لكل الحروف والأرقام، عربيةً وإنجليزية.
+/// اسمُه، ثم «أحسنت يا بطل» وخلفها التصفيقُ **مرّةً واحدة** يسكت بانتهائها، ثم
+/// اسمُه ثانيةً — ليقترن شكلُ الحرف باسمه. (كان بعدها تصفيقٌ ختاميّ وصوتُ
+/// الجواهر فوق تصفيقٍ ممتدّ، فيتكرّر التصفيقُ ويطول.) وهو هو لكل الحروف والأرقام، عربيةً وإنجليزية.
 ///
 /// ── وحصراً لروضة منارة المعرفة ──
 /// الخادمُ لا يرسلها إلا للروضة في موادّها الأربع، والتطبيقُ يتحقّق كذلك
@@ -58,7 +59,6 @@ class TracingGame extends StatefulWidget {
     this.playClip,
     this.celebrate,
     this.cheerToEnd,
-    this.clapFinale,
     super.key,
   });
 
@@ -82,11 +82,9 @@ class TracingGame extends StatefulWidget {
   /// الختاميّ يمضي بعدها وحده). وبلا قيمةٍ: [TracingGameState.celebrationAudio].
   final Future<void> Function(TracingItem item)? celebrate;
 
-  /// خطوتا التسلسل الافتراضيّ الأخريان، تُستبدلان في الاختبار:
-  /// «أحسنت يا بطل» وخلفها التصفيق ([StudentSoundService.playCheerToEnd])،
-  /// والتصفيقُ الختاميّ ([StudentSoundService.playClappingFinale]).
+  /// «أحسنت يا بطل» وخلفها التصفيق ([StudentSoundService.playCheerToEnd]) —
+  /// يُستبدل في الاختبار.
   final Future<void> Function()? cheerToEnd;
-  final void Function()? clapFinale;
 
   @override
   State<TracingGame> createState() => TracingGameState();
@@ -539,10 +537,9 @@ class TracingGameState extends State<TracingGame> with SingleTickerProviderState
       try {
         final result = await widget.onTraced(item);
         if (!mounted || _index != index || !_itemDone) return;
-        if ((result?.gems ?? 0) > 0) {
-          StudentSoundService.instance.playReward();
-          setState(() => _gemEarned = true);
-        }
+        // ‏الجوهرةُ شارةٌ على الحرف بلا صوت: صوتُها كان يُصفّ خلف «أحسنت» فيمدّ
+        // ‏التصفيقَ تحته ويكرّره.
+        if ((result?.gems ?? 0) > 0) setState(() => _gemEarned = true);
       } catch (error) {
         debugPrint('[tracing] reward failed for "${item.text}": $error');
       }
@@ -597,23 +594,20 @@ class TracingGameState extends State<TracingGame> with SingleTickerProviderState
     }
   }
 
-  /// التسلسلُ الافتراضيّ: الاسمُ، ثم «أحسنت يا بطل» وخلفها التصفيق، ثم الاسمُ
-  /// ثانيةً — ويُطلق بعدها التصفيقُ الختاميّ ولا يُنتظر. وكلُّ خطوةٍ تتحقّق أن
-  /// الاحتفالَ نفسَه ما زال جارياً.
+  /// التسلسلُ الافتراضيّ: الاسمُ، ثم «أحسنت يا بطل» وخلفها التصفيقُ مرّةً، ثم
+  /// الاسمُ ثانيةً — ولا شيءَ بعده. وكلُّ خطوةٍ تتحقّق أن الاحتفالَ نفسَه ما زال
+  /// جارياً.
   @visibleForTesting
   Future<void> celebrationAudio(TracingItem item) async {
     final celebration = _celebration;
     bool live() => mounted && celebration == _celebration;
     final sound = StudentSoundService.instance;
     final cheer = widget.cheerToEnd ?? () => sound.playCheerToEnd(StudentSoundService.ahsantClip);
-    final clap = widget.clapFinale ?? sound.playClappingFinale;
     await _sayToEnd(item);
     if (!live()) return;
     await cheer();
     if (!live()) return;
     await _sayToEnd(item);
-    if (!live()) return;
-    clap();
   }
 
   // ── الواجهة ─────────────────────────────────────────────────────

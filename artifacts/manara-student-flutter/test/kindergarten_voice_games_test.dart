@@ -21,6 +21,7 @@ void main() {
     KgVoiceGameKind kind,
     Say say, {
     bool micAllowed = true,
+    Future<bool> Function({required ValueChanged<String> onResult, ValueChanged<String>? onPartial})? listen,
   }) async {
     events = [];
     holdPrompt = null;
@@ -34,6 +35,7 @@ void main() {
           random: math.Random(7),
           playToEnd: (clip) async {
             events.add('clip:${clip.split('/').last}');
+            if (clip.contains('question_') || clip.contains('/general/')) events.add('prompt');
             if (holdPrompt != null && clip.contains('question_')) await holdPrompt!.future;
           },
           stopPrompt: () async => events.add('stop-prompt'),
@@ -43,15 +45,16 @@ void main() {
           },
           cheer: () async => events.add('cheer'),
           speak: (text) async => events.add('speak:$text'),
-          stopListening: () async {},
-          listen: ({required onResult, onPartial}) async {
-            final heard = say(state.question!);
-            if (heard == null) return false;
-            events.add('heard:$heard');
-            onPartial?.call(heard);
-            Future<void>.microtask(() => onResult(heard));
-            return true;
-          },
+          stopListening: () async => events.add('stop-listening'),
+          listen: listen ??
+              ({required onResult, onPartial}) async {
+                final heard = say(state.question!);
+                if (heard == null) return false;
+                events.add('heard:$heard');
+                onPartial?.call(heard);
+                Future<void>.microtask(() => onResult(heard));
+                return true;
+              },
         ),
       ),
     );
@@ -72,9 +75,10 @@ void main() {
     await tester.pump(const Duration(milliseconds: 50));
   }
 
+  /// النجاحُ، ثم انزلاقُ السؤال التالي إلى مكانه.
   Future<void> afterCelebration(WidgetTester tester) async {
     await tester.pump(KgVoiceGameScreenState.celebrateFor + const Duration(milliseconds: 100));
-    await tester.pump(const Duration(milliseconds: 400));
+    await tester.pump(KgVoiceGameScreenState.questionTransition + const Duration(milliseconds: 50));
   }
 
   testWidgets('بدءُ اللعبة: السؤالُ يُسمع أوّلاً، والمايكُ بعده', (tester) async {
@@ -163,7 +167,7 @@ void main() {
       }
       expect(find.byKey(const ValueKey('kg-voice-done')), findsOneWidget, reason: '$kind');
       expect(find.text('أجبت 10 من 10 إجابة صحيحة'), findsOneWidget);
-      expect(events.where((e) => e.startsWith('clip:question_')), hasLength(kgVoiceRoundLength));
+      expect(events.where((e) => e == 'prompt'), hasLength(kgVoiceRoundLength), reason: '$kind: كلُّ سؤالٍ بمقطعه');
       await tester.tap(find.byKey(const ValueKey('kg-voice-again')));
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 400));
@@ -185,7 +189,8 @@ void main() {
     expect(seen, KgShape.values.map((s) => s.name).toSet());
     await tester.pump(const Duration(seconds: 3));
 
-    final math = await boot(tester, KgVoiceGameKind.math, (q) => q.story != null ? '${q.story!.result}' : q.answer.label);
+    final math =
+        await boot(tester, KgVoiceGameKind.math, (q) => q.story != null ? '${q.story!.result}' : q.answer.label);
     await start(tester);
     var stories = 0;
     var signs = 0;
@@ -237,7 +242,8 @@ void main() {
   });
 
   testWidgets('المسائلُ المصوّرة: المعادلةُ مقروءة، والعدُّ باللمس يُسمع، والقسمةُ توزيع', (tester) async {
-    final state = await boot(tester, KgVoiceGameKind.math, (q) => q.story != null ? '${q.story!.result}' : q.answer.label);
+    final state =
+        await boot(tester, KgVoiceGameKind.math, (q) => q.story != null ? '${q.story!.result}' : q.answer.label);
     await start(tester);
     var sawDivide = false;
     var sawCount = false;
@@ -273,8 +279,69 @@ void main() {
     await tester.pump(const Duration(seconds: 3));
   });
 
-  test('في الواجهة: ثلاثُ بطاقاتٍ بعد المذاكرة الذكية', () {
-    expect(kgVoiceGameModules, {13, 14, 15});
-    expect(homeVisualOrder.sublist(4, 7), [13, 14, 15]);
+  testWidgets('الخياراتُ ظاهرةٌ مع المايك: يلمسها الطفلُ والمايكُ يسمع فيُغلق ويُحكم بلمسه', (tester) async {
+    final state = await boot(tester, KgVoiceGameKind.colors, (q) => null);
+    await start(tester);
+    final q = state.question!;
+    expect(find.byKey(ValueKey('kg-choice-${q.answer.id}')), findsOneWidget, reason: 'قبل أيّ ضغطٍ على المايك');
+    expect(find.text('قل الجواب بصوتك، أو المس الصحيح 👇'), findsOneWidget);
+    await tester.pump(const Duration(milliseconds: 400));
+    await tester.tap(find.byKey(ValueKey('kg-choice-${q.answer.id}')));
+    await tester.pump();
+    expect(state.turn, KgTurn.correct);
+    await afterCelebration(tester);
+
+    // ‏والمايكُ يسمع ولم يُسلّم بعد: لمسُ الخيار يُغلقه ويُحكم.
+    final listening = Completer<void>();
+    final general = await boot(
+      tester,
+      KgVoiceGameKind.general,
+      (q) => null,
+      listen: ({required onResult, onPartial}) async {
+        events.add('listening');
+        unawaited(listening.future.then((_) => onResult('كلامٌ متأخّر')));
+        return true;
+      },
+    );
+    await start(tester);
+    await answer(tester);
+    expect(general.turn, KgTurn.listening);
+    final g = general.question!;
+    expect(find.byKey(const ValueKey('kg-general-text')), findsOneWidget);
+    await tester.tap(find.byKey(ValueKey('kg-choice-${g.distractors.first.id}')));
+    await tester.pump();
+    expect(events, contains('stop-listening'));
+    expect(general.turn, KgTurn.wrong);
+    listening.complete();
+    await tester.pump();
+    expect(general.turn, KgTurn.wrong, reason: 'ما يُسلّمه الإغلاقُ بعد اللمس يُهمَل');
+    await tester.tap(find.byKey(ValueKey('kg-choice-${g.answer.id}')));
+    await tester.pump();
+    expect(general.turn, KgTurn.correct);
+    await tester.pump(const Duration(seconds: 3));
+  });
+
+  testWidgets('أسئلةُ الروضة: نصُّ السؤال ومقطعُه، ومشهدُه يتحرّك ويُلمس', (tester) async {
+    final state = await boot(tester, KgVoiceGameKind.general, (q) => q.answer.label);
+    await start(tester);
+    final topics = <KgTopic>{};
+    for (var i = 0; i < kgVoiceRoundLength; i++) {
+      final g = state.question!.general!;
+      topics.add(g.topic);
+      expect(find.text(g.text), findsOneWidget);
+      expect(events, contains('clip:${g.id}.mp3'));
+      await tester.tap(find.byKey(const ValueKey('kg-general-emoji-0')));
+      await tester.pump(const Duration(milliseconds: 100));
+      await answer(tester);
+      expect(state.turn, KgTurn.correct, reason: g.id);
+      await afterCelebration(tester);
+    }
+    expect(topics, KgTopic.values.toSet());
+    await tester.pump(const Duration(seconds: 3));
+  });
+
+  test('في الواجهة: أربعُ بطاقاتٍ بعد المذاكرة الذكية', () {
+    expect(kgVoiceGameModules, {13, 14, 15, 16});
+    expect(homeVisualOrder.sublist(4, 8), [13, 14, 15, 16]);
   });
 }

@@ -31,9 +31,12 @@ import '../widgets/voice_mic_button.dart' show ensureVoiceMic;
 /// التعرّف صوتَ السؤال جواباً)، ولكل مقطعٍ مهلة. وأوّلُ ضغطةٍ تطلب إذنَ
 /// الميكروفون بنافذةٍ تشرح لماذا ([ensureVoiceMic]).
 ///
-/// ── وجهازٌ بلا مايك ──
-/// إن تعذّر التعرّفُ على الكلام (لا إذن، أو لا محرّك) ظهرت الإجاباتُ أزراراً
-/// يختار منها — فاللعبةُ تُلعب على كل جهاز.
+/// ── الصوتُ والأزرارُ معاً ──
+/// الخياراتُ ظاهرةٌ أزراراً تحت المايك دائماً، برموزها لطفلٍ لا يقرأ بعد:
+/// يقول الجوابَ أو يلمسه، وأيُّهما سبق حُكم به (ولمسُ خيارٍ والمايكُ يسمع
+/// يُغلقه). كانت الأزرارُ لا تظهر إلا إن تعذّر التعرّف — فبدا ضغطُ المايك
+/// كأنه «يُظهر الخيارات» لا يسمع. وإن تعذّر (لا إذن، أو لا محرّك) قيل ذلك
+/// بسطرٍ صغير، وبقيت اللعبةُ تُلعب باللمس.
 class KgVoiceGameScreen extends StatefulWidget {
   const KgVoiceGameScreen({
     required this.kind,
@@ -89,6 +92,9 @@ class KgVoiceGameScreenState extends State<KgVoiceGameScreen> {
 
   /// كم يرى الطفلُ نجاحه قبل السؤال التالي.
   static const celebrateFor = Duration(milliseconds: 1600);
+
+  /// انزلاقُ السؤال خارجاً ودخولُ التالي.
+  static const questionTransition = Duration(milliseconds: 450);
 
   late final math.Random _random = widget.random ?? math.Random();
   late final ConfettiController _confetti = ConfettiController(duration: const Duration(milliseconds: 700));
@@ -182,9 +188,11 @@ class KgVoiceGameScreenState extends State<KgVoiceGameScreen> {
     }
   }
 
+  /// يُنهي استماعَ الطفل بما قيل. إيقافُ المحرّك وحده كانت جلسةُ الطفل تراه
+  /// صمتاً فتعيد فتحَ المايك — فلا تنتهي ضغطةُ الإيقاف، ولا مغادرةُ الشاشة.
   Future<void> _stop() async {
     try {
-      await (widget.stopListening ?? StudentVoiceService.instance.stopListening)();
+      await (widget.stopListening ?? () async => StudentVoiceService.instance.finishChildListening())();
     } catch (_) {}
   }
 
@@ -307,11 +315,20 @@ class KgVoiceGameScreenState extends State<KgVoiceGameScreen> {
     unawaited(_judge(_round[_index].judge(text)));
   }
 
-  /// زرُّ إجابةٍ حين لا مايك.
+  /// يُجاب بلمس الخيار كذلك — والمايكُ يسمع أو لا يسمع.
+  bool get _answerable => _micOpen || _turn == KgTurn.listening;
+
   void _choose(KgVoiceOption option) {
-    if (!_micOpen) return;
+    if (!_answerable) return;
+    HapticFeedback.selectionClick();
+    final wasListening = _turn == KgTurn.listening;
     if (_turn == KgTurn.prompting) unawaited(_stopPrompt());
-    setState(() => _heard = option.label);
+    setState(() {
+      _heard = option.label;
+      // ‏يخرج من «يسمع» قبل إغلاق المايك: ما يُسلّمه الإغلاقُ يُهمَل.
+      _turn = KgTurn.ready;
+    });
+    if (wasListening) unawaited(_stop());
     unawaited(_judge(option.id == _round[_index].answer.id));
   }
 
@@ -361,18 +378,21 @@ class KgVoiceGameScreenState extends State<KgVoiceGameScreen> {
     KgVoiceGameKind.colors: 'assets/images/kg_colors.png',
     KgVoiceGameKind.shapes: 'assets/images/kg_shapes.png',
     KgVoiceGameKind.math: 'assets/images/kg_math.png',
+    KgVoiceGameKind.general: 'assets/images/kg_general.png',
   };
 
   static const _titles = {
     KgVoiceGameKind.colors: 'portal.colors',
     KgVoiceGameKind.shapes: 'portal.shapes',
     KgVoiceGameKind.math: 'portal.math',
+    KgVoiceGameKind.general: 'portal.general',
   };
 
   static const _accents = {
     KgVoiceGameKind.colors: Color(0xFFDB2777),
     KgVoiceGameKind.shapes: Color(0xFF0EA5E9),
     KgVoiceGameKind.math: Color(0xFF16A34A),
+    KgVoiceGameKind.general: Color(0xFF7C3AED),
   };
 
   Color get _accent => _accents[widget.kind]!;
@@ -510,15 +530,33 @@ class KgVoiceGameScreenState extends State<KgVoiceGameScreen> {
       key: const ValueKey('kg-voice-playing'),
       builder: (context, constraints) {
         final wide = constraints.maxWidth > constraints.maxHeight * 1.1;
+        // ‏السؤالُ السابقُ ينزلق خارجاً ويتلاشى، والتالي يدخل من الجهة الأخرى.
         final visual = Padding(
           padding: const EdgeInsets.all(12),
-          child: _QuestionCard(
-            key: ValueKey('kg-question-$_index'),
-            question: q,
-            index: _index,
-            wrongShake: _turn == KgTurn.wrong ? _attempts : 0,
-            celebrating: _turn == KgTurn.correct,
-            onCount: (n) => _playQuick(kgNumberClip(n)),
+          child: AnimatedSwitcher(
+            duration: questionTransition,
+            switchInCurve: Curves.easeOutCubic,
+            switchOutCurve: Curves.easeInCubic,
+            transitionBuilder: (child, animation) {
+              final entering = child.key == ValueKey('kg-question-$_index');
+              final from = Offset(entering ? 0.35 : -0.35, 0) *
+                  (StudentSettings.direction == TextDirection.rtl ? -1 : 1);
+              return FadeTransition(
+                opacity: animation,
+                child: SlideTransition(
+                  position: Tween(begin: from, end: Offset.zero).animate(animation),
+                  child: child,
+                ),
+              );
+            },
+            child: _QuestionCard(
+              key: ValueKey('kg-question-$_index'),
+              question: q,
+              index: _index,
+              wrongShake: _turn == KgTurn.wrong ? _attempts : 0,
+              celebrating: _turn == KgTurn.correct,
+              onCount: (n) => _playQuick(kgNumberClip(n)),
+            ),
           ),
         );
         final panel = _panel(context, q);
@@ -581,7 +619,7 @@ class KgVoiceGameScreenState extends State<KgVoiceGameScreen> {
               _MicButton(
                 key: const ValueKey('kg-voice-mic'),
                 listening: _turn == KgTurn.listening,
-                enabled: _micOpen || _turn == KgTurn.listening,
+                enabled: _answerable,
                 color: _accent,
                 onPressed: _mic,
               ),
@@ -595,38 +633,46 @@ class KgVoiceGameScreenState extends State<KgVoiceGameScreen> {
               ),
             ],
           ),
-          if (_micUnavailable) ...[
-            const SizedBox(height: 12),
-            Text(
-              tr('kg.voice.chooseInstead'),
-              style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: StudentSurface.mutedInk(context)),
-            ),
-            const SizedBox(height: 8),
-            _choices(context, q),
-          ],
+          const SizedBox(height: 12),
+          Text(
+            tr(_micUnavailable ? 'kg.voice.chooseInstead' : 'kg.voice.sayOrTap'),
+            key: const ValueKey('kg-voice-hint'),
+            textAlign: TextAlign.center,
+            style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: StudentSurface.mutedInk(context)),
+          ),
+          const SizedBox(height: 8),
+          _choices(context, q),
         ],
       ),
     );
   }
 
-  /// أزرارُ الإجابة حين لا مايك: الجوابُ وثلاثةُ خياراتٍ من نوعه، بترتيبٍ ثابت.
+  /// أزرارُ الإجابة تحت المايك: الجوابُ وثلاثةُ خياراتٍ من نوعه، بترتيبٍ ثابت،
+  /// تدخل واحداً بعد الآخر.
   Widget _choices(BuildContext context, KgVoiceQuestion q) {
     final pool = [...q.distractors]..shuffle(math.Random(_index * 31 + q.answer.id.hashCode));
     final options = [q.answer, ...pool.take(3)]..shuffle(math.Random(_index * 17 + 3));
     return Wrap(
+      key: ValueKey('kg-choices-$_index'),
       alignment: WrapAlignment.center,
       spacing: 8,
       runSpacing: 8,
       children: [
-        for (final option in options)
-          FilledButton.tonal(
-            key: ValueKey('kg-choice-${option.id}'),
-            onPressed: _micOpen ? () => _choose(option) : null,
-            style: FilledButton.styleFrom(
-              textStyle: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900),
-              padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+        for (final (i, option) in options.indexed)
+          TweenAnimationBuilder<double>(
+            tween: Tween(begin: 0, end: 1),
+            duration: Duration(milliseconds: 350 + 90 * i),
+            curve: Interval(0.25 * i / options.length, 1, curve: Curves.easeOutBack),
+            builder: (context, t, child) => Opacity(
+              opacity: t.clamp(0, 1).toDouble(),
+              child: Transform.scale(scale: 0.6 + 0.4 * t, child: child),
             ),
-            child: Text(option.label),
+            child: _ChoiceButton(
+              key: ValueKey('kg-choice-${option.id}'),
+              option: option,
+              color: _vivid[i % _vivid.length],
+              onPressed: _answerable ? () => _choose(option) : null,
+            ),
           ),
       ],
     );
@@ -756,6 +802,7 @@ class _QuestionCard extends StatelessWidget {
         ),
       KgVoiceQuestion(story: final story?) => KgStoryScene(story: story, onCount: onCount),
       KgVoiceQuestion(sign: final sign?) => _SignBubble(sign: sign, color: color),
+      KgVoiceQuestion(general: final g?) => KgGeneralScene(question: g),
       _ => const SizedBox.shrink(),
     };
     return DecoratedBox(
@@ -1068,6 +1115,9 @@ class KgStoryScene extends StatefulWidget {
   State<KgStoryScene> createState() => _KgStorySceneState();
 }
 
+/// أصدقاءُ المسائل: واحدٌ منها في ركن كل مشهد.
+const _mascots = ['🐰', '🐻', '🐥', '🐼', '🦊', '🐸', '🐵', '🐨'];
+
 class _KgStorySceneState extends State<KgStoryScene> {
   /// ترتيبُ كل شيءٍ عُدّ (رقمُه على الشاشة)، بمفتاح موضعه.
   final Map<int, int> _counted = {};
@@ -1114,8 +1164,24 @@ class _KgStorySceneState extends State<KgStoryScene> {
         ),
         const SizedBox(height: 6),
         // ‏المشهدُ والمعادلةُ باتجاه الواجهة معاً: العددُ الأوّلُ في أوّل السطر في
-        // ‏كليهما (يمينَ العربية) — فالشجرةُ حيث رقمُها.
-        Expanded(child: _scene(context, sign)),
+        // ‏كليهما (يمينَ العربية) — فالشجرةُ حيث رقمُها. وخلفه نجومٌ تلمع،
+        // ‏وفي ركنه صديقٌ يقفز فرحاً مع كل شيءٍ يُعدّ.
+        Expanded(
+          child: Stack(
+            children: [
+              const Positioned.fill(child: _Twinkles()),
+              Positioned.fill(child: _scene(context, sign)),
+              PositionedDirectional(
+                bottom: 0,
+                end: 0,
+                child: _Mascot(
+                  emoji: _mascots[(_s.a * 7 + _s.b * 3 + _s.sign.index) % _mascots.length],
+                  cheers: _counted.length + _placed.length,
+                ),
+              ),
+            ],
+          ),
+        ),
         const SizedBox(height: 4),
         Text(
           '${_s.a} $sign ${_s.b} = ؟',
@@ -1205,13 +1271,17 @@ class _KgStorySceneState extends State<KgStoryScene> {
     }
   }
 
-  /// شيءٌ يُعدّ باللمس: يكبر ويظهر عليه رقمُه.
+  /// شيءٌ يُعدّ باللمس: يدخل قافزاً بدوره، ويكبر ويظهر عليه رقمُه.
   Widget _thing(int slot) {
     final n = _counted[slot];
     return GestureDetector(
       key: ValueKey('kg-thing-$slot'),
       onTap: () => _count(slot),
-      child: AnimatedScale(
+      child: _PopIn(
+        order: slot,
+        child: _Wiggle(
+          active: n != null,
+          child: AnimatedScale(
         scale: n == null ? 1 : 1.15,
         duration: const Duration(milliseconds: 200),
         curve: Curves.easeOutBack,
@@ -1234,6 +1304,8 @@ class _KgStorySceneState extends State<KgStoryScene> {
                 ),
               ),
           ],
+        ),
+          ),
         ),
       ),
     );
@@ -1273,6 +1345,353 @@ class _KgStorySceneState extends State<KgStoryScene> {
         ),
       );
 }
+
+// ── الأسئلةُ العامة ───────────────────────────────────────────────────
+
+/// سؤالٌ عامّ: نصُّه مكتوباً، ورموزُ مشهده كبيرةٌ تتمايل كلٌّ بإيقاعه —
+/// يلمسها الطفلُ فتقفز وتدور — وخلفها نسخٌ صغيرةٌ منها تتساقط بهدوء كالثلج
+/// أو أوراق الخريف.
+class KgGeneralScene extends StatefulWidget {
+  const KgGeneralScene({required this.question, super.key});
+
+  final KgGeneralQuestion question;
+
+  @override
+  State<KgGeneralScene> createState() => _KgGeneralSceneState();
+}
+
+class _KgGeneralSceneState extends State<KgGeneralScene> with SingleTickerProviderStateMixin {
+  late final AnimationController _c = AnimationController(vsync: this, duration: const Duration(seconds: 6))..repeat();
+
+  /// كم مرّةً لُمس كلُّ رمز: كلُّ لمسةٍ قفزةٌ جديدة.
+  final Map<int, int> _taps = {};
+
+  @override
+  void dispose() {
+    _c.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final emojis = widget.question.scene.characters.toList();
+    return Column(
+      key: ValueKey('kg-visual-general-${widget.question.id}'),
+      children: [
+        Text(
+          widget.question.text,
+          key: const ValueKey('kg-general-text'),
+          textAlign: TextAlign.center,
+          textDirection: TextDirection.rtl,
+          style: TextStyle(fontSize: 21, height: 1.5, fontWeight: FontWeight.w900, color: StudentSurface.ink(context)),
+        ),
+        const SizedBox(height: 8),
+        Expanded(
+          child: LayoutBuilder(
+            builder: (context, box) => AnimatedBuilder(
+              animation: _c,
+              builder: (context, _) {
+                final t = _c.value;
+                return Stack(
+                  clipBehavior: Clip.hardEdge,
+                  children: [
+                    // ‏نسخٌ صغيرةٌ شفيفة تتساقط وتتمايل.
+                    for (var i = 0; i < 7; i++)
+                      Positioned(
+                        left: box.maxWidth * ((i * 0.37 + 0.08) % 1) + math.sin((t + i / 7) * math.pi * 4) * 12,
+                        top: box.maxHeight * ((t + i / 7) % 1) - 20,
+                        child: IgnorePointer(
+                          child: Opacity(
+                            opacity: 0.22,
+                            child: Text(emojis[i % emojis.length], style: const TextStyle(fontSize: 22)),
+                          ),
+                        ),
+                      ),
+                    Center(
+                      child: FittedBox(
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            for (final (i, emoji) in emojis.indexed)
+                              Transform.translate(
+                                offset: Offset(0, math.sin((t * 3 + i / emojis.length) * math.pi * 2) * 10),
+                                child: GestureDetector(
+                                  key: ValueKey('kg-general-emoji-$i'),
+                                  onTap: () {
+                                    HapticFeedback.selectionClick();
+                                    setState(() => _taps[i] = (_taps[i] ?? 0) + 1);
+                                  },
+                                  child: TweenAnimationBuilder<double>(
+                                    key: ValueKey('hop-$i-${_taps[i] ?? 0}'),
+                                    tween: Tween(begin: (_taps[i] ?? 0) == 0 ? 1 : 0, end: 1),
+                                    duration: const Duration(milliseconds: 650),
+                                    builder: (context, h, child) => Transform.translate(
+                                      offset: Offset(0, -math.sin(h * math.pi) * 40),
+                                      child: Transform.rotate(angle: h * math.pi * 2, child: child),
+                                    ),
+                                    child: Padding(
+                                      padding: const EdgeInsets.symmetric(horizontal: 6),
+                                      child: Text(emoji, style: const TextStyle(fontSize: 76)),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+                );
+              },
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// زرُّ خيار: رمزُه (أو بقعةُ لونه، أو شكلُه، أو رقمُه) فوق اسمه.
+class _ChoiceButton extends StatelessWidget {
+  const _ChoiceButton({required this.option, required this.color, required this.onPressed, super.key});
+
+  final KgVoiceOption option;
+  final Color color;
+  final VoidCallback? onPressed;
+
+  Widget _face() {
+    for (final c in kgColors) {
+      if (c.option.id == option.id) {
+        return Container(
+          width: 34,
+          height: 34,
+          decoration: BoxDecoration(
+            color: c.color,
+            shape: BoxShape.circle,
+            border: Border.all(color: const Color(0xFF94A3B8), width: 2),
+          ),
+        );
+      }
+    }
+    for (final entry in kgShapes.entries) {
+      if (entry.value.id == option.id) {
+        return SizedBox(width: 40, height: 40, child: CustomPaint(painter: KgShapePainter(entry.key, color)));
+      }
+    }
+    for (final entry in kgSigns.entries) {
+      if (entry.value.$2.id == option.id) {
+        return Text(entry.value.$1, style: TextStyle(fontSize: 30, height: 1.1, fontWeight: FontWeight.w900, color: color));
+      }
+    }
+    if (option.emoji.isNotEmpty) return Text(option.emoji, style: const TextStyle(fontSize: 30, height: 1.1));
+    final digits = RegExp(r'^n(\d+)$').firstMatch(option.id);
+    if (digits != null) {
+      return Text(digits.group(1)!, style: TextStyle(fontSize: 30, height: 1.1, fontWeight: FontWeight.w900, color: color));
+    }
+    return const SizedBox.shrink();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final digits = RegExp(r'^n(\d+)$').hasMatch(option.id);
+    // ‏الرقمُ وجهُه، فيكفي اسمُه بلا تكرار الرقم.
+    final label = digits ? option.label.split('—').last.trim() : option.label;
+    return Material(
+      color: Color.lerp(StudentSurface.card(context), color, 0.12),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(20),
+        side: BorderSide(color: color.withValues(alpha: 0.55), width: 2),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onPressed,
+        child: Opacity(
+          opacity: onPressed == null ? 0.55 : 1,
+          child: Container(
+            constraints: const BoxConstraints(minWidth: 92),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                _face(),
+                const SizedBox(height: 4),
+                Text(
+                  label,
+                  textAlign: TextAlign.center,
+                  style: TextStyle(fontSize: 17, fontWeight: FontWeight.w900, color: StudentSurface.ink(context)),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ── حياةُ المشاهد ──────────────────────────────────────────────────────
+
+/// نجومٌ صغيرةٌ تلمع وتخفت خلف المسألة.
+class _Twinkles extends StatefulWidget {
+  const _Twinkles();
+
+  @override
+  State<_Twinkles> createState() => _TwinklesState();
+}
+
+class _TwinklesState extends State<_Twinkles> with SingleTickerProviderStateMixin {
+  late final AnimationController _c = AnimationController(vsync: this, duration: const Duration(milliseconds: 2400))
+    ..repeat();
+
+  @override
+  void dispose() {
+    _c.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => IgnorePointer(
+        child: RepaintBoundary(child: CustomPaint(painter: _TwinklePainter(_c))),
+      );
+}
+
+class _TwinklePainter extends CustomPainter {
+  _TwinklePainter(this.t) : super(repaint: t);
+
+  final Animation<double> t;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    for (var i = 0; i < 14; i++) {
+      final x = size.width * ((i * 0.618 + 0.1) % 1);
+      final y = size.height * ((i * 0.381 + 0.05) % 1);
+      final glow = 0.5 + 0.5 * math.sin((t.value + i / 14) * math.pi * 2);
+      final r = 2.0 + 3.5 * glow;
+      final paint = Paint()..color = const Color(0xFFFBBF24).withValues(alpha: 0.18 + 0.4 * glow);
+      final path = Path();
+      for (var k = 0; k < 8; k++) {
+        final a = k * math.pi / 4;
+        final d = k.isEven ? r * 1.8 : r * 0.5;
+        final p = Offset(x + math.cos(a) * d, y + math.sin(a) * d);
+        k == 0 ? path.moveTo(p.dx, p.dy) : path.lineTo(p.dx, p.dy);
+      }
+      canvas.drawPath(path..close(), paint);
+    }
+  }
+
+  @override
+  bool shouldRepaint(_TwinklePainter old) => false;
+}
+
+/// صديقُ المسألة: يتمايل منتظراً، ويقفز ويدور فرحاً مع كل شيءٍ يُعدّ
+/// ([cheers] يزيد) أو حين يُلمس، وتطير فوقه قلوب.
+class _Mascot extends StatefulWidget {
+  const _Mascot({required this.emoji, required this.cheers});
+
+  final String emoji;
+  final int cheers;
+
+  @override
+  State<_Mascot> createState() => _MascotState();
+}
+
+class _MascotState extends State<_Mascot> with TickerProviderStateMixin {
+  late final AnimationController _idle = AnimationController(vsync: this, duration: const Duration(milliseconds: 1400))
+    ..repeat(reverse: true);
+  late final AnimationController _hop = AnimationController(vsync: this, duration: const Duration(milliseconds: 700));
+
+  @override
+  void didUpdateWidget(_Mascot old) {
+    super.didUpdateWidget(old);
+    if (widget.cheers > old.cheers) _jump();
+  }
+
+  void _jump() => _hop.forward(from: 0);
+
+  @override
+  void dispose() {
+    _idle.dispose();
+    _hop.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => GestureDetector(
+        key: const ValueKey('kg-mascot'),
+        onTap: () {
+          HapticFeedback.selectionClick();
+          _jump();
+        },
+        child: AnimatedBuilder(
+          animation: Listenable.merge([_idle, _hop]),
+          builder: (context, child) {
+            final h = _hop.value;
+            final lift = math.sin(h * math.pi) * 34;
+            return SizedBox(
+              width: 64,
+              height: 100,
+              child: Stack(
+                clipBehavior: Clip.none,
+                alignment: Alignment.bottomCenter,
+                children: [
+                  if (_hop.isAnimating)
+                    Positioned(
+                      bottom: 56 + h * 40,
+                      child: Opacity(opacity: 1 - h, child: const Text('💖', style: TextStyle(fontSize: 20))),
+                    ),
+                  Transform.translate(
+                    offset: Offset(0, -lift - 4 * _idle.value),
+                    child: Transform.rotate(
+                      angle: h * math.pi * 2 + (_idle.value - 0.5) * 0.18,
+                      child: child,
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
+          child: Text(widget.emoji, style: const TextStyle(fontSize: 46)),
+        ),
+      );
+}
+
+/// يدخل قافزاً بدوره: الأوّلُ أوّلاً ثم ما بعده.
+class _PopIn extends StatelessWidget {
+  const _PopIn({required this.order, required this.child});
+
+  final int order;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final total = 320 + order * 110;
+    return TweenAnimationBuilder<double>(
+      tween: Tween(begin: 0, end: 1),
+      duration: Duration(milliseconds: total),
+      curve: Interval(order * 110 / total, 1, curve: Curves.elasticOut),
+      builder: (context, t, child) => Transform.scale(scale: t, child: child),
+      child: child,
+    );
+  }
+}
+
+/// يهتزّ مرّةً فرحاً حين يُعدّ.
+class _Wiggle extends StatelessWidget {
+  const _Wiggle({required this.active, required this.child});
+
+  final bool active;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) => TweenAnimationBuilder<double>(
+        key: ValueKey(active),
+        tween: Tween(begin: active ? 0 : 1, end: 1),
+        duration: const Duration(milliseconds: 450),
+        builder: (context, t, child) => Transform.rotate(angle: math.sin(t * math.pi * 4) * 0.25 * (1 - t), child: child),
+        child: child,
+      );
+}
+
 
 // ── الأزرار ───────────────────────────────────────────────────────────
 
