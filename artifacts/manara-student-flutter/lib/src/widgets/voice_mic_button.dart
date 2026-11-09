@@ -26,8 +26,16 @@ Future<bool> defaultVoiceListen({required ValueChanged<String> onResult, ValueCh
 /// `true` إن صار مسموحاً.
 ///
 /// [ask]: `false` يفحص ولا يُظهر شرحاً (فحصٌ مسبقٌ صامتٌ عند فتح الشاشة).
+///
+/// ── وحالتُه واحدةٌ للتطبيق كلّه ──
+/// ما ثبت به الإذنُ في أيّ شاشة ([StudentVoiceService.micGranted]) يكفي كلَّ
+/// شاشة: لا يُسأل ثانيةً، ولا يُناقضه طريقٌ آخر. وإن قال `permission_handler`
+/// «لا» سُئل محرّكُ التعرّف نفسُه — فهو ما يسمع، وهو ما يعمل في التسميع.
 Future<bool> ensureVoiceMic(BuildContext context, {bool ask = true}) async {
+  final voice = StudentVoiceService.instance;
+  if (voice.micGranted) return true;
   var access = await StudentMediaPermissions.microphoneForVoiceNote();
+  if (access != MicAccess.granted && await voice.hasMicPermission()) access = MicAccess.granted;
   while (access != MicAccess.granted) {
     if (!ask || !context.mounted) return false;
     final blocked = access == MicAccess.blocked;
@@ -58,6 +66,7 @@ Future<bool> ensureVoiceMic(BuildContext context, {bool ask = true}) async {
     }
     access = await StudentMediaPermissions.microphoneForVoiceNote();
   }
+  voice.markMicGranted();
   return true;
 }
 

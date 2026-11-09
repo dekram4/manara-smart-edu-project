@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_tts/flutter_tts.dart';
+import 'package:speech_to_text/speech_recognition_error.dart';
 import 'package:speech_to_text/speech_recognition_result.dart';
 import 'package:speech_to_text/speech_to_text.dart';
 
@@ -9,7 +10,16 @@ import 'package:manara_student/src/services/student_voice_service.dart';
 /// Android — كلماتٌ جزئية، و«انتهى».
 class _FakeSpeech implements SpeechToText {
   void Function(String)? status;
+  SpeechErrorListener? error;
   final sessions = <SpeechListenOptions>[];
+
+  /// جلسةٌ مفتوحةٌ من شاشةٍ سابقة.
+  var stale = false;
+  var cancels = 0;
+
+  /// يرمي المحرّكُ عند الاستماع على الجهاز (لا تعرّفَ محلّيّ).
+  var refuseOnDevice = false;
+  var permitted = true;
   final pauses = <Duration>[];
   SpeechResultListener? onWords;
   var stops = 0;
@@ -23,8 +33,21 @@ class _FakeSpeech implements SpeechToText {
     List<SpeechConfigOption>? options,
   }) async {
     status = onStatus;
-    return true;
+    error = onError;
+    return permitted;
   }
+
+  @override
+  bool get isListening => stale;
+
+  @override
+  Future<void> cancel() async {
+    cancels++;
+    stale = false;
+  }
+
+  @override
+  Future<bool> get hasPermission async => permitted;
 
   @override
   Future<void> listen({
@@ -40,6 +63,8 @@ class _FakeSpeech implements SpeechToText {
     dynamic listenMode,
     dynamic sampleRate,
   }) async {
+    if (stale) throw StateError('already listening');
+    if (refuseOnDevice && listenOptions!.onDevice) throw StateError('no on-device recognizer');
     sessions.add(listenOptions!);
     onWords = onResult;
   }
@@ -127,6 +152,53 @@ void main() {
     await _wait(500);
     speech.status!(SpeechToText.doneStatus);
     expect(results, ['']);
+  });
+
+  group('المايكُ نفسُه في كل الشاشات', () {
+    test('جلسةٌ مفتوحةٌ من شاشةٍ سابقة تُغلق أوّلاً، فلا يردّ المحرّكُ بـ«لا» صامتة', () async {
+      speech.stale = true;
+      expect(await voice.listenForChild(onResult: (_) {}), isTrue);
+      expect(speech.cancels, 1);
+      expect(speech.sessions, hasLength(1));
+    });
+
+    test('كالتسميع: على الجهاز أوّلاً، وما رُفض هناك يُعاد بالخدمة العادية في لحظته', () async {
+      speech.refuseOnDevice = true;
+      expect(await voice.listenForChild(onResult: (_) {}), isTrue);
+      expect(speech.sessions.single.onDevice, isFalse);
+
+      // ‏وخطأُ المحرّك المحلّيّ بعد البدء (لا نموذجَ عربيّاً): جلسةٌ بالخدمة العادية.
+      final fresh = _FakeSpeech();
+      final voice2 = StudentVoiceService(speech: fresh, tts: _QuietTts());
+      await voice2.listenForChild(onResult: (_) {});
+      expect(fresh.sessions.single.onDevice, isTrue);
+      fresh.error!(SpeechRecognitionError('error_language_unavailable', true));
+      await _wait(300);
+      expect(fresh.sessions.map((s) => s.onDevice), [true, false]);
+    });
+
+    test('الصمتُ ليس فشلاً: لا يُترك التعرّفُ على الجهاز', () async {
+      await voice.listenForChild(onResult: (_) {});
+      speech.error!(SpeechRecognitionError('error_speech_timeout', false));
+      await _wait(600);
+      speech.status!(SpeechToText.doneStatus);
+      await _wait(400);
+      expect(speech.sessions.map((s) => s.onDevice), [true, true]);
+    });
+
+    test('الإذنُ حالةٌ واحدة: ما ثبت بالمحرّك يكفي كلَّ شاشة', () async {
+      expect(voice.micGranted, isFalse);
+      expect(await voice.prepare(), isTrue);
+      expect(voice.micGranted, isTrue, reason: 'المحرّكُ لا يتهيّأ إلا بالإذن');
+
+      final denied = _FakeSpeech()..permitted = false;
+      final voice2 = StudentVoiceService(speech: denied, tts: _QuietTts());
+      expect(await voice2.hasMicPermission(), isFalse);
+      expect(await voice2.listenForChild(onResult: (_) {}), isFalse);
+      denied.permitted = true;
+      expect(await voice2.hasMicPermission(), isTrue);
+      expect(voice2.micGranted, isTrue);
+    });
   });
 
   test('كلُّ ظنون المحرّك تُضمّ: الصحيحُ في الظنّ الثاني يكفي', () {

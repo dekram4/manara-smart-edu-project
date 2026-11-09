@@ -147,6 +147,8 @@ void main() {
     final state = await boot(tester, KgVoiceGameKind.colors, (q) => null);
     await start(tester);
     await answer(tester);
+    expect(state.turn, KgTurn.listening, reason: 'يُحاوَل ثانيةً قبل «غير متاح»');
+    await tester.pump(const Duration(milliseconds: 600));
     expect(find.text('المايك غير متاح — اختر الجواب'), findsOneWidget);
     final right = state.question!.answer.id;
     expect(find.byKey(ValueKey('kg-choice-$right')), findsOneWidget);
@@ -226,7 +228,7 @@ void main() {
     final state = await boot(tester, KgVoiceGameKind.shapes, (q) => q.answer.label, micAllowed: false);
     await start(tester);
     await answer(tester);
-    expect(find.text('المايك غير متاح — اختر الجواب'), findsOneWidget);
+    expect(find.text('لم يُسمح بالمايك — اختر الجواب، أو اضغط المايك لتسمح به'), findsOneWidget);
     expect(state.turn, KgTurn.ready);
     await tester.pump(const Duration(seconds: 3));
 
@@ -318,6 +320,60 @@ void main() {
     await tester.tap(find.byKey(ValueKey('kg-choice-${g.answer.id}')));
     await tester.pump();
     expect(general.turn, KgTurn.correct);
+    await tester.pump(const Duration(seconds: 3));
+  });
+
+  testWidgets('فشلٌ عابر يُعاد وحده، و«غير متاح» يُمحى حين يُفتح المايك', (tester) async {
+    var calls = 0;
+    var failNext = 1;
+    final state = await boot(
+      tester,
+      KgVoiceGameKind.colors,
+      (q) => q.answer.label,
+      listen: ({required onResult, onPartial}) async {
+        calls++;
+        if (failNext > 0) {
+          failNext--;
+          return false;
+        }
+        final heard = tester.state<KgVoiceGameScreenState>(find.byType(KgVoiceGameScreen)).question!.answer.label;
+        Future<void>.microtask(() => onResult(heard));
+        return true;
+      },
+    );
+    await start(tester);
+    await answer(tester);
+    await tester.pump(const Duration(milliseconds: 600));
+    expect(calls, 2);
+    expect(state.turn, KgTurn.correct, reason: 'المحاولةُ الثانيةُ سمعت');
+    expect(find.text('المايك غير متاح — اختر الجواب'), findsNothing);
+    await afterCelebration(tester);
+
+    failNext = 2;
+    await answer(tester);
+    await tester.pump(const Duration(milliseconds: 600));
+    expect(find.text('المايك غير متاح — اختر الجواب'), findsOneWidget);
+    await answer(tester);
+    expect(find.text('المايك غير متاح — اختر الجواب'), findsNothing, reason: 'فُتح المايكُ فمُحي');
+    expect(state.turn, KgTurn.correct);
+    await tester.pump(const Duration(seconds: 3));
+  });
+
+  testWidgets('محرّكٌ لا يُبلغ بنهاية الاستماع: يُغلق بعد نافذته ولا يعلق «أسمعك»', (tester) async {
+    var stops = 0;
+    final state = await boot(
+      tester,
+      KgVoiceGameKind.colors,
+      (q) => null,
+      listen: ({required onResult, onPartial}) async => true,
+    );
+    await start(tester);
+    await answer(tester);
+    expect(state.turn, KgTurn.listening);
+    final before = events.where((e) => e == 'stop-listening').length;
+    await tester.pump(KgVoiceGameScreenState.listenSafety + const Duration(seconds: 1));
+    stops = events.where((e) => e == 'stop-listening').length - before;
+    expect(stops, 1);
     await tester.pump(const Duration(seconds: 3));
   });
 

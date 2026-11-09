@@ -96,6 +96,9 @@ class KgVoiceGameScreenState extends State<KgVoiceGameScreen> {
   /// انزلاقُ السؤال خارجاً ودخولُ التالي.
   static const questionTransition = Duration(milliseconds: 450);
 
+  /// أطولُ ما يبقى المايكُ «يسمع»: نافذةُ الاستماع (١٢ ثانية) وهامش.
+  static const listenSafety = Duration(seconds: 16);
+
   late final math.Random _random = widget.random ?? math.Random();
   late final ConfettiController _confetti = ConfettiController(duration: const Duration(milliseconds: 700));
 
@@ -107,7 +110,11 @@ class KgVoiceGameScreenState extends State<KgVoiceGameScreen> {
   KgTurn _turn = KgTurn.prompting;
   String? _heard;
   bool _notHeard = false;
-  bool _micUnavailable = false;
+  /// لماذا لم يُفتح المايكُ آخرَ مرّة — ويُمحى حين يُفتح.
+  _MicProblem? _micProblem;
+
+  /// احتياطٌ لمحرّكٍ لا يُبلغ بنهاية الاستماع أبداً: يُنهى بعد نافذته.
+  Timer? _listenSafety;
 
   /// رقمُ السؤال الجاري: ما يعود متأخّراً من سؤالٍ سابق (صوتٌ أو مايك) يُهمَل.
   int _token = 0;
@@ -123,6 +130,7 @@ class KgVoiceGameScreenState extends State<KgVoiceGameScreen> {
 
   @override
   void dispose() {
+    _listenSafety?.cancel();
     _token++;
     unawaited(_stop());
     _confetti.dispose();
@@ -275,7 +283,7 @@ class KgVoiceGameScreenState extends State<KgVoiceGameScreen> {
     if (!await _ensureMic()) {
       if (mounted && token == _token) {
         setState(() {
-          _micUnavailable = true;
+          _micProblem = _MicProblem.permission;
           _turn = KgTurn.ready;
         });
       }
@@ -287,22 +295,38 @@ class KgVoiceGameScreenState extends State<KgVoiceGameScreen> {
       _heard = null;
       _notHeard = false;
     });
-    final started = await _listen(
-      (text) => _onHeard(token, text),
-      (words) {
-        if (mounted && token == _token && _turn == KgTurn.listening) setState(() => _heard = words);
-      },
-    );
-    if (!started && mounted && token == _token) {
-      setState(() {
-        _micUnavailable = true;
-        _turn = KgTurn.ready;
-      });
+    void onPartial(String words) {
+      if (mounted && token == _token && _turn == KgTurn.listening) setState(() => _heard = words);
     }
+
+    var started = await _listen((text) => _onHeard(token, text), onPartial);
+    // ‏فشلٌ عابر (المحرّكُ لم يفرغ بعدُ من صوت السؤال أو من شاشةٍ سابقة):
+    // ‏مرّةً ثانيةً قبل أن يُقال «غير متاح».
+    if (!started && mounted && token == _token && _turn == KgTurn.listening) {
+      await Future<void>.delayed(const Duration(milliseconds: 500));
+      if (!mounted || token != _token || _turn != KgTurn.listening) return;
+      started = await _listen((text) => _onHeard(token, text), onPartial);
+    }
+    if (!mounted || token != _token) return;
+    if (!started) {
+      if (_turn == KgTurn.listening) {
+        setState(() {
+          _micProblem = _MicProblem.engine;
+          _turn = KgTurn.ready;
+        });
+      }
+      return;
+    }
+    if (_micProblem != null) setState(() => _micProblem = null);
+    _listenSafety?.cancel();
+    _listenSafety = Timer(listenSafety, () {
+      if (mounted && token == _token && _turn == KgTurn.listening) unawaited(_stop());
+    });
   }
 
   void _onHeard(int token, String text) {
     if (!mounted || token != _token || _turn != KgTurn.listening) return;
+    _listenSafety?.cancel();
     if (text.trim().isEmpty) {
       setState(() {
         _turn = KgTurn.ready;
@@ -635,7 +659,11 @@ class KgVoiceGameScreenState extends State<KgVoiceGameScreen> {
           ),
           const SizedBox(height: 12),
           Text(
-            tr(_micUnavailable ? 'kg.voice.chooseInstead' : 'kg.voice.sayOrTap'),
+            tr(switch (_micProblem) {
+              _MicProblem.permission => 'kg.voice.micDenied',
+              _MicProblem.engine => 'kg.voice.chooseInstead',
+              null => 'kg.voice.sayOrTap',
+            }),
             key: const ValueKey('kg-voice-hint'),
             textAlign: TextAlign.center,
             style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: StudentSurface.mutedInk(context)),
@@ -751,6 +779,9 @@ class KgVoiceGameScreenState extends State<KgVoiceGameScreen> {
         ),
       );
 }
+
+/// لماذا لم يُفتح المايك: لم يُسمح به، أو لم يبدأ محرّكُ التعرّف.
+enum _MicProblem { permission, engine }
 
 // ── بطاقةُ السؤال ─────────────────────────────────────────────────────
 
