@@ -19,7 +19,10 @@ export const QURAN_GAME_ID = "quran" as const;
 /** عن كل سورةٍ تُسمَّع كاملةً صحيحة، مرّةً لكل سورةٍ في الدرس. */
 export const QURAN_REWARD = { gems: 3, points: 3 } as const;
 
-/** السورُ القصيرة في الدرس، بمعرّفاتها في التطبيق. */
+/**
+ * سورُ الدرس بمعرّفاتها في التطبيق: الفاتحة، وجزءُ عمّ كاملاً (النبأ إلى الناس).
+ * والتطبيقُ يرسل المعرّفَ نفسه (`quranSurahs` في quran_recitation.dart).
+ */
 export const QURAN_SURAHS = [
   "fatiha",
   "kafirun",
@@ -29,6 +32,37 @@ export const QURAN_SURAHS = [
   "falaq",
   "nas",
   "kawthar",
+  // ‏بقيّةُ جزء عمّ.
+  "maun",
+  "quraysh",
+  "fil",
+  "humaza",
+  "asr",
+  "takathur",
+  "qaria",
+  "adiyat",
+  "zalzala",
+  "bayyina",
+  "qadr",
+  "alaq",
+  "tin",
+  "sharh",
+  "duha",
+  "layl",
+  "shams",
+  "balad",
+  "fajr",
+  "ghashiya",
+  "ala",
+  "tariq",
+  "buruj",
+  "inshiqaq",
+  "mutaffifin",
+  "infitar",
+  "takwir",
+  "abasa",
+  "naziat",
+  "naba",
 ] as const;
 
 export type QuranSurahId = (typeof QURAN_SURAHS)[number];

@@ -74,7 +74,9 @@ class StudentVoiceService {
   /// النتيجة تُحفظ: `initialize` يسأل النظام عن الإذن وعن وجود خدمة،
   /// ونداؤه عند كل ضغطةٍ يُظهر نافذة إذنٍ متكرّرة.
   Future<bool> prepare() async {
-    if (_speechReady) return _speechAvailable;
+    // ‏ما نجح يُحفظ؛ وما فشل (رُفض الإذنُ مرّةً، أو لم تُجب الخدمة) يُعاد عند
+    // ‏الضغطة التالية — وإلا بقي المايكُ معطّلاً حتى يُعاد تشغيلُ التطبيق.
+    if (_speechReady && _speechAvailable) return true;
     _speechReady = true;
     try {
       _speechAvailable = await _speech.initialize(

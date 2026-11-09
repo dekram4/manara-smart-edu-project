@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
@@ -177,8 +178,23 @@ void main() {
       }
       expect(arabicLetterClips.values.toSet(), hasLength(28), reason: 'لا ملفَّ لحرفين');
       expect(recordedClipFor(const TracingItem(text: 'ب', kind: 'letter', lang: 'ar')), 'audio/ar/letter_ba.mp3');
-      expect(recordedClipFor(const TracingItem(text: 'Bb', kind: 'letter', lang: 'en')), isNull);
-      expect(recordedClipFor(const TracingItem(text: '٥', kind: 'number', lang: 'ar')), isNull);
+      // ‏والحروفُ الإنجليزية والأعدادُ ٠–١٠٠ بالنظامين بتسجيلاتها — كانت الأرقامُ
+      // ‏العربية صامتةً على أجهزةٍ بلا صوتٍ عربيّ.
+      expect(recordedClipFor(const TracingItem(text: 'Bb', kind: 'letter', lang: 'en')), 'audio/letters_en/letter_b.mp3');
+      expect(recordedClipFor(const TracingItem(text: '٥', kind: 'number', lang: 'ar')), 'audio/numbers_ar/n_5.mp3');
+      expect(recordedClipFor(const TracingItem(text: '١٠٠', kind: 'number', lang: 'ar')), 'audio/numbers_ar/n_100.mp3');
+      expect(recordedClipFor(const TracingItem(text: '42', kind: 'number', lang: 'en')), 'audio/numbers_en/n_42.mp3');
+      expect(recordedClipFor(const TracingItem(text: '101', kind: 'number', lang: 'en')), isNull, reason: 'ما لا تسجيلَ له بالمحرّك');
+      expect(recordedClipFor(const TracingItem(text: 'بيت', kind: 'word', lang: 'ar')), isNull);
+    });
+
+    test('لكل عنصرٍ من مجموعات الروضة الأربع تسجيلُه، والملفُّ في assets/', () {
+      expect(kindergartenTracingItems, hasLength(28 + 26 + 101 + 101));
+      for (final item in kindergartenTracingItems) {
+        final clip = recordedClipFor(item);
+        expect(clip, isNotNull, reason: '${item.lang}:${item.text}');
+        expect(File('assets/$clip').existsSync(), isTrue, reason: clip);
+      }
     });
 
     testWidgets('لمسُ حرفٍ عربيٍّ يشغّل تسجيلَه — لا محرّكَ النطق', (tester) async {
@@ -191,7 +207,7 @@ void main() {
       expect(clips, ['audio/ar/letter_ba.mp3', 'audio/ar/letter_ba.mp3']);
     });
 
-    testWidgets('الإنجليزيةُ والأعدادُ بمحرّك النطق', (tester) async {
+    testWidgets('والإنجليزيةُ بتسجيلها كذلك — لا محرّكَ النطق', (tester) async {
       await boot(
         tester,
         _game(const [], entries: [
@@ -199,8 +215,8 @@ void main() {
         ]),
       );
       await openTile(tester, 0);
-      expect(spoken, ['en:B']);
-      expect(clips, isEmpty);
+      expect(clips, ['audio/letters_en/letter_b.mp3']);
+      expect(spoken, isEmpty);
     });
   });
 
@@ -241,7 +257,7 @@ void main() {
       await backToGrid(tester);
     });
 
-    testWidgets('والإنجليزيةُ والأرقامُ كذلك، بالنطق', (tester) async {
+    testWidgets('والإنجليزيةُ والأرقامُ كذلك، بتسجيلاتها', (tester) async {
       await boot(
         tester,
         _game(const [], entries: [
@@ -252,7 +268,12 @@ void main() {
       events.clear();
       await writeOpen(tester);
       await tester.pump(const Duration(milliseconds: 100));
-      expect(events, ['say:B', 'cheer', 'say:B', 'clap']);
+      expect(events, [
+        'clip:audio/letters_en/letter_b.mp3',
+        'cheer',
+        'clip:audio/letters_en/letter_b.mp3',
+        'clap',
+      ]);
       await backToGrid(tester);
     });
 
@@ -658,8 +679,8 @@ void main() {
       expect(find.byKey(const ValueKey('tracing-tile-12')), findsNothing);
       expect(find.text('صفحة 1 من 9'), findsOneWidget);
       await openTile(tester, 7);
-      expect(spoken, ['ar:عدد 7']);
-      expect(clips, isEmpty);
+      expect(clips, ['audio/numbers_ar/n_7.mp3'], reason: 'العددُ العربيُّ بتسجيله — لا صامتاً');
+      expect(spoken, isEmpty);
       expect(find.text('كل الأرقام'), findsOneWidget);
     });
   });

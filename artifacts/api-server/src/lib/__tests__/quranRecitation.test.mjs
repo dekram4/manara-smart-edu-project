@@ -32,8 +32,10 @@ test("الصفُّ والمادّةُ والدرسُ معاً — بأيّ هم�
   assert.ok(!quranRecitationAllowed({}));
 });
 
-test("مفتاحُ المكافأة لكل سورةٍ من الثماني، ولا لغيرها", () => {
-  assert.equal(QURAN_SURAHS.length, 8);
+test("مفتاحُ المكافأة لكل سورةٍ من سور الدرس (الفاتحة وجزء عمّ)، ولا لغيرها", () => {
+  assert.equal(QURAN_SURAHS.length, 38);
+  assert.equal(new Set(QURAN_SURAHS).size, 38);
+  assert.equal(quranRewardKey(lesson, "naba"), "quran:L1:naba");
   assert.equal(quranRewardKey(lesson, "ikhlas"), "quran:L1:ikhlas");
   assert.notEqual(quranRewardKey(lesson, "nas"), quranRewardKey(lesson, "falaq"));
   assert.equal(quranRewardKey(lesson, "baqara"), null);

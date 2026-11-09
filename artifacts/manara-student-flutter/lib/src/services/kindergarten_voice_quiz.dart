@@ -167,11 +167,19 @@ const _numberNames = ['صفر', 'واحد', 'اثنان', 'ثلاثة', 'أرب�
 
 KgVoiceOption kgNumberOption(int n) => KgVoiceOption('n$n', '$n — ${_numberNames[n]}', [..._numberWords[n]!, '$n']);
 
-/// أشياءُ المسائل المصوّرة: تفاحٌ في اليد وفي الشجرة، وبالوناتٌ تطير…
-const _storyItems = ['🍎', '🍊', '🍓', '⭐', '🎈', '🐟', '🌸', '🍌', '🧁', '🐥'];
+/// أشياءُ كل قصّة: ما يُقطف ويُجمع، وما يطير، وما يوضع في الصحون، وما يُوزَّع.
+const _storyItems = <KgSign, List<String>>{
+  KgSign.plus: ['🍎', '🍊', '🍓', '🍌', '🍐'],
+  KgSign.minus: ['🎈', '🐦', '🦋'],
+  KgSign.times: ['🍪', '🍓', '🧁', '🍩'],
+  KgSign.divide: ['⭐', '🍬', '🍪', '🍎'],
+};
 
-/// مسألةٌ مصوّرة: [a] [sign] [b] = ؟ — جمعٌ حاصلُه عشرةٌ فأقلّ، أو طرحٌ لا
-/// يقلّ عن صفر.
+/// مسألةٌ مصوّرة على قدر طفل الروضة، لكل عمليةٍ قصّتُها:
+///   • جمع: [a] على الشجرة و[b] في السلّة — كم الكلّ؟ (حتى ٨)
+///   • طرح: [a] بالونات طار منها [b] — كم بقي؟ (من ٦ فأقلّ)
+///   • ضرب: [a] صحون في كلٍّ منها [b] — كم الكلّ؟ (حتى ٩)
+///   • قسمة: [a] نوزّعها على [b] صناديق بالتساوي — كم في كل صندوق؟ (حتى ٩)
 class KgStory {
   const KgStory(this.a, this.b, this.sign, this.item);
 
@@ -180,8 +188,25 @@ class KgStory {
   final KgSign sign;
   final String item;
 
-  int get result => sign == KgSign.plus ? a + b : a - b;
+  int get result => switch (sign) {
+        KgSign.plus => a + b,
+        KgSign.minus => a - b,
+        KgSign.times => a * b,
+        KgSign.divide => a ~/ b,
+      };
 }
+
+/// كلماتُ العمليات بصوتٍ مسجّل، تُقرأ بها المعادلة: «ثلاثة زائد اثنين، كم يساوي؟».
+const kgOperatorClips = <KgSign, String>{
+  KgSign.plus: 'audio/kg_games/op_plus.mp3',
+  KgSign.minus: 'audio/kg_games/op_minus.mp3',
+  KgSign.times: 'audio/kg_games/op_times.mp3',
+  KgSign.divide: 'audio/kg_games/op_divide.mp3',
+};
+const kgHowMuchClip = 'audio/kg_games/how_much.mp3';
+
+/// اسمُ عددٍ بصوتٍ مسجّل (٠–١٠٠) — انظر tool/build_tracing_voices.py.
+String kgNumberClip(int n) => 'audio/numbers_ar/n_$n.mp3';
 
 // ── السؤال ────────────────────────────────────────────────────────────
 
@@ -191,6 +216,7 @@ class KgVoiceQuestion {
     required this.answer,
     required this.distractors,
     required this.promptClip,
+    this.followUpClips = const [],
     this.color,
     this.shape,
     this.sign,
@@ -206,6 +232,12 @@ class KgVoiceQuestion {
 
   /// السؤالُ المسجّل الذي يُسمع مع ظهوره.
   final String promptClip;
+
+  /// ما يُسمع بعده بترتيبه: المعادلةُ مقروءةً في المسائل المصوّرة.
+  final List<String> followUpClips;
+
+  /// كلُّ مقاطع السؤال بترتيبها.
+  List<String> get promptClips => [promptClip, ...followUpClips];
 
   final Color? color;
   final KgShape? shape;
@@ -294,11 +326,22 @@ List<KgVoiceQuestion> _shapeRound(math.Random random, int count) => [
         ),
     ];
 
-/// نصفُ الجولة علاماتٌ تُسمّى، ونصفُها مسائلُ مصوّرة يُقال ناتجُها — مخلوطةً.
+/// جولةُ الحساب: مسألتان مصوّرتان لكل عملية (جمعٌ وطرحٌ وضربٌ وقسمة)، وسؤالان
+/// عن اسم العلامة — مخلوطةً بلا عمليتين متتاليتين متطابقتين ما أمكن.
 List<KgVoiceQuestion> _mathRound(math.Random random, int count) {
-  final signs = _deal(KgSign.values, count ~/ 2, random);
+  final signQuestions = count >= 6 ? 2 : 0;
+  final stories = <KgStory>[];
+  final seen = <String>{};
+  var op = 0;
+  while (stories.length < count - signQuestions) {
+    final sign = KgSign.values[op % KgSign.values.length];
+    final story = _story(sign, random);
+    if (!seen.add('${story.a}${story.sign}${story.b}')) continue;
+    stories.add(story);
+    op++;
+  }
   final questions = <KgVoiceQuestion>[
-    for (final sign in signs)
+    for (final sign in _deal(KgSign.values, signQuestions, random))
       KgVoiceQuestion._(
         kind: KgVoiceGameKind.math,
         answer: kgSigns[sign]!.$2,
@@ -309,32 +352,26 @@ List<KgVoiceQuestion> _mathRound(math.Random random, int count) {
         promptClip: kgQuestionSignClip,
         sign: sign,
       ),
-  ];
-  final seen = <String>{};
-  while (questions.length < count) {
-    final story = _story(random);
-    if (!seen.add('${story.a}${story.sign}${story.b}')) continue;
-    final wrong = <int>{};
-    while (wrong.length < 3) {
-      final n = random.nextInt(11);
-      if (n != story.result) wrong.add(n);
-    }
-    questions.add(
+    for (final story in stories)
       KgVoiceQuestion._(
         kind: KgVoiceGameKind.math,
         answer: kgNumberOption(story.result),
-        distractors: [for (final n in wrong) kgNumberOption(n)],
+        distractors: [for (final n in _wrongNumbers(story.result, random)) kgNumberOption(n)],
         promptClip: kgQuestionResultClip,
+        followUpClips: [
+          kgNumberClip(story.a),
+          kgOperatorClips[story.sign]!,
+          kgNumberClip(story.b),
+          kgHowMuchClip,
+        ],
         story: story,
       ),
-    );
-  }
-  questions.shuffle(random);
-  // ‏علامتان متتاليتان متطابقتان تُفصلان.
+  ]..shuffle(random);
+  // ‏عمليتان متتاليتان متطابقتان تُفصلان.
+  KgSign? opOf(KgVoiceQuestion q) => q.story?.sign ?? q.sign;
   for (var i = 1; i < questions.length; i++) {
-    final prev = questions[i - 1].sign;
-    if (prev != null && prev == questions[i].sign) {
-      final swap = questions.indexWhere((q) => q.sign != prev, i + 1);
+    if (opOf(questions[i - 1]) == opOf(questions[i])) {
+      final swap = questions.indexWhere((q) => opOf(q) != opOf(questions[i - 1]), i + 1);
       if (swap > 0) {
         final tmp = questions[i];
         questions[i] = questions[swap];
@@ -345,16 +382,34 @@ List<KgVoiceQuestion> _mathRound(math.Random random, int count) {
   return questions;
 }
 
-/// مسألةٌ صغيرة لطفل الروضة: الأعدادُ من ١ إلى ٥، والجمعُ حتى العشرة، والطرحُ
-/// من الأكبر.
-KgStory _story(math.Random random) {
-  final item = _storyItems[random.nextInt(_storyItems.length)];
-  if (random.nextBool()) {
-    final a = 1 + random.nextInt(5);
-    final b = 1 + random.nextInt(5);
-    return KgStory(a, b, KgSign.plus, item);
+/// ثلاثةُ أعدادٍ قريبةٍ من الجواب لأزرار الاختيار.
+Set<int> _wrongNumbers(int result, math.Random random) {
+  final wrong = <int>{};
+  for (final delta in [1, -1, 2, -2, 3]..shuffle(random)) {
+    final n = result + delta;
+    if (n >= 0 && n <= 10) wrong.add(n);
+    if (wrong.length == 3) break;
   }
-  final a = 2 + random.nextInt(4);
-  final b = 1 + random.nextInt(a - 1);
-  return KgStory(a, b, KgSign.minus, item);
+  return wrong;
+}
+
+/// مسألةٌ صغيرة لطفل الروضة من العملية [sign].
+KgStory _story(KgSign sign, math.Random random) {
+  final items = _storyItems[sign]!;
+  final item = items[random.nextInt(items.length)];
+  switch (sign) {
+    case KgSign.plus:
+      return KgStory(1 + random.nextInt(4), 1 + random.nextInt(4), sign, item);
+    case KgSign.minus:
+      final a = 2 + random.nextInt(5);
+      return KgStory(a, 1 + random.nextInt(math.min(3, a - 1)), sign, item);
+    case KgSign.times:
+      // ‏صحنان أو ثلاثة، في كلٍّ منها شيءٌ إلى ثلاثة.
+      return KgStory(2 + random.nextInt(2), 1 + random.nextInt(3), sign, item);
+    case KgSign.divide:
+      // ‏صندوقان أو ثلاثة، ونصيبُ كلٍّ منها شيءٌ إلى ثلاثة.
+      final boxes = 2 + random.nextInt(2);
+      final each = 1 + random.nextInt(3);
+      return KgStory(boxes * each, boxes, sign, item);
+  }
 }

@@ -12,6 +12,7 @@ import '../services/student_sound_service.dart';
 import '../services/student_voice_service.dart';
 import '../theme/student_theme.dart';
 import '../widgets/portal_watermark.dart';
+import '../widgets/voice_mic_button.dart' show ensureVoiceMic;
 
 /// ألعابُ الروضة الصوتية في «الثقافة العامة»: الألوان، والأشكال، والحساب.
 ///
@@ -23,9 +24,12 @@ import '../widgets/portal_watermark.dart';
 /// ثانية يا بطل» وبقي السؤال. وبعد ثلاث محاولاتٍ يُقال له الجوابُ ويمضي، فلا
 /// يعلق طفلٌ عند سؤال.
 ///
-/// ── والمايكُ لا يسمع السؤال ──
-/// لا يُفتح إلا بعد أن ينتهي مقطعُ السؤال؛ وإلا كتب محرّكُ التعرّف صوتَ
-/// السؤال نفسه وحسبه جوابَ الطفل.
+/// ── والمايكُ جاهزٌ دائماً، ولا يسمع السؤال ──
+/// كان المايكُ لا يُفتح إلا بعد أن ينتهي مقطعُ السؤال — وعلى أجهزةٍ لا يعود
+/// فيها محرّكُ الصوت من «شغّل» بقي معطّلاً لا يستجيب لضغطٍ أبداً. فصار يستجيب
+/// في كل لحظة: ضغطُه أثناء السؤال يُسكت السؤالَ ثم يسمع (فلا يكتب محرّكُ
+/// التعرّف صوتَ السؤال جواباً)، ولكل مقطعٍ مهلة. وأوّلُ ضغطةٍ تطلب إذنَ
+/// الميكروفون بنافذةٍ تشرح لماذا ([ensureVoiceMic]).
 ///
 /// ── وجهازٌ بلا مايك ──
 /// إن تعذّر التعرّفُ على الكلام (لا إذن، أو لا محرّك) ظهرت الإجاباتُ أزراراً
@@ -39,6 +43,8 @@ class KgVoiceGameScreen extends StatefulWidget {
     this.playToEnd,
     this.cheer,
     this.speak,
+    this.stopPrompt,
+    this.ensureMic,
     super.key,
   });
 
@@ -60,6 +66,12 @@ class KgVoiceGameScreen extends StatefulWidget {
 
   /// ينطق الجوابَ بعد المحاولة الثالثة.
   final Future<void> Function(String text)? speak;
+
+  /// يُسكت مقطعَ السؤال الجاري حين يضغط الطفلُ المايكَ أثناءه.
+  final Future<void> Function()? stopPrompt;
+
+  /// إذنُ الميكروفون قبل أوّل استماع. وبلا قيمةٍ: [ensureVoiceMic].
+  final Future<bool> Function(BuildContext context)? ensureMic;
 
   @override
   State<KgVoiceGameScreen> createState() => KgVoiceGameScreenState();
@@ -113,13 +125,44 @@ class KgVoiceGameScreenState extends State<KgVoiceGameScreen> {
 
   // ── الخدمات ─────────────────────────────────────────────────────
 
+  /// مقطعٌ وينتظر انتهاءه — بمهلةٍ لا يتجاوزها مهما فعل محرّكُ الصوت.
   Future<void> _play(String clip) async {
     try {
       await (widget.playToEnd ??
-          (clip) => StudentSoundService.instance.playClipToEnd(clip, limit: const Duration(seconds: 6)))(clip);
+              (clip) => StudentSoundService.instance.playClipToEnd(clip, limit: const Duration(seconds: 6)))(clip)
+          .timeout(const Duration(seconds: 8));
     } catch (error) {
       debugPrint('[kg-voice] clip failed $clip: $error');
     }
+  }
+
+  /// مقطعٌ لا يُنتظر — اسمُ عددٍ يُعدّ باللمس.
+  void _playQuick(String clip) {
+    if (widget.playToEnd != null) {
+      unawaited(_play(clip));
+      return;
+    }
+    unawaited(StudentSoundService.instance.playClip(clip).catchError((Object _) => false));
+  }
+
+  Future<void> _stopPrompt() async {
+    try {
+      await (widget.stopPrompt ?? StudentSoundService.instance.stopSpeaking)();
+    } catch (_) {}
+  }
+
+  /// الإذنُ مرّةً: ما سُمح به لا يُسأل عنه ثانية.
+  bool _micAllowed = false;
+
+  Future<bool> _ensureMic() async {
+    if (_micAllowed) return true;
+    try {
+      _micAllowed = await (widget.ensureMic ?? ensureVoiceMic)(context);
+    } catch (error) {
+      debugPrint('[kg-voice] mic permission failed: $error');
+      _micAllowed = false;
+    }
+    return _micAllowed;
   }
 
   Future<void> _cheer() async {
@@ -184,22 +227,29 @@ class KgVoiceGameScreenState extends State<KgVoiceGameScreen> {
       _notHeard = false;
       _turn = KgTurn.prompting;
     });
-    await _play(_round[_index].promptClip);
-    if (!mounted || token != _token) return;
+    await _sayQuestion(token);
+  }
+
+  /// مقاطعُ السؤال بترتيبها (السؤالُ ثم المعادلة)، ما دام السؤالُ يُقال — ضغطُ
+  /// المايك أثناءه يقطعها.
+  Future<void> _sayQuestion(int token) async {
+    for (final clip in _round[_index].promptClips) {
+      if (!mounted || token != _token || _turn != KgTurn.prompting) return;
+      await _play(clip);
+    }
+    if (!mounted || token != _token || _turn != KgTurn.prompting) return;
     setState(() => _turn = KgTurn.ready);
   }
 
-  /// «اسمع السؤال»: يُعاد مقطعُه، والمايكُ مغلقٌ حتى ينتهي.
+  /// «اسمع السؤال»: يُعاد بمقاطعه.
   Future<void> _replay() async {
     if (_turn != KgTurn.ready && _turn != KgTurn.wrong) return;
-    final token = _token;
     setState(() => _turn = KgTurn.prompting);
-    await _play(_round[_index].promptClip);
-    if (!mounted || token != _token) return;
-    setState(() => _turn = KgTurn.ready);
+    await _sayQuestion(_token);
   }
 
-  bool get _micOpen => _turn == KgTurn.ready || _turn == KgTurn.wrong;
+  /// المايكُ يُضغط وقتَ السؤال كذلك — لا ينتظر الصوت.
+  bool get _micOpen => _turn == KgTurn.ready || _turn == KgTurn.wrong || _turn == KgTurn.prompting;
 
   Future<void> _mic() async {
     if (_turn == KgTurn.listening) {
@@ -209,6 +259,21 @@ class KgVoiceGameScreenState extends State<KgVoiceGameScreen> {
     if (!_micOpen) return;
     HapticFeedback.selectionClick();
     final token = _token;
+    // ‏يضغطه والسؤالُ يُقال: يسكت السؤال، فلا يسمعه محرّكُ التعرّف.
+    if (_turn == KgTurn.prompting) {
+      setState(() => _turn = KgTurn.ready);
+      await _stopPrompt();
+    }
+    if (!await _ensureMic()) {
+      if (mounted && token == _token) {
+        setState(() {
+          _micUnavailable = true;
+          _turn = KgTurn.ready;
+        });
+      }
+      return;
+    }
+    if (!mounted || token != _token) return;
     setState(() {
       _turn = KgTurn.listening;
       _heard = null;
@@ -245,6 +310,7 @@ class KgVoiceGameScreenState extends State<KgVoiceGameScreen> {
   /// زرُّ إجابةٍ حين لا مايك.
   void _choose(KgVoiceOption option) {
     if (!_micOpen) return;
+    if (_turn == KgTurn.prompting) unawaited(_stopPrompt());
     setState(() => _heard = option.label);
     unawaited(_judge(option.id == _round[_index].answer.id));
   }
@@ -452,6 +518,7 @@ class KgVoiceGameScreenState extends State<KgVoiceGameScreen> {
             index: _index,
             wrongShake: _turn == KgTurn.wrong ? _attempts : 0,
             celebrating: _turn == KgTurn.correct,
+            onCount: (n) => _playQuick(kgNumberClip(n)),
           ),
         );
         final panel = _panel(context, q);
@@ -523,7 +590,7 @@ class KgVoiceGameScreenState extends State<KgVoiceGameScreen> {
                 key: const ValueKey('kg-voice-replay'),
                 tooltip: tr('kg.voice.listenAgain'),
                 iconSize: 30,
-                onPressed: _micOpen ? _replay : null,
+                onPressed: _turn == KgTurn.ready || _turn == KgTurn.wrong ? _replay : null,
                 icon: const Icon(Icons.volume_up_rounded),
               ),
             ],
@@ -661,8 +728,12 @@ class _QuestionCard extends StatelessWidget {
     required this.index,
     required this.wrongShake,
     required this.celebrating,
+    required this.onCount,
     super.key,
   });
+
+  /// عددٌ عُدّ باللمس في المسألة المصوّرة: يُسمع اسمُه.
+  final ValueChanged<int> onCount;
 
   final KgVoiceQuestion question;
   final int index;
@@ -683,7 +754,7 @@ class _QuestionCard extends StatelessWidget {
           painter: KgShapePainter(s, color),
           size: Size.infinite,
         ),
-      KgVoiceQuestion(story: final story?) => _StoryView(story: story),
+      KgVoiceQuestion(story: final story?) => KgStoryScene(story: story, onCount: onCount),
       KgVoiceQuestion(sign: final sign?) => _SignBubble(sign: sign, color: color),
       _ => const SizedBox.shrink(),
     };
@@ -980,84 +1051,223 @@ class _SignBubble extends StatelessWidget {
       );
 }
 
-/// مسألةٌ مصوّرة: ما على الشجرة وما في اليد، وبينهما العلامة، ثم «= ؟».
-class _StoryView extends StatelessWidget {
-  const _StoryView({required this.story});
+/// مسألةٌ مصوّرة يعدّها الطفلُ بإصبعه: كلُّ لمسةٍ لشيءٍ تُظهر عليه رقمَه
+/// وتُسمع اسمَه — وفي القسمة تنقله إلى الصندوق التالي حتى يتمّ التوزيع.
+///
+///   • جمع: على الشجرة 🌳 وفي السلّة 🧺، وبينهما «+».
+///   • طرح: بالوناتٌ في السماء، ما طار منها شفّافٌ بعيد، ويُعدّ ما بقي.
+///   • ضرب: صحونٌ 🍽️ في كلٍّ منها العددُ نفسُه.
+///   • قسمة: كومةٌ تُوزَّع لمسةً لمسة على صناديق 🎁 بالتساوي.
+class KgStoryScene extends StatefulWidget {
+  const KgStoryScene({required this.story, required this.onCount, super.key});
 
   final KgStory story;
+  final ValueChanged<int> onCount;
+
+  @override
+  State<KgStoryScene> createState() => _KgStorySceneState();
+}
+
+class _KgStorySceneState extends State<KgStoryScene> {
+  /// ترتيبُ كل شيءٍ عُدّ (رقمُه على الشاشة)، بمفتاح موضعه.
+  final Map<int, int> _counted = {};
+
+  /// في القسمة: أين وُضع كلُّ شيء (رقمُ الصندوق)، بمفتاح موضعه في الكومة.
+  final Map<int, int> _placed = {};
+
+  KgStory get _s => widget.story;
+
+  void _count(int slot) {
+    if (_counted.containsKey(slot)) return;
+    HapticFeedback.selectionClick();
+    setState(() => _counted[slot] = _counted.length + 1);
+    widget.onCount(_counted.length);
+  }
+
+  void _place(int slot) {
+    if (_placed.containsKey(slot)) return;
+    HapticFeedback.selectionClick();
+    final box = _placed.length % _s.b;
+    setState(() => _placed[slot] = box);
+    // ‏يُعدّ ما في الصندوق الذي وُضع فيه.
+    widget.onCount(_placed.values.where((b) => b == box).length);
+  }
 
   @override
   Widget build(BuildContext context) {
-    final sign = kgSigns[story.sign]!.$1;
     final ink = StudentSurface.ink(context);
-    final big = TextStyle(fontSize: 44, fontWeight: FontWeight.w900, color: ink);
-    return Directionality(
-      textDirection: TextDirection.ltr,
-      child: Column(
-        key: const ValueKey('kg-visual-story'),
-        children: [
-          Expanded(
-            child: FittedBox(
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.center,
+    final sign = kgSigns[_s.sign]!.$1;
+    final caption = switch (_s.sign) {
+      KgSign.plus => trf('kg.math.plus', {'a': _s.a, 'b': _s.b}),
+      KgSign.minus => trf('kg.math.minus', {'a': _s.a, 'b': _s.b}),
+      KgSign.times => trf('kg.math.times', {'a': _s.a, 'b': _s.b}),
+      KgSign.divide => trf('kg.math.divide', {'a': _s.a, 'b': _s.b}),
+    };
+    return Column(
+      key: const ValueKey('kg-visual-story'),
+      children: [
+        Text(
+          caption,
+          key: const ValueKey('kg-story-caption'),
+          textAlign: TextAlign.center,
+          style: TextStyle(fontSize: 19, fontWeight: FontWeight.w900, color: ink),
+        ),
+        const SizedBox(height: 6),
+        // ‏المشهدُ والمعادلةُ باتجاه الواجهة معاً: العددُ الأوّلُ في أوّل السطر في
+        // ‏كليهما (يمينَ العربية) — فالشجرةُ حيث رقمُها.
+        Expanded(child: _scene(context, sign)),
+        const SizedBox(height: 4),
+        Text(
+          '${_s.a} $sign ${_s.b} = ؟',
+          key: const ValueKey('kg-story-equation'),
+          textDirection: StudentSettings.direction,
+          style: TextStyle(fontSize: 30, fontWeight: FontWeight.w900, color: ink),
+        ),
+        Text(
+          tr('kg.math.tapToCount'),
+          style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: StudentSurface.mutedInk(context)),
+        ),
+      ],
+    );
+  }
+
+  Widget _scene(BuildContext context, String sign) {
+    final bigSign = Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 8),
+      child: Text(sign, style: const TextStyle(fontSize: 46, fontWeight: FontWeight.w900, color: Color(0xFFDB2777))),
+    );
+    switch (_s.sign) {
+      case KgSign.plus:
+        return FittedBox(
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              _box('🌳', tr('kg.voice.tree'), [for (var i = 0; i < _s.a; i++) _thing(i)], const Color(0xFFF0FDF4)),
+              bigSign,
+              _box('🧺', tr('kg.math.basket'), [for (var i = 0; i < _s.b; i++) _thing(_s.a + i)], const Color(0xFFFFF7ED)),
+            ],
+          ),
+        );
+      case KgSign.minus:
+        return FittedBox(
+          child: _box(
+            '☁️',
+            trf('kg.voice.flew', {'n': _s.b}),
+            [
+              for (var i = 0; i < _s.a; i++)
+                i >= _s.a - _s.b ? _flownAway(i) : _thing(i),
+            ],
+            const Color(0xFFEFF6FF),
+            width: 300,
+          ),
+        );
+      case KgSign.times:
+        return FittedBox(
+          child: Row(
+            children: [
+              for (var p = 0; p < _s.a; p++) ...[
+                if (p > 0) const SizedBox(width: 10),
+                _box('🍽️', trf('kg.math.plate', {'n': p + 1}), [for (var i = 0; i < _s.b; i++) _thing(p * _s.b + i)],
+                    const Color(0xFFFDF4FF),
+                    width: 130),
+              ],
+            ],
+          ),
+        );
+      case KgSign.divide:
+        return FittedBox(
+          child: Column(
+            children: [
+              _box('🧺', tr('kg.math.pile'), [
+                for (var i = 0; i < _s.a; i++)
+                  if (!_placed.containsKey(i))
+                    GestureDetector(
+                      key: ValueKey('kg-pile-$i'),
+                      onTap: () => _place(i),
+                      child: Text(_s.item, style: const TextStyle(fontSize: 40)),
+                    ),
+              ], const Color(0xFFFEFCE8), width: 360),
+              const SizedBox(height: 10),
+              Row(
                 children: [
-                  _Group(header: '🌳', caption: tr('kg.voice.tree'), count: story.a, item: story.item),
-                  Padding(padding: const EdgeInsets.symmetric(horizontal: 10), child: Text(sign, style: big)),
-                  _Group(
-                    header: '✋',
-                    caption: story.sign == KgSign.minus
-                        ? trf('kg.voice.took', {'n': story.b})
-                        : tr('kg.voice.hand'),
-                    count: story.b,
-                    item: story.item,
-                  ),
-                  Padding(padding: const EdgeInsets.symmetric(horizontal: 10), child: Text('=', style: big)),
-                  Text('؟', style: big.copyWith(color: const Color(0xFFDB2777))),
+                  for (var b = 0; b < _s.b; b++) ...[
+                    if (b > 0) const SizedBox(width: 10),
+                    _box('🎁', trf('kg.math.box', {'n': b + 1}), [
+                      for (final entry in _placed.entries)
+                        if (entry.value == b) Text(_s.item, style: const TextStyle(fontSize: 36)),
+                    ], const Color(0xFFF0F9FF), width: 120, minHeight: 70),
+                  ],
                 ],
               ),
-            ),
+            ],
           ),
-          Text(
-            '${story.a} $sign ${story.b} = ؟',
-            style: TextStyle(fontSize: 26, fontWeight: FontWeight.w900, color: ink.withValues(alpha: 0.75)),
-          ),
-        ],
+        );
+    }
+  }
+
+  /// شيءٌ يُعدّ باللمس: يكبر ويظهر عليه رقمُه.
+  Widget _thing(int slot) {
+    final n = _counted[slot];
+    return GestureDetector(
+      key: ValueKey('kg-thing-$slot'),
+      onTap: () => _count(slot),
+      child: AnimatedScale(
+        scale: n == null ? 1 : 1.15,
+        duration: const Duration(milliseconds: 200),
+        curve: Curves.easeOutBack,
+        child: Stack(
+          clipBehavior: Clip.none,
+          children: [
+            Padding(padding: const EdgeInsets.all(2), child: Text(widget.story.item, style: const TextStyle(fontSize: 40))),
+            if (n != null)
+              Positioned(
+                right: -4,
+                top: -6,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 1),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF16A34A),
+                    borderRadius: BorderRadius.circular(99),
+                    border: Border.all(color: Colors.white, width: 2),
+                  ),
+                  child: Text('$n', style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w900, color: Colors.white)),
+                ),
+              ),
+          ],
+        ),
       ),
     );
   }
-}
 
-class _Group extends StatelessWidget {
-  const _Group({required this.header, required this.caption, required this.count, required this.item});
+  /// ما طار: شفّافٌ مرفوعٌ قليلاً، ولا يُعدّ.
+  Widget _flownAway(int slot) => Transform.translate(
+        key: ValueKey('kg-flown-$slot'),
+        offset: const Offset(0, -14),
+        child: Opacity(
+          opacity: 0.28,
+          child: Padding(padding: const EdgeInsets.all(2), child: Text(widget.story.item, style: const TextStyle(fontSize: 40))),
+        ),
+      );
 
-  final String header;
-  final String caption;
-  final int count;
-  final String item;
-
-  @override
-  Widget build(BuildContext context) => Container(
+  Widget _box(String header, String label, List<Widget> children, Color color, {double width = 170, double minHeight = 0}) =>
+      Container(
+        width: width,
+        constraints: BoxConstraints(minHeight: minHeight),
         padding: const EdgeInsets.all(10),
         decoration: BoxDecoration(
-          color: const Color(0xFFF0FDF4),
+          color: color,
           borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: const Color(0xFF86EFAC), width: 2),
+          border: Border.all(color: const Color(0xFFCBD5E1), width: 2),
         ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text(header, style: const TextStyle(fontSize: 34)),
-            SizedBox(
-              width: 150,
-              child: Wrap(
-                alignment: WrapAlignment.center,
-                children: [for (var i = 0; i < count; i++) Text(item, style: const TextStyle(fontSize: 40))],
-              ),
-            ),
+            Text(header, style: const TextStyle(fontSize: 30)),
+            Wrap(alignment: WrapAlignment.center, spacing: 2, runSpacing: 2, children: children),
             Text(
-              caption,
+              label,
               textDirection: StudentSettings.direction,
-              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: Color(0xFF166534)),
+              style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w800, color: Color(0xFF334155)),
             ),
           ],
         ),

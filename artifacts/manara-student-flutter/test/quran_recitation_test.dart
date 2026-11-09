@@ -70,8 +70,8 @@ void main() {
     });
   });
 
-  group('السور الثماني', () {
-    test('بعددِ آياتها، وبمعرّفات الخادم', () {
+  group('السور: الفاتحة وجزء عمّ كاملاً', () {
+    test('بعددِ آياتها في المصحف، وبمعرّفات الخادم', () {
       final verses = {for (final s in quranSurahs) s.id: s.verses.length};
       expect(verses, {
         'fatiha': 7,
@@ -82,7 +82,70 @@ void main() {
         'nasr': 3,
         'kafirun': 6,
         'kawthar': 3,
+        'maun': 7,
+        'quraysh': 4,
+        'fil': 5,
+        'humaza': 9,
+        'asr': 3,
+        'takathur': 8,
+        'qaria': 11,
+        'adiyat': 11,
+        'zalzala': 8,
+        'bayyina': 8,
+        'qadr': 5,
+        'alaq': 19,
+        'tin': 8,
+        'sharh': 8,
+        'duha': 11,
+        'layl': 21,
+        'shams': 15,
+        'balad': 20,
+        'fajr': 30,
+        'ghashiya': 26,
+        'ala': 19,
+        'tariq': 17,
+        'buruj': 22,
+        'inshiqaq': 25,
+        'mutaffifin': 36,
+        'infitar': 19,
+        'takwir': 29,
+        'abasa': 42,
+        'naziat': 46,
+        'naba': 40,
       });
+      expect(quranSurahs, hasLength(38), reason: 'الفاتحة و٣٧ سورةً من جزء عمّ');
+      // ‏والخادمُ يعرفها كلَّها بمعرّفاتها، وإلا رُدّت مكافأتُها.
+      final server = File('../api-server/src/lib/quranRecitation.ts').readAsStringSync();
+      final listed = RegExp(r'QURAN_SURAHS = \[([^\]]*)\]').firstMatch(server)!.group(1)!;
+      final ids = RegExp(r'"(\w+)"').allMatches(listed).map((m) => m.group(1)).toSet();
+      expect(ids, quranSurahs.map((s) => s.id).toSet());
+    });
+
+    test('نصُّ جزء عمّ بمعالجة السور الأولى نفسها: بلا ألفٍ خنجرية، والبسملةُ خطوةٌ لا آية', () {
+      for (final surah in juzAmmaSurahs) {
+        for (final verse in surah.verses) {
+          expect(verse.contains('\u0670'), isFalse, reason: '${surah.id}: $verse');
+          expect(verse.trim(), verse);
+          expect(verse, isNot(contains('  ')));
+        }
+        expect(surah.verses.first.startsWith('بِسْمِ'), isFalse, reason: surah.id);
+        expect(surah.units[1].kind, RecitationUnitKind.basmala);
+      }
+      expect(surahOf('naba').verses.first, 'عَمَّ يَتَسَاءَلُونَ');
+      expect(surahOf('asr').verses, [
+        'وَالْعَصْرِ',
+        'إِنَّ الْإِنْسَانَ لَفِي خُسْرٍ',
+        'إِلَّا الَّذِينَ آمَنُوا وَعَمِلُوا الصَّالِحَاتِ وَتَوَاصَوْا بِالْحَقِّ وَتَوَاصَوْا بِالصَّبْرِ',
+      ]);
+    });
+
+    test('لكل آيةٍ تلاوتُها، ولكل سورةٍ اسمُها مسجّلاً — في assets/', () {
+      for (final surah in quranSurahs) {
+        expect(File('assets/${surah.nameClip}').existsSync(), isTrue, reason: surah.nameClip);
+        for (final unit in surah.units) {
+          expect(File('assets/${unit.clip}').existsSync(), isTrue, reason: unit.clip);
+        }
+      }
     });
 
     test('تبدأ كلُّ سورةٍ بالاستعاذة ثم البسملة — وفي الفاتحة البسملةُ آيتُها الأولى', () {
@@ -307,12 +370,30 @@ void main() {
           body: QuranRecitationGame(onRecited: (_) async => null, onBack: () {}, playName: played.add),
         ),
       ));
-      for (final surah in quranSurahs) {
+      // ‏الشبكةُ تُمرَّر: أوّلُها ظاهر، وآخرُها (النبأ) يُبلَغ بالتمرير.
+      for (final surah in quranSurahs.take(4)) {
         expect(find.byKey(ValueKey('quran-surah-${surah.id}')), findsOneWidget);
       }
       await tester.tap(find.byKey(const ValueKey('quran-surah-nas')));
       await tester.pump();
       expect(played, ['audio/surah_names/surah_nas.mp3']);
+      await tester.pump(const Duration(milliseconds: 400));
+    });
+
+    testWidgets('جزءُ عمّ كاملاً في الشبكة: آخرُه (النبأ) يُبلغ بالتمرير ويُفتح', (tester) async {
+      final played = <String>[];
+      await tester.pumpWidget(MaterialApp(
+        home: Scaffold(
+          body: QuranRecitationGame(onRecited: (_) async => null, onBack: () {}, playName: played.add),
+        ),
+      ));
+      final naba = find.byKey(const ValueKey('quran-surah-naba'));
+      await tester.scrollUntilVisible(naba, 300, scrollable: find.byType(Scrollable).first);
+      await tester.ensureVisible(naba);
+      await tester.pump();
+      await tester.tap(naba);
+      await tester.pump();
+      expect(played, ['audio/surah_names/surah_naba.mp3']);
       await tester.pump(const Duration(milliseconds: 400));
     });
 

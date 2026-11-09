@@ -48,20 +48,49 @@ void main() {
       expect(round.map((q) => q.shape).toSet(), KgShape.values.toSet());
     });
 
-    test('الحساب: نصفُه علاماتٌ ونصفُه مسائلُ مصوّرة، بأعدادٍ لطفل الروضة', () {
-      for (var seed = 0; seed < 30; seed++) {
+    test('الحساب: مسألتان مصوّرتان لكل عملية، وسؤالان عن العلامة، بأعدادٍ لطفل الروضة', () {
+      for (var seed = 0; seed < 40; seed++) {
         final round = buildKgVoiceRound(KgVoiceGameKind.math, math.Random(seed));
-        expect(round.where((q) => q.sign != null), hasLength(5));
-        expect(round.where((q) => q.story != null), hasLength(5));
+        expect(round.where((q) => q.sign != null), hasLength(2));
+        final stories = [for (final q in round) if (q.story != null) q.story!];
+        expect(stories, hasLength(8));
+        for (final sign in KgSign.values) {
+          expect(stories.where((s) => s.sign == sign), hasLength(2), reason: '$sign');
+        }
+        for (final s in stories) {
+          switch (s.sign) {
+            case KgSign.plus:
+              expect(s.result, inInclusiveRange(2, 8));
+            case KgSign.minus:
+              expect(s.a, lessThanOrEqualTo(6));
+              expect(s.result, greaterThanOrEqualTo(1));
+            case KgSign.times:
+              expect(s.a, inInclusiveRange(2, 3), reason: 'صحنان أو ثلاثة');
+              expect(s.result, lessThanOrEqualTo(9));
+            case KgSign.divide:
+              expect(s.a % s.b, 0, reason: 'يُوزَّع بالتساوي');
+              expect(s.result, inInclusiveRange(1, 3));
+          }
+        }
         for (final q in round.where((q) => q.story != null)) {
-          final story = q.story!;
-          expect(story.result, inInclusiveRange(0, 10));
-          expect(story.sign, anyOf(KgSign.plus, KgSign.minus));
           expect(q.promptClip, kgQuestionResultClip);
+          // ‏ثم المعادلةُ مقروءة: «ثلاثة زائد اثنين، كم يساوي؟».
+          expect(q.followUpClips, [
+            kgNumberClip(q.story!.a),
+            kgOperatorClips[q.story!.sign],
+            kgNumberClip(q.story!.b),
+            kgHowMuchClip,
+          ]);
         }
         for (final q in round.where((q) => q.sign != null)) {
           expect(q.promptClip, kgQuestionSignClip);
         }
+      }
+    });
+
+    test('مقاطعُ المعادلة كلُّها في assets/', () {
+      for (final clip in [...kgOperatorClips.values, kgHowMuchClip, for (var n = 0; n <= 10; n++) kgNumberClip(n)]) {
+        expect(File('assets/$clip').existsSync(), isTrue, reason: clip);
       }
     });
 

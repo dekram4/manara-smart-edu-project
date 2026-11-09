@@ -509,7 +509,12 @@ class StudentSoundService with WidgetsBindingObserver {
   Future<void> playClipToEnd(String asset, {double? volume, Duration limit = const Duration(seconds: 30)}) async {
     if (muted.value || _backgrounded) return;
     final done = _voicePlayer.onPlayerComplete.first;
-    if (!await playClip(asset, volume: volume)) return;
+    // ‏بدءُ التشغيل نفسُه له مهلة: محرّكُ صوتٍ لا يعود من `play` على بعض
+    // ‏الأجهزة كان يحبس من ينتظر المقطع — ومنه مايكُ ألعاب الروضة الذي لا
+    // ‏يُفتح قبل انتهاء السؤال، فيبقى معطّلاً لا يستجيب.
+    final started = await playClip(asset, volume: volume)
+        .timeout(const Duration(seconds: 4), onTimeout: () => false);
+    if (!started) return;
     try {
       await done.timeout(limit);
     } catch (_) {

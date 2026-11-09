@@ -142,6 +142,11 @@ flutter:
     # أسماءُ الحروف العربية بأصواتٍ مسجّلة (ElevenLabs) للعبة «تتبّع واكتب» —
     # انظر arabicLetterClips في tracing_glyphs.dart.
     - assets/audio/ar/
+    # ‏والأعدادُ ٠–١٠٠ بالعربية والإنجليزية، والحروفُ الإنجليزية، بتسجيلاتها —
+    # ‏انظر recordedClipFor وtool/build_tracing_voices.py.
+    - assets/audio/numbers_ar/
+    - assets/audio/numbers_en/
+    - assets/audio/letters_en/
     # عباراتُ التشجيع المسجّلة، يتبعها التصفيق — انظر
     # StudentSoundService.encouragementClips.
     - assets/audio/encouragement/

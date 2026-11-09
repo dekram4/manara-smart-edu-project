@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
@@ -12,8 +13,17 @@ typedef Say = String? Function(KgVoiceQuestion question);
 void main() {
   late List<String> events;
 
-  Future<KgVoiceGameScreenState> boot(WidgetTester tester, KgVoiceGameKind kind, Say say) async {
+  /// السؤالُ «يُقال» حتى يُكمَل هذا — لاختبار ضغط المايك أثناءه.
+  Completer<void>? holdPrompt;
+
+  Future<KgVoiceGameScreenState> boot(
+    WidgetTester tester,
+    KgVoiceGameKind kind,
+    Say say, {
+    bool micAllowed = true,
+  }) async {
     events = [];
+    holdPrompt = null;
     await tester.binding.setSurfaceSize(const Size(1000, 640));
     late KgVoiceGameScreenState state;
     await tester.pumpWidget(
@@ -22,7 +32,15 @@ void main() {
           key: UniqueKey(),
           kind: kind,
           random: math.Random(7),
-          playToEnd: (clip) async => events.add('clip:${clip.split('/').last}'),
+          playToEnd: (clip) async {
+            events.add('clip:${clip.split('/').last}');
+            if (holdPrompt != null && clip.contains('question_')) await holdPrompt!.future;
+          },
+          stopPrompt: () async => events.add('stop-prompt'),
+          ensureMic: (_) async {
+            events.add('ensure-mic');
+            return micAllowed;
+          },
           cheer: () async => events.add('cheer'),
           speak: (text) async => events.add('speak:$text'),
           stopListening: () async {},
@@ -183,7 +201,75 @@ void main() {
       await answer(tester);
       await afterCelebration(tester);
     }
-    expect((stories, signs), (5, 5));
+    expect((stories, signs), (8, 2));
+    await tester.pump(const Duration(seconds: 3));
+  });
+
+  testWidgets('المايكُ يستجيب والسؤالُ يُقال: يُسكته ثم يسمع', (tester) async {
+    final state = await boot(tester, KgVoiceGameKind.colors, (q) => q.answer.label);
+    holdPrompt = Completer<void>();
+    await start(tester);
+    expect(state.turn, KgTurn.prompting, reason: 'السؤالُ ما زال يُقال');
+    await answer(tester);
+    expect(events, containsAllInOrder(['clip:question_color.mp3', 'stop-prompt', 'ensure-mic']));
+    expect(state.turn, KgTurn.correct, reason: 'سُمع الجوابُ وحُكم عليه');
+    holdPrompt!.complete();
+    await tester.pump(const Duration(seconds: 3));
+  });
+
+  testWidgets('إذنُ الميكروفون مرفوض: الإجاباتُ أزرار، ولا يُسأل عن الإذن مع كل سؤال إن قُبل', (tester) async {
+    final state = await boot(tester, KgVoiceGameKind.shapes, (q) => q.answer.label, micAllowed: false);
+    await start(tester);
+    await answer(tester);
+    expect(find.text('المايك غير متاح — اختر الجواب'), findsOneWidget);
+    expect(state.turn, KgTurn.ready);
+    await tester.pump(const Duration(seconds: 3));
+
+    final allowed = await boot(tester, KgVoiceGameKind.shapes, (q) => q.answer.label);
+    await start(tester);
+    for (var i = 0; i < 3; i++) {
+      await answer(tester);
+      await afterCelebration(tester);
+    }
+    expect(events.where((e) => e == 'ensure-mic'), hasLength(1), reason: 'الإذنُ مرّةً واحدة');
+    expect(allowed.score, 3);
+    await tester.pump(const Duration(seconds: 3));
+  });
+
+  testWidgets('المسائلُ المصوّرة: المعادلةُ مقروءة، والعدُّ باللمس يُسمع، والقسمةُ توزيع', (tester) async {
+    final state = await boot(tester, KgVoiceGameKind.math, (q) => q.story != null ? '${q.story!.result}' : q.answer.label);
+    await start(tester);
+    var sawDivide = false;
+    var sawCount = false;
+    for (var i = 0; i < kgVoiceRoundLength; i++) {
+      final q = state.question!;
+      final story = q.story;
+      if (story != null) {
+        expect(find.byKey(const ValueKey('kg-story-caption')), findsOneWidget);
+        expect(events, contains('clip:how_much.mp3'));
+        if (story.sign == KgSign.divide && !sawDivide) {
+          sawDivide = true;
+          events.clear();
+          await tester.tap(find.byKey(const ValueKey('kg-pile-0')));
+          await tester.pump();
+          expect(find.byKey(const ValueKey('kg-pile-0')), findsNothing, reason: 'انتقل إلى الصندوق');
+          expect(events, ['clip:n_1.mp3'], reason: 'في الصندوق الأوّل واحد');
+        } else if (story.sign == KgSign.plus && !sawCount) {
+          sawCount = true;
+          events.clear();
+          await tester.tap(find.byKey(const ValueKey('kg-thing-0')));
+          await tester.pump();
+          await tester.tap(find.byKey(const ValueKey('kg-thing-1')));
+          await tester.pump();
+          expect(events, ['clip:n_1.mp3', 'clip:n_2.mp3']);
+          expect(find.text('2'), findsWidgets);
+        }
+      }
+      events.clear();
+      await answer(tester);
+      await afterCelebration(tester);
+    }
+    expect(sawDivide && sawCount, isTrue);
     await tester.pump(const Duration(seconds: 3));
   });
 
