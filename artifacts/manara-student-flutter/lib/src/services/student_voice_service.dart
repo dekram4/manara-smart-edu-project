@@ -119,6 +119,7 @@ class StudentVoiceService {
     }
     // ‏المحرّكُ لا يتهيّأ على Android إلا بإذن الميكروفون.
     if (_speechAvailable) _micGranted = true;
+    if (!_speechAvailable) lastProblem = 'speech_unavailable';
     return _speechAvailable;
   }
 
@@ -126,13 +127,15 @@ class StudentVoiceService {
     try {
       return await _speech.initialize(
         onError: (error) {
+          lastProblem = error.errorMsg;
+          debugPrint('[voice] engine error: ${error.errorMsg} (permanent: ${error.permanent})');
           // تعرّفٌ على الجهاز لم ينجح (لا نموذجَ عربياً منزَّلاً): الاستماعُ
-          // التالي بالخدمة العادية، ما بقي التطبيقُ مفتوحاً. والصمتُ ليس
-          // فشلاً: «لم يُفهم شيء» و«لم يتكلّم» لا يُغيّران الطريق.
-          const silence = {'error_no_match', 'error_speech_timeout'};
-          if ((_liveOnDevice || _childOnDevice) && !silence.contains(error.errorMsg)) {
-            _preferOnDevice = false;
-          }
+          // التالي بالخدمة العادية، ما بقي التطبيقُ مفتوحاً.
+          //
+          // ‏وأيُّ خطأٍ كان — حتى «لم يُفهم شيء»: محرّكٌ محلّيٌّ بلا نموذجٍ عربيّ
+          // ‏يقول ذلك لكل كلمة. (استُثني الصمتُ مرّةً فعلِق التطبيقُ كلُّه على
+          // ‏التعرّف المحلّيّ الذي لا يفهم العربية، فتعطّل المايكُ في كل شاشة.)
+          if (_liveOnDevice) _preferOnDevice = false;
           _onLiveEnd?.call();
           _onChildEnd?.call();
         },
@@ -149,18 +152,12 @@ class StudentVoiceService {
     }
   }
 
-  /// جلسةٌ سابقةٌ ما زالت مفتوحة (من شاشةٍ أخرى): المحرّكُ على Android يردّ
-  /// على طلب الاستماع الجديد بـ«لا» صامتة، فيبقى الزرُّ «يسمع» ولا يسمع
-  /// شيئاً. فتُغلق أوّلاً.
-  Future<void> _releaseStaleSession() async {
-    try {
-      if (!_speech.isListening) return;
-      await _speech.cancel();
-    } catch (_) {
-      return;
-    }
-    await Future<void>.delayed(const Duration(milliseconds: 150));
-  }
+  /// آخرُ ما قاله المحرّكُ عن فشلٍ (رمزُ خطئه، أو «لم يبدأ»): يُعرض صغيراً
+  /// تحت «غير متاح» ليُعرف السببُ من جهاز الطفل نفسه.
+  String? lastProblem;
+
+  /// [lastProblem] بين قوسين لآخر سطرِ «غير متاح» — أو لا شيء.
+  String get problemSuffix => lastProblem == null ? '' : ' ($lastProblem)';
 
   /// يبدأ الإملاء، ويُسلّم ما سمعه عند انتهائه.
   ///
@@ -213,8 +210,6 @@ class StudentVoiceService {
   bool _preferOnDevice = true;
   bool _liveOnDevice = false;
 
-  /// جلسةُ الطفل الجارية على الجهاز نفسه ([listenForChild]).
-  bool _childOnDevice = false;
 
   /// استماعٌ حيّ للتسميع: كلُّ ما سُمع حتى الآن يصل مع كل كلمةٍ جديدة
   /// ([onWords]) — فيتلوّن النصّ والطفلُ يقرأ — و[onEnd] مرّةً حين يتوقّف.
@@ -234,7 +229,9 @@ class StudentVoiceService {
   }) async {
     if (!await prepare()) return false;
     await stopSpeaking();
-    await _releaseStaleSession();
+    // ‏ولا يُلغى قبله استماعٌ «قديم»: إلغاءُ المحرّك يُطلق «انتهى» يصل بعد أن
+    // ‏تبدأ الجلسةُ الجديدة فيُنهيها — فيُعاد فتحُها ويُلغى من جديد، ولا يسمع
+    // ‏المايكُ شيئاً أبداً.
     var ended = false;
     var heard = false;
     final startedAt = DateTime.now();
@@ -310,7 +307,6 @@ class StudentVoiceService {
   }) async {
     if (!await prepare()) return false;
     await stopSpeaking();
-    await _releaseStaleSession();
     final deadline = DateTime.now().add(window);
     var heard = '';
     var finished = false;
@@ -321,19 +317,15 @@ class StudentVoiceService {
       finished = true;
       _onChildEnd = null;
       _finishChild = null;
-      _childOnDevice = false;
       onResult(heard);
     }
 
     late Future<bool> Function() session;
 
-    void ended(int of, DateTime startedAt, bool onDevice) {
+    void ended(int of, DateTime startedAt) {
       // ‏حدثٌ متأخّرٌ من جلسةٍ سابقة، أو «انتهى» يصل مرّتين: يُهمَل.
       if (finished || of != generation) return;
-      // ‏رفض التعرّفُ على الجهاز (لا نموذجَ عربيّاً): يُعاد في لحظته بالخدمة
-      // ‏العادية — ولو انتهى قبل مهلة الأحداث المتأخّرة.
-      final fellBack = onDevice && !_preferOnDevice;
-      if (!fellBack && DateTime.now().difference(startedAt) < const Duration(milliseconds: 400)) return;
+      if (DateTime.now().difference(startedAt) < const Duration(milliseconds: 400)) return;
       generation++;
       _onChildEnd = null;
       final remaining = deadline.difference(DateTime.now());
@@ -347,8 +339,10 @@ class StudentVoiceService {
       });
     }
 
-    // ‏الطريقُ نفسُه الذي يعمل في التسميع ([listenLive]): على الجهاز أوّلاً إن
-    // ‏أمكن، وإلا فبالخدمة العادية — وما رفضه أحدُهما جُرّب بالآخر.
+    // ‏بالخدمة العادية (Google) كما يعمل في الدخول واختيار المسار. والتعرّفُ على
+    // ‏الجهاز لا يُجرَّب إلا إن رفض المحرّكُ الخدمةَ العادية من أوّلها: محرّكٌ
+    // ‏محلّيٌّ بلا نموذجٍ عربيّ يبدأ ولا يفهم شيئاً، فلا يكون الطريقَ الأوّل.
+    var onDevice = false;
     session = () async {
       final mine = generation;
       final startedAt = DateTime.now();
@@ -357,9 +351,7 @@ class StudentVoiceService {
         finish();
         return true;
       }
-      final onDevice = _preferOnDevice;
-      _childOnDevice = onDevice;
-      _onChildEnd = () => ended(mine, startedAt, onDevice);
+      _onChildEnd = () => ended(mine, startedAt);
       try {
         await _speech.listen(
           listenOptions: SpeechListenOptions(
@@ -393,9 +385,10 @@ class StudentVoiceService {
         return true;
       } catch (error) {
         debugPrint('[voice] child listen failed (onDevice: $onDevice): $error');
+        lastProblem = '$error';
         _onChildEnd = null;
-        if (onDevice) {
-          _preferOnDevice = false;
+        if (!onDevice) {
+          onDevice = true;
           return session();
         }
         return false;

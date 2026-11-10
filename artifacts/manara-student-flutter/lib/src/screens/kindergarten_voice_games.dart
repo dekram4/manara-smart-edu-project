@@ -660,10 +660,13 @@ class KgVoiceGameScreenState extends State<KgVoiceGameScreen> {
           const SizedBox(height: 12),
           Text(
             tr(switch (_micProblem) {
-              _MicProblem.permission => 'kg.voice.micDenied',
-              _MicProblem.engine => 'kg.voice.chooseInstead',
-              null => 'kg.voice.sayOrTap',
-            }),
+                  _MicProblem.permission => 'kg.voice.micDenied',
+                  _MicProblem.engine => 'kg.voice.chooseInstead',
+                  null => 'kg.voice.sayOrTap',
+                }) +
+                (_micProblem == _MicProblem.engine && widget.listen == null
+                    ? StudentVoiceService.instance.problemSuffix
+                    : ''),
             key: const ValueKey('kg-voice-hint'),
             textAlign: TextAlign.center,
             style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: StudentSurface.mutedInk(context)),

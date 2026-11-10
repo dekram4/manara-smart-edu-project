@@ -206,6 +206,14 @@ class VoiceMicButtonState extends State<VoiceMicButton> {
     if (!started) {
       done();
       setState(() => _busy = false);
+      // ‏كان يسكت فيبدو الزرُّ معطّلاً لا يستجيب: يُقال لماذا، برمز المحرّك.
+      ScaffoldMessenger.maybeOf(context)?.showSnackBar(SnackBar(
+        key: const ValueKey('voice-mic-unavailable'),
+        content: Text(
+          tr('voice.micUnavailable') + StudentVoiceService.instance.problemSuffix,
+          textAlign: TextAlign.center,
+        ),
+      ));
       return;
     }
     if (!answered) _setListening(true);

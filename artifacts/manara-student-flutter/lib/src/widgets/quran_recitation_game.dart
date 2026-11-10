@@ -11,6 +11,7 @@ import '../services/quran_recitation_worker.dart';
 import '../services/student_sound_service.dart';
 import '../services/student_voice_service.dart';
 import '../theme/student_theme.dart';
+import 'voice_mic_button.dart' show ensureVoiceMic;
 
 /// سورةٌ سُمِّعت كاملةً صحيحة: مكافأتُها من الخادم، مرّةً لكل سورة.
 typedef QuranRecitationWin = Future<RewardResult?> Function(QuranSurah surah);
@@ -292,6 +293,14 @@ class QuranRecitationGameState extends State<QuranRecitationGame> with TickerPro
     _wantListening = true;
     setState(() => _message = null);
     HapticFeedback.mediumImpact();
+    // ‏الإذنُ بالطريق نفسه في كل الشاشات: نافذةٌ تشرح لماذا، و«افتح الإعدادات»
+    // ‏لمن رفض نهائياً ([ensureVoiceMic]). والمحرّكُ المزيّف في الاختبار لا يُسأل له.
+    if (widget.listen == null && !await ensureVoiceMic(context)) {
+      if (!mounted) return;
+      _wantListening = false;
+      setState(() => _message = tr('quran.micUnavailable'));
+      return;
+    }
     await _startListening();
   }
 
@@ -312,7 +321,7 @@ class QuranRecitationGameState extends State<QuranRecitationGame> with TickerPro
       _pulse.stop();
       setState(() {
         _listening = false;
-        _message = tr('quran.micUnavailable');
+        _message = tr('quran.micUnavailable') + StudentVoiceService.instance.problemSuffix;
       });
       return;
     }

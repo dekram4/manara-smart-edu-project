@@ -19,6 +19,7 @@ class _FakeSpeech implements SpeechToText {
 
   /// يرمي المحرّكُ عند الاستماع على الجهاز (لا تعرّفَ محلّيّ).
   var refuseOnDevice = false;
+  var refuseCloud = false;
   var permitted = true;
   final pauses = <Duration>[];
   SpeechResultListener? onWords;
@@ -65,6 +66,7 @@ class _FakeSpeech implements SpeechToText {
   }) async {
     if (stale) throw StateError('already listening');
     if (refuseOnDevice && listenOptions!.onDevice) throw StateError('no on-device recognizer');
+    if (refuseCloud && !listenOptions!.onDevice) throw StateError('no recognition service');
     sessions.add(listenOptions!);
     onWords = onResult;
   }
@@ -155,35 +157,35 @@ void main() {
   });
 
   group('المايكُ نفسُه في كل الشاشات', () {
-    test('جلسةٌ مفتوحةٌ من شاشةٍ سابقة تُغلق أوّلاً، فلا يردّ المحرّكُ بـ«لا» صامتة', () async {
-      speech.stale = true;
-      expect(await voice.listenForChild(onResult: (_) {}), isTrue);
-      expect(speech.cancels, 1);
-      expect(speech.sessions, hasLength(1));
-    });
-
-    test('كالتسميع: على الجهاز أوّلاً، وما رُفض هناك يُعاد بالخدمة العادية في لحظته', () async {
-      speech.refuseOnDevice = true;
+    test('الطفلُ يُسمع بالخدمة العادية؛ والتعرّفُ على الجهاز إن رفضها المحرّكُ من أوّلها وحده', () async {
       expect(await voice.listenForChild(onResult: (_) {}), isTrue);
       expect(speech.sessions.single.onDevice, isFalse);
 
-      // ‏وخطأُ المحرّك المحلّيّ بعد البدء (لا نموذجَ عربيّاً): جلسةٌ بالخدمة العادية.
-      final fresh = _FakeSpeech();
-      final voice2 = StudentVoiceService(speech: fresh, tts: _QuietTts());
-      await voice2.listenForChild(onResult: (_) {});
-      expect(fresh.sessions.single.onDevice, isTrue);
-      fresh.error!(SpeechRecognitionError('error_language_unavailable', true));
-      await _wait(300);
-      expect(fresh.sessions.map((s) => s.onDevice), [true, false]);
+      final cloudless = _FakeSpeech()..refuseCloud = true;
+      final voice2 = StudentVoiceService(speech: cloudless, tts: _QuietTts());
+      expect(await voice2.listenForChild(onResult: (_) {}), isTrue);
+      expect(cloudless.sessions.single.onDevice, isTrue);
+      expect(voice2.lastProblem, contains('no recognition service'));
     });
 
-    test('الصمتُ ليس فشلاً: لا يُترك التعرّفُ على الجهاز', () async {
+    test('لا يُلغى استماعٌ «قديم» قبل الجديد: إلغاؤه يُنهي الجديدَ فلا يسمع المايكُ أبداً', () async {
+      speech.stale = false;
       await voice.listenForChild(onResult: (_) {});
-      speech.error!(SpeechRecognitionError('error_speech_timeout', false));
-      await _wait(600);
-      speech.status!(SpeechToText.doneStatus);
-      await _wait(400);
-      expect(speech.sessions.map((s) => s.onDevice), [true, true]);
+      await voice.listenLive(onWords: (_) {}, onEnd: () {});
+      expect(speech.cancels, 0);
+    });
+
+    test('التسميع: أيُّ خطأٍ على الجهاز — حتى «لم يُفهم شيء» — يردّ إلى الخدمة العادية', () async {
+      // ‏محرّكٌ محلّيٌّ بلا نموذجٍ عربيّ يقول «لم يُفهم شيء» لكل كلمة؛ استثناؤه
+      // ‏مرّةً أبقى التطبيقَ كلَّه عليه، فتعطّل المايكُ في كل شاشة.
+      var ends = 0;
+      await voice.listenLive(onWords: (_) {}, onEnd: () => ends++);
+      expect(speech.sessions.single.onDevice, isTrue);
+      speech.error!(SpeechRecognitionError('error_no_match', false));
+      expect(ends, 1);
+      expect(voice.lastProblem, 'error_no_match');
+      await voice.listenLive(onWords: (_) {}, onEnd: () {});
+      expect(speech.sessions.map((s) => s.onDevice), [true, false]);
     });
 
     test('الإذنُ حالةٌ واحدة: ما ثبت بالمحرّك يكفي كلَّ شاشة', () async {
