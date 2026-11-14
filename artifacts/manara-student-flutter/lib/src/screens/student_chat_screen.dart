@@ -518,9 +518,17 @@ class _StudentChatScreenState extends State<StudentChatScreen>
 
   // ── لوحاتُ «لوحاتي» في الدردشة ──────────────────────────────────
 
+  bool get _recipientIsTeacher => _recipient.startsWith('teacher:');
+
   /// زرُّ الإرفاق: صورةٌ من «لوحاتي»، أو من استوديو الجهاز.
   Future<void> _attach() async {
     if (_sending || _sendingVoice || _sendingImage || _recording) return;
+    // ‏الصورُ واللوحاتُ بين الطلاب وحدهم — والخادمُ يرفضها للمعلّم أيضاً.
+    if (_recipientIsTeacher) {
+      StudentSoundService.instance.play(StudentSoundCue.warning);
+      _toast(tr('chat.attach.studentsOnly'));
+      return;
+    }
     StudentSoundService.instance.playTap();
     final choice = await showModalBottomSheet<String>(
       context: context,

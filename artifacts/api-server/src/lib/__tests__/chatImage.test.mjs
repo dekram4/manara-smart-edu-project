@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   CHAT_IMAGE_MAX_BYTES,
+  imageRecipientAllowed,
   isChatImageId,
   parseChatImage,
   teacherRecipient,
@@ -35,4 +36,11 @@ test("معرّفُ الصورة بشكله وحده، ومستلمُ المعل�
   assert.equal(isChatImageId("chatimage_x'); drop"), false);
   assert.equal(teacherRecipient("t1"), "teacher:t1");
   assert.equal(teacherRecipient(""), "");
+});
+
+test("الصورُ بين الطلاب وحدهم: الصفُّ أو زميل، لا المعلّم", () => {
+  assert.equal(imageRecipientAllowed("all"), true);
+  assert.equal(imageRecipientAllowed("student_42"), true);
+  assert.equal(imageRecipientAllowed(teacherRecipient("t1")), false);
+  assert.equal(imageRecipientAllowed(""), false);
 });

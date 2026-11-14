@@ -3,7 +3,7 @@ import crypto from "node:crypto";
 import { apiSupabaseConfig, findStudentsInScope, normalizeScopeId, type StudentActor } from "../lib/studentAccess";
 import { requireStudentSession } from "../middleware/studentAuth";
 import { readCookie, TEACHER_SESSION_COOKIE, verifyTeacherSession } from "../middleware/adminAuth";
-import { isChatImageId, parseChatImage, teacherRecipient } from "../lib/chatImage";
+import { imageRecipientAllowed, isChatImageId, parseChatImage, teacherRecipient } from "../lib/chatImage";
 import { createRateLimit, createStudentRateLimit } from "../middleware/rateLimiter";
 import { logger } from "../lib/logger";
 import { CHAT_VOICE_MAX_MS, isChatVoiceId, parseChatVoice } from "../lib/chatVoice";
@@ -738,6 +738,12 @@ router.post("/student/chat/image", requireStudentSession, imageSendLimit, async 
     if (!recipient) {
       return res.status(403).json({ error: "لا يمكنك إرسال رسالة إلى هذا الحساب" });
     }
+    if (!imageRecipientAllowed(recipient)) {
+      return res.status(403).json({
+        error: "الصور واللوحات تُرسل بين الطلاب فقط",
+        code: "students_only",
+      });
+    }
     const now = new Date().toISOString();
     const scope = {
       from: student.id,
@@ -828,7 +834,8 @@ router.get("/teacher/chat/messages", teacherChatLimit, async (req, res) => {
         return visibleTo(meta, teacher.recipient, [teacher.recipient], receipts, visit, now);
       })
       .map((row): Record<string, unknown> => ({ ...publicMessage(row), grade: text(dataOf(row).grade) }))
-      .filter((message) => text(message.message) || message.kind === "voice" || message.kind === "image")
+      // ‏الصورُ بين الطلاب وحدهم: لا تصل المعلّمَ أصلاً، ولا تُعرض له لو وُجدت.
+      .filter((message) => text(message.message) || message.kind === "voice")
       .slice(-200);
     return res.json({ messages, ephemeral, visit: visit.toISOString() });
   } catch (error) {
@@ -872,21 +879,18 @@ router.post("/teacher/chat/seen", teacherChatLimit, async (req, res) => {
   }
 });
 
-/** لوحةٌ أو مقطعٌ أرسله طالبٌ إلى هذا المعلّم وحده. */
-async function teacherMedia(req: any, res: any, kind: "image" | "voice") {
+/** مقطعٌ صوتيٌّ أرسله طالبٌ إلى هذا المعلّم وحده. (الصورُ بين الطلاب فقط.) */
+async function teacherMedia(req: any, res: any, kind: "voice") {
   const teacher = teacherReader(req);
   if (!teacher) return res.status(401).json({ error: "سجّل الدخول كمعلّم أولاً" });
   const id = String(req.params.id ?? "");
-  const valid = kind === "image" ? isChatImageId(id) : isChatVoiceId(id);
+  const valid = isChatVoiceId(id);
   if (!valid) return res.status(404).json({ error: "غير موجود" });
   try {
     const data = await storedRow(id);
-    const type = kind === "image" ? "student_chat_image" : "student_chat_voice";
-    const field = kind === "image" ? "image" : "audio";
-    if (!data || data.type !== type || !toTeacher(data, teacher) || typeof data[field] !== "string") {
+    if (!data || data.type !== `student_chat_${kind}` || !toTeacher(data, teacher) || typeof data.audio !== "string") {
       return res.status(404).json({ error: "غير موجود" });
     }
-    if (kind === "image") return sendImage(res, data);
     res.setHeader(
       "Content-Type",
       typeof data.mime === "string" && data.mime.startsWith("audio/") ? data.mime : "audio/mp4",
@@ -899,7 +903,6 @@ async function teacherMedia(req: any, res: any, kind: "image" | "voice") {
   }
 }
 
-router.get("/teacher/chat/image/:id", teacherChatLimit, (req, res) => teacherMedia(req, res, "image"));
 router.get("/teacher/chat/voice/:id", teacherChatLimit, (req, res) => teacherMedia(req, res, "voice"));
 
 export default router;

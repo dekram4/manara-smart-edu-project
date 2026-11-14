@@ -148,12 +148,26 @@ void main() {
     expect(find.text(tr('chat.art.viewed')), findsOneWidget);
   });
 
-  testWidgets('يُرسل لوحةً من «لوحاتي» إلى المعلّم', (tester) async {
+  testWidgets('الصورُ للطلاب وحدهم: إلى المعلّم لا تُرسل، وتُشرح السبب', (tester) async {
     await pump(tester);
-    // ‏المعلّمُ في «أرسل إلى» باسمه.
     await tester.tap(find.byType(DropdownButtonFormField<String>));
     await tester.pump(const Duration(milliseconds: 400));
     await tester.tap(find.text('👩‍🏫 ${tr('chat.teacher')}').last);
+    await tester.pump(const Duration(milliseconds: 400));
+    await tester.tap(find.byKey(const ValueKey('chat-send-art')));
+    for (var i = 0; i < 6; i++) {
+      await tester.pump(const Duration(milliseconds: 100));
+    }
+    expect(find.byKey(const ValueKey('chat-attach-art')), findsNothing);
+    expect(find.text(tr('chat.attach.studentsOnly')), findsOneWidget);
+    expect(requests.where((r) => r.url.path.endsWith('/chat/image')), isEmpty);
+  });
+
+  testWidgets('يُرسل لوحةً من «لوحاتي» إلى زميل', (tester) async {
+    await pump(tester);
+    await tester.tap(find.byType(DropdownButtonFormField<String>));
+    await tester.pump(const Duration(milliseconds: 400));
+    await tester.tap(find.text('سارة').last);
     await tester.pump(const Duration(milliseconds: 400));
 
     await tester.tap(find.byKey(const ValueKey('chat-send-art')));
@@ -173,7 +187,7 @@ void main() {
     }
     final sent = requests.where((r) => r.url.path.endsWith('/chat/image') && r.method == 'POST').single;
     final body = jsonDecode(sent.body) as Map<String, dynamic>;
-    expect(body['to'], 'teacher:t1');
+    expect(body['to'], 'sara');
     expect(base64Decode(body['image'] as String), png);
     expect(find.text(tr('chat.art.mine')), findsOneWidget);
   });

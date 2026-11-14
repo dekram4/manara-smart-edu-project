@@ -138,6 +138,17 @@ void main() {
     await tester.pump(const Duration(milliseconds: 400));
     expect(state.controller, isNull);
     expect(state.mode, isNull);
-    await tester.pump(const Duration(seconds: 3));
+
+    // ‏والرسمةُ الحرّة في «لوحاتي» بزرّ حذفٍ ظاهر: يسأل ثم يمحوها من الجهاز.
+    await tester.pump(const Duration(milliseconds: 400));
+    expect(find.byKey(const ValueKey('coloring-art-delete-0')), findsOneWidget);
+    await tester.tap(find.byKey(const ValueKey('coloring-art-delete-0')));
+    await tester.pump(const Duration(milliseconds: 400));
+    await tester.tap(find.byKey(const ValueKey('coloring-delete-confirm')));
+    await tester.pump(const Duration(milliseconds: 400));
+    await tester.pump(const Duration(milliseconds: 400));
+    expect((await SharedPreferences.getInstance()).getStringList('coloring.gallery.v1'), isEmpty);
+    expect(find.byKey(const ValueKey('coloring-art-delete-0')), findsNothing);
+    await tester.pump(const Duration(seconds: 4));
   });
 }

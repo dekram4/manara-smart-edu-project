@@ -1,13 +1,12 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { Eye as IconEye, Mic as IconMic, Palette as IconPalette, X as IconX } from 'lucide-react';
+import { Eye as IconEye, Mic as IconMic, X as IconX } from 'lucide-react';
 
 /**
- * «رسائل طلابي»: ما أرسله طلابُ المعلّم إليه من تطبيقهم — نصوصٌ ومقاطعُ ولوحاتٌ
- * من «لوحاتي».
+ * «رسائل طلابي»: ما أرسله طلابُ المعلّم إليه من تطبيقهم — نصوصٌ ومقاطعُ صوتية.
+ * والصورُ واللوحاتُ بين الطلاب وحدهم، فلا تصل هنا.
  *
  * ── تختفي بعد المشاهدة كما في التطبيق ──
- * المعلّمُ مستلمٌ كأيّ زميل: النصُّ يُقرأ بعرضه، والمقطعُ بسماعه، واللوحةُ
- * بمشاهدتها. ويرى الطالبُ في تطبيقه أنّ معلّمه شاهدها، وتبقى هنا حتى يُغلق
+ * المعلّمُ مستلمٌ كأيّ زميل: النصُّ يُقرأ بعرضه، والمقطعُ بسماعه. ويرى الطالبُ في تطبيقه أنّ معلّمه شاهدها، وتبقى هنا حتى يُغلق
  * المعلّمُ النافذة — ثم لا تعود، وتُحذف من الخادم.
  *
  * والجلسةُ من ملفّ تعريف المعلّم (`manara_teacher_session`) لا من هنا: الخادمُ
@@ -21,9 +20,8 @@ interface InboxMessage {
   grade: string;
   message: string;
   time: string;
-  kind: 'text' | 'voice' | 'image';
+  kind: 'text' | 'voice';
   voiceId?: string;
-  imageId?: string;
   durationMs?: number;
 }
 
@@ -37,7 +35,6 @@ const StudentInbox: React.FC<StudentInboxProps> = ({ onClose }) => {
   const [messages, setMessages] = useState<InboxMessage[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [viewing, setViewing] = useState<{ url: string; name: string } | null>(null);
   const [opened, setOpened] = useState<Set<string>>(new Set());
   const [busyId, setBusyId] = useState('');
   const visit = useRef<string | null>(null);
@@ -72,7 +69,7 @@ const StudentInbox: React.FC<StudentInboxProps> = ({ onClose }) => {
       const list: InboxMessage[] = Array.isArray(data.messages) ? data.messages : [];
       setMessages(list);
       setError('');
-      // ‏النصُّ يُقرأ بعرضه. أمّا المقطعُ واللوحةُ فبفتحهما.
+      // ‏النصُّ يُقرأ بعرضه. أمّا المقطعُ فبسماعه.
       void reportSeen(list.filter((m) => m.kind === 'text').map((m) => m.id));
     } catch (err) {
       if (!silent) setError(err instanceof Error ? err.message : 'تعذر تحميل رسائل الطلاب الآن');
@@ -91,9 +88,9 @@ const StudentInbox: React.FC<StudentInboxProps> = ({ onClose }) => {
     };
   }, [load]);
 
-  const fetchMedia = async (kind: 'image' | 'voice', id: string): Promise<string> => {
-    const response = await fetch(`${BASE}/${kind}/${encodeURIComponent(id)}`, { credentials: 'same-origin' });
-    if (!response.ok) throw new Error(kind === 'image' ? 'تعذر فتح اللوحة' : 'تعذر تشغيل الرسالة الصوتية');
+  const fetchVoice = async (id: string): Promise<string> => {
+    const response = await fetch(`${BASE}/voice/${encodeURIComponent(id)}`, { credentials: 'same-origin' });
+    if (!response.ok) throw new Error('تعذر تشغيل الرسالة الصوتية');
     const url = URL.createObjectURL(await response.blob());
     objectUrls.current.push(url);
     return url;
@@ -103,11 +100,8 @@ const StudentInbox: React.FC<StudentInboxProps> = ({ onClose }) => {
     if (busyId) return;
     setBusyId(message.id);
     try {
-      if (message.kind === 'image' && message.imageId) {
-        const url = await fetchMedia('image', message.imageId);
-        setViewing({ url, name: message.name });
-      } else if (message.kind === 'voice' && message.voiceId) {
-        const url = await fetchMedia('voice', message.voiceId);
+      if (message.kind === 'voice' && message.voiceId) {
+        const url = await fetchVoice(message.voiceId);
         await new Audio(url).play();
       }
       setOpened((prev) => new Set(prev).add(message.id));
@@ -131,7 +125,7 @@ const StudentInbox: React.FC<StudentInboxProps> = ({ onClose }) => {
       <div style={styles.panel}>
         <div style={styles.header}>
           <div>
-            <div style={styles.title}>🎨 رسائل طلابي</div>
+            <div style={styles.title}>✉️ رسائل طلابي</div>
             <div style={styles.subtitle}>
               ما أرسله طلابك إليك من التطبيق. تختفي الرسالة بعد مشاهدتها وإغلاق هذه النافذة.
             </div>
@@ -171,17 +165,15 @@ const StudentInbox: React.FC<StudentInboxProps> = ({ onClose }) => {
                         ...styles.media,
                         background: seen
                           ? '#e5e7eb'
-                          : 'linear-gradient(135deg, #f97316, #ec4899, #8b5cf6)',
+                          : 'linear-gradient(135deg, #0ea5e9, #8b5cf6)',
                         color: seen ? '#374151' : 'white',
                       }}
                     >
-                      {message.kind === 'image' ? <IconPalette size={22} /> : <IconMic size={22} />}
+                      <IconMic size={22} />
                       <span>
                         {busyId === message.id
                           ? 'جارٍ الفتح…'
-                          : message.kind === 'image'
-                            ? seen ? 'شاهدتَ اللوحة ✓ — اضغط لرؤيتها مرة أخرى' : 'لوحة ملوّنة — اضغط للمشاهدة'
-                            : seen ? 'استمعتَ إليها ✓' : 'رسالة صوتية — اضغط للاستماع'}
+                          : seen ? 'استمعتَ إليها ✓' : 'رسالة صوتية — اضغط للاستماع'}
                       </span>
                       <IconEye size={18} />
                     </button>
@@ -193,13 +185,6 @@ const StudentInbox: React.FC<StudentInboxProps> = ({ onClose }) => {
         </div>
       </div>
 
-      {viewing && (
-        <div style={styles.viewer} onClick={() => setViewing(null)} role="dialog" aria-label="اللوحة">
-          <div style={styles.viewerName}>🎨 {viewing.name}</div>
-          <img src={viewing.url} alt={`لوحة ${viewing.name}`} style={styles.viewerImage} />
-          <button type="button" style={styles.viewerClose} onClick={() => setViewing(null)}>إغلاق</button>
-        </div>
-      )}
     </div>
   );
 };
@@ -233,15 +218,6 @@ const styles: Record<string, React.CSSProperties> = {
   media: {
     display: 'flex', alignItems: 'center', gap: 10, width: '100%', border: 'none', borderRadius: 14,
     padding: '12px 14px', cursor: 'pointer', fontWeight: 800, fontSize: 14, textAlign: 'right',
-  },
-  viewer: {
-    position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.88)', zIndex: 1001, display: 'flex',
-    flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 14, padding: 16,
-  },
-  viewerName: { color: 'white', fontSize: 18, fontWeight: 800 },
-  viewerImage: { maxWidth: 'min(90vw, 600px)', maxHeight: '75vh', borderRadius: 20, background: 'white' },
-  viewerClose: {
-    border: 'none', borderRadius: 999, padding: '10px 24px', fontWeight: 800, cursor: 'pointer', background: 'white',
   },
 };
 
