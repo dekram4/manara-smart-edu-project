@@ -396,8 +396,8 @@ void main() {
     await tester.pump(const Duration(seconds: 3));
   });
 
-  test('في الواجهة: أربعُ بطاقاتٍ بعد المذاكرة الذكية', () {
-    expect(kgVoiceGameModules, {13, 14, 15, 16});
-    expect(homeVisualOrder.sublist(4, 8), [13, 14, 15, 16]);
+  test('في الواجهة: بطاقةٌ واحدةٌ لألعاب الروضة بعد المذاكرة الذكية', () {
+    expect(kgWorldModule, 13);
+    expect(homeVisualOrder[4], kgWorldModule);
   });
 }

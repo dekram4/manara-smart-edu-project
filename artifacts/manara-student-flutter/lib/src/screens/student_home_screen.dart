@@ -18,7 +18,7 @@ import '../services/student_challenge_service.dart';
 import 'academic_selection_screen.dart';
 import 'home_layout.dart';
 import 'kindergarten_card_screens.dart';
-import 'kindergarten_voice_games.dart';
+import 'kg_world_screen.dart';
 import '../services/quran_recitation.dart';
 import '../services/kindergarten_voice_quiz.dart';
 import '../services/tracing_scope.dart';
@@ -349,7 +349,7 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> with RouteAware {
           grade: context?.grade,
           subject: context?.subject,
         ),
-      colorsGameModule || shapesGameModule || mathGameModule || generalGameModule => kgVoiceGamesAllowedFor(
+      kgWorldModule => kgVoiceGamesAllowedFor(
           grade: context?.grade,
           subject: context?.subject,
         ),
@@ -602,19 +602,12 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> with RouteAware {
       return;
     }
 
-    if (kgVoiceGameModules.contains(index)) {
+    if (index == kgWorldModule) {
       Navigator.of(context)
           .push(
             StudentPageRoute<void>(
               immersive: true,
-              builder: (_) => KgVoiceGameScreen(
-                kind: switch (index) {
-                  colorsGameModule => KgVoiceGameKind.colors,
-                  shapesGameModule => KgVoiceGameKind.shapes,
-                  generalGameModule => KgVoiceGameKind.general,
-                  _ => KgVoiceGameKind.math,
-                },
-              ),
+              builder: (_) => const KgWorldScreen(),
             ),
           )
           .then((_) => _loadGamification());
@@ -1348,43 +1341,16 @@ const _homeSections = <_HomeSection>[
     accent: Color(0xFFBAE6FD),
     ownsVoice: true,
   ),
-  // Index 13–15 — ألعابُ الروضة الصوتية في «الثقافة العامة»: الألوان والأشكال
-  // والحساب. تُسأل وتُجاب بالصوت؛ وشاشتُها تشغّل أسئلتها بنفسها.
+  // Index 13 — «عالم الحكايات والمغامرات»: ألعابُ الروضة في «الثقافة العامة»
+  // كلُّها في بطاقةٍ واحدة — الألوان والأشكال والحساب وأسئلةُ الروضة، و«لوحة
+  // الألوان السحرية». شاشتُها تشغّل أصواتَ ألعابها بنفسها.
   _HomeSection(
-    titleKey: 'portal.colors',
-    subtitleKey: 'portal.colors.sub',
-    descriptionKey: 'portal.colors.desc',
-    image: 'assets/images/kg_colors.png',
-    colors: [Color(0xFFBE185D), Color(0xFFF472B6)],
-    accent: Color(0xFFFBCFE8),
-    ownsVoice: true,
-  ),
-  _HomeSection(
-    titleKey: 'portal.shapes',
-    subtitleKey: 'portal.shapes.sub',
-    descriptionKey: 'portal.shapes.desc',
-    image: 'assets/images/kg_shapes.png',
-    colors: [Color(0xFF0369A1), Color(0xFF22D3EE)],
-    accent: Color(0xFFA5F3FC),
-    ownsVoice: true,
-  ),
-  _HomeSection(
-    titleKey: 'portal.math',
-    subtitleKey: 'portal.math.sub',
-    descriptionKey: 'portal.math.desc',
-    image: 'assets/images/kg_math.png',
-    colors: [Color(0xFF15803D), Color(0xFF84CC16)],
-    accent: Color(0xFFD9F99D),
-    ownsVoice: true,
-  ),
-  // Index 16 — أسئلةُ الروضة العامة: الفصول والحيوانات والأيام والبيئة.
-  _HomeSection(
-    titleKey: 'portal.general',
-    subtitleKey: 'portal.general.sub',
-    descriptionKey: 'portal.general.desc',
+    titleKey: 'portal.kgworld',
+    subtitleKey: 'portal.kgworld.sub',
+    descriptionKey: 'portal.kgworld.desc',
     image: 'assets/images/kg_general.png',
-    colors: [Color(0xFF6D28D9), Color(0xFFC084FC)],
-    accent: Color(0xFFE9D5FF),
+    colors: [Color(0xFF7C3AED), Color(0xFFEC4899)],
+    accent: Color(0xFFFBCFE8),
     ownsVoice: true,
   ),
 ];
