@@ -10,6 +10,11 @@
          start and then produce silence or feed the speaker back into the
          microphone. -->
     <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS"/>
+    <!-- حفظُ صور الدردشة واللوحات في الاستوديو (حزمة gal): أندرويد 10 فما
+         دونه وحده يحتاج إذنَ الكتابة؛ وما بعده يكتب في MediaStore بلا إذن. -->
+    <uses-permission
+        android:name="android.permission.WRITE_EXTERNAL_STORAGE"
+        android:maxSdkVersion="29"/>
     <uses-feature android:name="android.hardware.camera" android:required="false"/>
     <uses-feature android:name="android.hardware.camera.autofocus" android:required="false"/>
     <uses-feature android:name="android.hardware.microphone" android:required="false"/>

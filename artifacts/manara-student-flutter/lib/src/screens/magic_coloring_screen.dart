@@ -8,6 +8,7 @@ import 'package:flutter/services.dart';
 import '../l10n/student_strings.dart';
 import '../services/coloring_canvas.dart';
 import '../services/coloring_drawings.dart';
+import '../services/free_drawing.dart';
 import '../services/student_settings.dart';
 import '../services/student_sound_service.dart';
 import '../theme/student_theme.dart';
@@ -50,6 +51,9 @@ class MagicColoringScreen extends StatefulWidget {
 
 enum ColoringTool { fill, brush, rainbow, eraser }
 
+/// طريقتا اللعب: رسمةٌ جاهزةٌ تُلوَّن، أو ورقةٌ بيضاء يرسم عليها الطفلُ بنفسه.
+enum ColoringMode { ready, free }
+
 @visibleForTesting
 class MagicColoringScreenState extends State<MagicColoringScreen> {
   static const palette = [
@@ -81,10 +85,13 @@ class MagicColoringScreenState extends State<MagicColoringScreen> {
 
   List<String> _set = const [];
   final Map<String, ColoringController> _blank = {};
-  List<ColoringController> _gallery = const [];
+  List<ColoringArtwork> _gallery = const [];
   final Set<String> _colored = {};
 
-  ColoringController? _controller;
+  ColoringArtwork? _controller;
+
+  /// `null`: شاشةُ الاختيار بين الطريقتين.
+  ColoringMode? _mode;
 
   /// موضعُ اللوحة في «لوحاتي» إن فُتحت منها: حفظُها يحلّ محلّ القديمة.
   int? _galleryIndex;
@@ -99,7 +106,10 @@ class MagicColoringScreenState extends State<MagicColoringScreen> {
   List<String> get drawingSet => _set;
 
   @visibleForTesting
-  ColoringController? get controller => _controller;
+  ColoringArtwork? get controller => _controller;
+
+  @visibleForTesting
+  ColoringMode? get mode => _mode;
 
   @visibleForTesting
   bool get celebrating => _celebrating;
@@ -152,7 +162,7 @@ class MagicColoringScreenState extends State<MagicColoringScreen> {
   }
 
   /// ما زالت صورُه المصغّرةُ مرسومةً حتى الإطار التالي — فيُتخلّص منه بعده.
-  void _disposeAfterFrame(Iterable<ColoringController> controllers) {
+  void _disposeAfterFrame(Iterable<ColoringArtwork> controllers) {
     final list = controllers.toList();
     if (list.isEmpty) return;
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -169,6 +179,7 @@ class MagicColoringScreenState extends State<MagicColoringScreen> {
     final drawing = coloringDrawingById(id);
     if (drawing == null) return;
     HapticFeedback.selectionClick();
+    _mode = ColoringMode.ready;
     _replaceController(ColoringController(drawing), galleryIndex: null);
   }
 
@@ -204,7 +215,7 @@ class MagicColoringScreenState extends State<MagicColoringScreen> {
                   ),
                   child: ClipRRect(
                     borderRadius: BorderRadius.circular(14),
-                    child: CustomPaint(painter: ColoringPainter(_gallery[index], outline: 4)),
+                    child: CustomPaint(painter: _gallery[index].painter(outline: 4)),
                   ),
                 ),
               ),
@@ -246,13 +257,32 @@ class MagicColoringScreenState extends State<MagicColoringScreen> {
   void _openArtwork(int index) {
     final saved = _gallery[index];
     // ‏نسخةٌ للتعديل: الصورةُ المصغّرة في «لوحاتي» تبقى كما حُفظت حتى يُحفظ جديد.
-    final copy = ColoringController.fromJson(saved.toJson());
+    final copy = ColoringArtwork.fromJson(saved.toJson());
     if (copy == null) return;
     HapticFeedback.selectionClick();
+    _mode = copy is FreeDrawingController ? ColoringMode.free : ColoringMode.ready;
+    if (copy is FreeDrawingController) _tool = ColoringTool.brush;
     _replaceController(copy, galleryIndex: index);
   }
 
-  void _replaceController(ColoringController? next, {required int? galleryIndex}) {
+  /// ورقةٌ بيضاءُ جديدة: قلمٌ أسودُ رفيعٌ في اليد، ليرسم الطفلُ خطوطَه أوّلاً.
+  void _startFree() {
+    HapticFeedback.selectionClick();
+    setState(() {
+      _mode = ColoringMode.free;
+      _tool = ColoringTool.brush;
+      _color = palette.last;
+      _size = 0;
+    });
+    _replaceController(FreeDrawingController(), galleryIndex: null);
+  }
+
+  void _chooseReady() {
+    HapticFeedback.selectionClick();
+    setState(() => _mode = ColoringMode.ready);
+  }
+
+  void _replaceController(ColoringArtwork? next, {required int? galleryIndex}) {
     final old = _controller;
     setState(() {
       _controller = next;
@@ -262,10 +292,18 @@ class MagicColoringScreenState extends State<MagicColoringScreen> {
     if (old != null) _disposeAfterFrame([old]);
   }
 
-  void _backToPicker() => _replaceController(null, galleryIndex: null);
+  /// من اللوح: الرسمُ الحرُّ يعود إلى شاشة الاختيار، والجاهزُ إلى رسوماته.
+  void _backToPicker() {
+    if (_mode == ColoringMode.free) _mode = null;
+    _replaceController(null, galleryIndex: null);
+  }
 
   void _nextDrawing() {
-    final current = _controller?.drawing.id;
+    if (_controller is FreeDrawingController) {
+      _startFree();
+      return;
+    }
+    final current = _controller?.artworkId;
     if (current != null) _colored.add(current);
     final next = _set.where((id) => !_colored.contains(id) && id != current).toList();
     if (next.isEmpty) {
@@ -292,7 +330,7 @@ class MagicColoringScreenState extends State<MagicColoringScreen> {
       _toast(tr('coloring.saveFailed'));
       return;
     }
-    _colored.add(controller.drawing.id);
+    _colored.add(controller.artworkId);
     _galleryIndex = 0;
     unawaited(_loadGallery());
     setState(() => _celebrating = true);
@@ -330,9 +368,14 @@ class MagicColoringScreenState extends State<MagicColoringScreen> {
     return Directionality(
       textDirection: StudentSettings.direction,
       child: PopScope(
-        canPop: !painting,
+        canPop: !painting && _mode == null,
         onPopInvokedWithResult: (didPop, _) {
-          if (!didPop && painting) _backToPicker();
+          if (didPop) return;
+          if (painting) {
+            _backToPicker();
+          } else if (_mode != null) {
+            setState(() => _mode = null);
+          }
         },
         child: Scaffold(
           backgroundColor: StudentSurface.ground(context),
@@ -342,7 +385,11 @@ class MagicColoringScreenState extends State<MagicColoringScreen> {
               SafeArea(
                 child: AnimatedSwitcher(
                   duration: const Duration(milliseconds: 320),
-                  child: painting ? _painting(context, _controller!) : _picker(context),
+                  child: painting
+                      ? _painting(context, _controller!)
+                      : _mode == ColoringMode.ready
+                          ? _picker(context)
+                          : _modeMenu(context),
                 ),
               ),
               if (_celebrating && _controller != null) _celebration(context, _controller!),
@@ -422,8 +469,8 @@ class MagicColoringScreenState extends State<MagicColoringScreen> {
         children: [
           _titleBar(
             context,
-            title: tr('portal.coloring'),
-            onBack: () => Navigator.of(context).maybePop(),
+            title: tr('coloring.mode.ready'),
+            onBack: () => setState(() => _mode = null),
             actions: [
               FilledButton.icon(
                 key: const ValueKey('coloring-new-set'),
@@ -444,7 +491,33 @@ class MagicColoringScreenState extends State<MagicColoringScreen> {
           Expanded(
             child: CustomScrollView(
               slivers: [
-                if (_gallery.isNotEmpty) ...[
+                ..._gallerySlivers(context),
+                SliverToBoxAdapter(child: _sectionLabel(context, '✏️ ${tr('coloring.pick')}')),
+                SliverPadding(
+                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
+                  sliver: SliverGrid(
+                    gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+                      maxCrossAxisExtent: 210,
+                      mainAxisSpacing: 14,
+                      crossAxisSpacing: 14,
+                      childAspectRatio: 0.84,
+                    ),
+                    delegate: SliverChildBuilderDelegate(
+                      childCount: _set.length,
+                      (context, i) => _drawingCard(context, i),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      );
+
+
+  /// «لوحاتي»: اللوحاتُ المحفوظة بنوعيها، وعلى كلٍّ منها زرُّ حذف.
+  List<Widget> _gallerySlivers(BuildContext context) => [
+        if (_gallery.isNotEmpty) ...[
                   SliverToBoxAdapter(child: _sectionLabel(context, '🖼️ ${tr('coloring.myArt')}')),
                   SliverToBoxAdapter(
                     child: SizedBox(
@@ -495,27 +568,121 @@ class MagicColoringScreenState extends State<MagicColoringScreen> {
                       ),
                     ),
                   ),
-                ],
-                SliverToBoxAdapter(child: _sectionLabel(context, '✏️ ${tr('coloring.pick')}')),
+        ],
+      ];
+
+  // ── شاشةُ الاختيار: تلوينٌ جاهز، أو رسمٌ حرّ ──
+
+  Widget _modeMenu(BuildContext context) => Column(
+        key: const ValueKey('coloring-menu'),
+        children: [
+          _titleBar(context, title: tr('portal.coloring'), onBack: () => Navigator.of(context).maybePop()),
+          Expanded(
+            child: CustomScrollView(
+              slivers: [
+                SliverToBoxAdapter(child: _sectionLabel(context, '🌟 ${tr('coloring.mode.pick')}')),
                 SliverPadding(
-                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
-                  sliver: SliverGrid(
-                    gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
-                      maxCrossAxisExtent: 210,
-                      mainAxisSpacing: 14,
-                      crossAxisSpacing: 14,
-                      childAspectRatio: 0.84,
-                    ),
-                    delegate: SliverChildBuilderDelegate(
-                      childCount: _set.length,
-                      (context, i) => _drawingCard(context, i),
+                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+                  sliver: SliverToBoxAdapter(
+                    child: LayoutBuilder(
+                      builder: (context, c) {
+                        final cards = [
+                          _modeCard(
+                            key: const ValueKey('coloring-mode-ready'),
+                            emoji: '🖍️',
+                            title: tr('coloring.mode.ready'),
+                            subtitle: tr('coloring.mode.readySub'),
+                            colors: const [Color(0xFFF97316), Color(0xFFEC4899)],
+                            onTap: _chooseReady,
+                            index: 0,
+                          ),
+                          _modeCard(
+                            key: const ValueKey('coloring-mode-free'),
+                            emoji: '✏️',
+                            title: tr('coloring.mode.free'),
+                            subtitle: tr('coloring.mode.freeSub'),
+                            colors: const [Color(0xFF0EA5E9), Color(0xFF8B5CF6)],
+                            onTap: _startFree,
+                            index: 1,
+                          ),
+                        ];
+                        if (c.maxWidth < 520) {
+                          return Column(children: [cards[0], const SizedBox(height: 14), cards[1]]);
+                        }
+                        return Row(children: [
+                          Expanded(child: cards[0]),
+                          const SizedBox(width: 14),
+                          Expanded(child: cards[1]),
+                        ]);
+                      },
                     ),
                   ),
                 ),
+                ..._gallerySlivers(context),
+                const SliverToBoxAdapter(child: SizedBox(height: 24)),
               ],
             ),
           ),
         ],
+      );
+
+  Widget _modeCard({
+    required Key key,
+    required String emoji,
+    required String title,
+    required String subtitle,
+    required List<Color> colors,
+    required VoidCallback onTap,
+    required int index,
+  }) =>
+      TweenAnimationBuilder<double>(
+        tween: Tween(begin: 0, end: 1),
+        duration: Duration(milliseconds: 500 + 150 * index),
+        curve: Curves.elasticOut,
+        builder: (context, t, child) => Transform.scale(scale: 0.6 + 0.4 * t, child: child),
+        child: GestureDetector(
+          key: key,
+          onTap: onTap,
+          child: Container(
+            height: 170,
+            padding: const EdgeInsets.all(18),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: colors),
+              borderRadius: BorderRadius.circular(26),
+              border: Border.all(color: Colors.white.withValues(alpha: 0.8), width: 3),
+              boxShadow: [BoxShadow(color: colors.last.withValues(alpha: 0.4), blurRadius: 16, offset: const Offset(0, 8))],
+            ),
+            child: Row(
+              children: [
+                Text(emoji, style: const TextStyle(fontSize: 58)),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        title,
+                        style: const TextStyle(
+                          fontSize: 22,
+                          fontWeight: FontWeight.w900,
+                          color: Colors.white,
+                          shadows: [Shadow(color: Color(0x55000000), blurRadius: 4, offset: Offset(0, 2))],
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        subtitle,
+                        style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: Colors.white.withValues(alpha: 0.95)),
+                      ),
+                    ],
+                  ),
+                ),
+                const Icon(Icons.arrow_forward_ios_rounded, color: Colors.white),
+              ],
+            ),
+          ),
+        ),
       );
 
   Widget _sectionLabel(BuildContext context, String text) => Padding(
@@ -526,7 +693,7 @@ class MagicColoringScreenState extends State<MagicColoringScreen> {
         ),
       );
 
-  Widget _thumb({required Key key, required ColoringController controller, required double size, required VoidCallback onTap}) =>
+  Widget _thumb({required Key key, required ColoringArtwork controller, required double size, required VoidCallback onTap}) =>
       GestureDetector(
         key: key,
         onTap: onTap,
@@ -542,7 +709,7 @@ class MagicColoringScreenState extends State<MagicColoringScreen> {
           ),
           child: ClipRRect(
             borderRadius: BorderRadius.circular(12),
-            child: CustomPaint(painter: ColoringPainter(controller, outline: 4)),
+            child: CustomPaint(painter: controller.painter(outline: 4)),
           ),
         ),
       );
@@ -603,7 +770,7 @@ class MagicColoringScreenState extends State<MagicColoringScreen> {
 
   // ── التلوين ──
 
-  Widget _painting(BuildContext context, ColoringController controller) => LayoutBuilder(
+  Widget _painting(BuildContext context, ColoringArtwork controller) => LayoutBuilder(
         key: const ValueKey('coloring-painting'),
         builder: (context, constraints) {
           final wide = constraints.maxWidth > constraints.maxHeight * 1.05;
@@ -621,7 +788,7 @@ class MagicColoringScreenState extends State<MagicColoringScreen> {
           );
           final bar = _titleBar(
             context,
-            title: _title(controller.drawing),
+            title: controller.title(arabic: StudentSettings.isArabic),
             onBack: _backToPicker,
             actions: [
               ListenableBuilder(
@@ -838,7 +1005,7 @@ class MagicColoringScreenState extends State<MagicColoringScreen> {
 
   // ── الاحتفال ──
 
-  Widget _celebration(BuildContext context, ColoringController controller) => Positioned.fill(
+  Widget _celebration(BuildContext context, ColoringArtwork controller) => Positioned.fill(
         child: Container(
           key: const ValueKey('coloring-celebration'),
           color: Colors.black.withValues(alpha: 0.45),
@@ -946,7 +1113,7 @@ class _ColoringBoard extends StatefulWidget {
     super.key,
   });
 
-  final ColoringController controller;
+  final ColoringArtwork controller;
   final ColoringTool tool;
   final Color color;
   final double width;
@@ -1043,7 +1210,7 @@ class _ColoringBoardState extends State<_ColoringBoard> {
                               child: CustomPaint(
                                 isComplex: true,
                                 willChange: true,
-                                painter: ColoringPainter(widget.controller),
+                                painter: widget.controller.painter(),
                               ),
                             ),
                           ),

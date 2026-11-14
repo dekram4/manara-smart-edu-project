@@ -39,6 +39,8 @@
 	<string>يحوّل التطبيق كلام الطالب إلى نصّ ليفهم اختياره للصف والمادة والدرس وإجاباته في الألعاب.</string>
 	<key>NSCameraUsageDescription</key>
 	<string>يستخدم التطبيق الكاميرا ليصوّر الطالب مسألته ويرسلها إلى حلّال المسائل، وفي محادثة المعلم الافتراضي.</string>
+	<key>NSPhotoLibraryAddUsageDescription</key>
+	<string>يحفظ الصور التي تصلك في الدردشة ولوحاتك في الصور على جهازك.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>يختار الطالب صورة مسألة من معرض الصور ليرسلها إلى حلّال المسائل.</string>
 	<key>UIApplicationSceneManifest</key>

@@ -4,7 +4,9 @@ import 'dart:convert';
 import 'package:clock/clock.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:gal/gal.dart';
 import 'package:http/http.dart' as http;
+import 'package:image_picker/image_picker.dart';
 
 import '../models/student_profile.dart';
 import '../l10n/student_strings.dart';
@@ -19,6 +21,12 @@ import '../widgets/chat_voice.dart';
 import '../widgets/portal_watermark.dart';
 import '../widgets/student_experience.dart';
 
+/// نتيجةُ حفظ صورةٍ في استوديو الجهاز.
+enum PhotoSaveResult { saved, denied, failed }
+
+/// أقصى حجمٍ لصورةٍ تُرسل — السقفُ في الخادم ستّمئة كيلوبايت (`parseChatImage`).
+const chatImageMaxBytes = 590 * 1024;
+
 class StudentChatScreen extends StatefulWidget {
   const StudentChatScreen({
     required this.profile,
@@ -29,6 +37,8 @@ class StudentChatScreen extends StatefulWidget {
     @visibleForTesting this.micAccess,
     @visibleForTesting this.loadArtworks,
     @visibleForTesting this.renderArtwork,
+    @visibleForTesting this.pickDeviceImage,
+    @visibleForTesting this.saveToPhotos,
     super.key,
   });
 
@@ -43,8 +53,14 @@ class StudentChatScreen extends StatefulWidget {
 
   /// «لوحاتي» ورسمُ اللوحة صورةً. وبلا قيمة: [ColoringGallery.load]
   /// و[renderColoringPng].
-  final Future<List<ColoringController>> Function()? loadArtworks;
-  final Future<Uint8List?> Function(ColoringController artwork)? renderArtwork;
+  final Future<List<ColoringArtwork>> Function()? loadArtworks;
+  final Future<Uint8List?> Function(ColoringArtwork artwork)? renderArtwork;
+
+  /// صورةٌ من استوديو الجهاز. وبلا قيمة: [ImagePicker].
+  final Future<Uint8List?> Function()? pickDeviceImage;
+
+  /// يحفظ صورةً في استوديو الجهاز ويعيد النتيجة. وبلا قيمة: [Gal].
+  final Future<PhotoSaveResult> Function(Uint8List bytes)? saveToPhotos;
 
   @override
   State<StudentChatScreen> createState() => _StudentChatScreenState();
@@ -502,6 +518,114 @@ class _StudentChatScreenState extends State<StudentChatScreen>
 
   // ── لوحاتُ «لوحاتي» في الدردشة ──────────────────────────────────
 
+  /// زرُّ الإرفاق: صورةٌ من «لوحاتي»، أو من استوديو الجهاز.
+  Future<void> _attach() async {
+    if (_sending || _sendingVoice || _sendingImage || _recording) return;
+    StudentSoundService.instance.playTap();
+    final choice = await showModalBottomSheet<String>(
+      context: context,
+      showDragHandle: true,
+      builder: (sheet) => Directionality(
+        textDirection: StudentSettings.direction,
+        child: SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(tr('chat.attach.title'),
+                    style: const TextStyle(
+                        fontSize: 18, fontWeight: FontWeight.w900)),
+                const SizedBox(height: 8),
+                ListTile(
+                  key: const ValueKey('chat-attach-art'),
+                  leading: const CircleAvatar(
+                    backgroundColor: Color(0xFFFCE7F3),
+                    child: Text('🎨', style: TextStyle(fontSize: 22)),
+                  ),
+                  title: Text(tr('chat.attach.myArt'),
+                      style: const TextStyle(fontWeight: FontWeight.w900)),
+                  subtitle: Text(tr('chat.attach.myArtSub')),
+                  onTap: () => Navigator.of(sheet).pop('art'),
+                ),
+                ListTile(
+                  key: const ValueKey('chat-attach-device'),
+                  leading: const CircleAvatar(
+                    backgroundColor: Color(0xFFE0F2FE),
+                    child: Text('🖼️', style: TextStyle(fontSize: 22)),
+                  ),
+                  title: Text(tr('chat.attach.device'),
+                      style: const TextStyle(fontWeight: FontWeight.w900)),
+                  subtitle: Text(tr('chat.attach.deviceSub')),
+                  onTap: () => Navigator.of(sheet).pop('device'),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+    if (!mounted || choice == null) return;
+    if (choice == 'art') {
+      await _pickArtwork();
+    } else {
+      await _pickFromDevice();
+    }
+  }
+
+  /// صورةٌ من استوديو الجهاز، مصغّرةٌ قبل الإرسال: صورةُ كاميرا بحجمها الكامل
+  /// أثقلُ من سقف الخادم بكثير.
+  Future<void> _pickFromDevice() async {
+    Uint8List? bytes;
+    try {
+      bytes = await (widget.pickDeviceImage ??
+          () async {
+            final file = await ImagePicker().pickImage(
+              source: ImageSource.gallery,
+              maxWidth: 1280,
+              maxHeight: 1280,
+              imageQuality: 75,
+            );
+            return file?.readAsBytes();
+          })();
+    } catch (error) {
+      debugPrint('[chat] device image not picked: $error');
+      if (mounted) _toast(tr('chat.attach.pickFailed'));
+      return;
+    }
+    if (!mounted || bytes == null || bytes.isEmpty) return;
+    if (bytes.length > chatImageMaxBytes) {
+      _toast(tr('chat.attach.tooBig'));
+      return;
+    }
+    await _sendImage(bytes);
+  }
+
+  /// يحفظ الصورةَ التي وصلته في استوديو الجهاز (الصور في iOS، والمعرض في أندرويد).
+  Future<PhotoSaveResult> _saveToPhotos(Uint8List bytes) async {
+    final result = await (widget.saveToPhotos ??
+        (bytes) async {
+          try {
+            if (!await Gal.hasPermission() && !await Gal.requestPermission()) {
+              return PhotoSaveResult.denied;
+            }
+            await Gal.putImageBytes(bytes,
+                name: 'manara_${DateTime.now().millisecondsSinceEpoch}');
+            return PhotoSaveResult.saved;
+          } on GalException catch (error) {
+            debugPrint('[chat] photo not saved: ${error.type}');
+            return error.type == GalExceptionType.permissionDenied
+                ? PhotoSaveResult.denied
+                : PhotoSaveResult.failed;
+          } catch (error) {
+            debugPrint('[chat] photo not saved: $error');
+            return PhotoSaveResult.failed;
+          }
+        })(bytes);
+    if (result == PhotoSaveResult.saved) StudentSoundService.instance.playTap();
+    return result;
+  }
+
   /// يختار الطالبُ لوحةً من «لوحاتي» فتُرسل إلى من اختاره في «أرسل إلى».
   Future<void> _pickArtwork() async {
     if (_sending || _sendingVoice || _sendingImage || _recording) return;
@@ -519,7 +643,7 @@ class _StudentChatScreenState extends State<StudentChatScreen>
             .firstWhere((p) => p.id == _recipient,
                 orElse: () => _ChatPeer(_recipient, tr('chat.student')))
             .label;
-    final chosen = await showModalBottomSheet<ColoringController>(
+    final chosen = await showModalBottomSheet<ColoringArtwork>(
       context: context,
       showDragHandle: true,
       isScrollControlled: true,
@@ -568,8 +692,7 @@ class _StudentChatScreenState extends State<StudentChatScreen>
                         child: ClipRRect(
                           borderRadius: BorderRadius.circular(12),
                           child: CustomPaint(
-                              painter:
-                                  ColoringPainter(artworks[i], outline: 4)),
+                              painter: artworks[i].painter(outline: 4)),
                         ),
                       ),
                     ),
@@ -582,7 +705,7 @@ class _StudentChatScreenState extends State<StudentChatScreen>
       ),
     );
     if (chosen == null || !mounted) return;
-    final bytes = await (widget.renderArtwork ?? renderColoringPng)(chosen);
+    final bytes = await (widget.renderArtwork ?? (a) => a.toPng())(chosen);
     if (!mounted) return;
     if (bytes == null || bytes.isEmpty) {
       _toast(tr('chat.art.sendFailed'));
@@ -710,11 +833,22 @@ class _StudentChatScreenState extends State<StudentChatScreen>
               ),
             ),
             const SizedBox(height: 12),
-            FilledButton.icon(
-              onPressed: () => Navigator.of(dialog).pop(),
-              icon: const Icon(Icons.close_rounded),
-              label: Text(tr('chat.art.close'),
-                  style: const TextStyle(fontWeight: FontWeight.w900)),
+            Wrap(
+              alignment: WrapAlignment.center,
+              spacing: 10,
+              runSpacing: 10,
+              children: [
+                // ‏لمن وصلته الصورة: يحفظها في استوديو جهازه.
+                if (message.from != widget.profile.id)
+                  _SaveToPhotosButton(
+                      onSave: () => _saveToPhotos(bytes!)),
+                FilledButton.icon(
+                  onPressed: () => Navigator.of(dialog).pop(),
+                  icon: const Icon(Icons.close_rounded),
+                  label: Text(tr('chat.art.close'),
+                      style: const TextStyle(fontWeight: FontWeight.w900)),
+                ),
+              ],
             ),
           ],
         ),
@@ -1220,15 +1354,15 @@ class _StudentChatScreenState extends State<StudentChatScreen>
               if (!_recording) ...[
                 IconButton.filledTonal(
                   key: const ValueKey('chat-send-art'),
-                  tooltip: tr('chat.art.button'),
+                  tooltip: tr('chat.attach.title'),
                   onPressed: _sending || _sendingVoice || _sendingImage
                       ? null
-                      : () => unawaited(_pickArtwork()),
+                      : () => unawaited(_attach()),
                   style: IconButton.styleFrom(
                     backgroundColor: const Color(0xFFFCE7F3),
                     foregroundColor: const Color(0xFFDB2777),
                   ),
-                  icon: const Icon(Icons.palette_rounded),
+                  icon: const Icon(Icons.add_photo_alternate_rounded),
                 ),
                 const SizedBox(width: 6),
               ],
@@ -1744,4 +1878,77 @@ class _ChatImageTile extends StatelessWidget {
           ),
         ),
       );
+}
+
+/// «احفظ في الاستوديو» داخل عارض الصورة: يقول نتيجتَه في مكانه — لا في شريطٍ
+/// يختفي خلف ظلّ العارض.
+class _SaveToPhotosButton extends StatefulWidget {
+  const _SaveToPhotosButton({required this.onSave});
+
+  final Future<PhotoSaveResult> Function() onSave;
+
+  @override
+  State<_SaveToPhotosButton> createState() => _SaveToPhotosButtonState();
+}
+
+class _SaveToPhotosButtonState extends State<_SaveToPhotosButton> {
+  bool _saving = false;
+  PhotoSaveResult? _result;
+
+  Future<void> _save() async {
+    setState(() {
+      _saving = true;
+      _result = null;
+    });
+    final result = await widget.onSave();
+    if (mounted) {
+      setState(() {
+        _saving = false;
+        _result = result;
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final saved = _result == PhotoSaveResult.saved;
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        FilledButton.icon(
+          key: const ValueKey('chat-image-save'),
+          style: FilledButton.styleFrom(
+            backgroundColor:
+                saved ? const Color(0xFF15803D) : const Color(0xFF16A34A),
+            disabledBackgroundColor: const Color(0xFF15803D),
+            disabledForegroundColor: Colors.white,
+          ),
+          onPressed: _saving || saved ? null : () => unawaited(_save()),
+          icon: _saving
+              ? const SizedBox(
+                  width: 18,
+                  height: 18,
+                  child: CircularProgressIndicator(
+                      strokeWidth: 2, color: Colors.white))
+              : Icon(saved ? Icons.check_circle_rounded : Icons.download_rounded),
+          label: Text(
+              tr(saved ? 'chat.art.savedToPhotos' : 'chat.art.saveToPhotos'),
+              style: const TextStyle(fontWeight: FontWeight.w900)),
+        ),
+        if (_result == PhotoSaveResult.denied ||
+            _result == PhotoSaveResult.failed)
+          Padding(
+            padding: const EdgeInsets.only(top: 6),
+            child: Text(
+              tr(_result == PhotoSaveResult.denied
+                  ? 'chat.art.saveDenied'
+                  : 'chat.art.saveToPhotosFailed'),
+              key: const ValueKey('chat-image-save-problem'),
+              style: const TextStyle(
+                  color: Color(0xFFFECACA), fontWeight: FontWeight.w800),
+            ),
+          ),
+      ],
+    );
+  }
 }

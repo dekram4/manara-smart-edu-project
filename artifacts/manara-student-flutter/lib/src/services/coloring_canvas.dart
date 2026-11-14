@@ -6,6 +6,46 @@ import 'package:flutter/rendering.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'coloring_drawings.dart';
+import 'free_drawing.dart';
+
+/// لوحةٌ في «لوحاتي»: تلوينٌ جاهز ([ColoringController]) أو رسمٌ حرّ
+/// ([FreeDrawingController]). ما يحتاجه المعرضُ والدردشةُ ولوحُ الرسم منهما
+/// واحد: الأدواتُ نفسُها، والحفظُ، والصورةُ المصغّرة، وصورةُ PNG للإرسال.
+abstract class ColoringArtwork extends ChangeNotifier {
+  /// يُحفظ مع اللوحة: اسمُ الرسمة، أو `free:<وقت>` للرسم الحرّ.
+  String get artworkId;
+
+  /// اسمُ اللوحة كما يُعرض.
+  String title({required bool arabic});
+
+  bool get isEmpty;
+  bool get canUndo;
+
+  /// الدلو تحت [point] (بإحداثيّات اللوحة).
+  void fillAt(Offset point, Color color);
+  void beginStroke(Offset point, {required Color? color, required double width});
+  void extendStroke(Offset point);
+  void endStroke();
+  void undo();
+  void clear();
+
+  Map<String, Object?> toJson();
+
+  /// رسّامُ اللوحة بأيّ حجم — للّوح وللصور المصغّرة.
+  CustomPainter painter({double outline = 3.2});
+
+  /// صورةُ PNG مربّعةٌ بضلع [size] — لتُرسل في الدردشة أو تُحفظ في الاستوديو.
+  Future<Uint8List?> toPng({int size = 600});
+
+  /// يعيد لوحةً محفوظةً بنوعها؛ `null` إن لم تُعرف.
+  static ColoringArtwork? fromJson(Object? json) {
+    if (json is! Map) return null;
+    final id = json['id'];
+    if (id is! String) return null;
+    if (id.startsWith(FreeDrawingController.idPrefix)) return FreeDrawingController.fromJson(json);
+    return ColoringController.fromJson(json);
+  }
+}
 
 /// خطُّ فرشاةٍ واحد: لونُه (أو قوسُ قزحٍ إن كان `null`)، وعرضُه، ونقاطُه
 /// بإحداثيّات الرسمة، والمنطقةُ التي بدأ فيها — يُقصّ عليها فلا يخرج عنها.
@@ -51,10 +91,22 @@ class ColoringStroke {
 /// حالُ لوحةٍ واحدة: ألوانُ المناطق وخطوطُ الفرشاة، مع التراجع.
 ///
 /// ‏`-1` هي الخلفية: تُلوَّن كأيّ منطقة.
-class ColoringController extends ChangeNotifier {
+class ColoringController extends ColoringArtwork {
   ColoringController(this.drawing);
 
   final ColoringDrawing drawing;
+
+  @override
+  String get artworkId => drawing.id;
+
+  @override
+  String title({required bool arabic}) => arabic ? drawing.titleAr : drawing.titleEn;
+
+  @override
+  CustomPainter painter({double outline = 3.2}) => ColoringPainter(this, outline: outline);
+
+  @override
+  Future<Uint8List?> toPng({int size = 600}) => renderColoringPng(this, size: size);
 
   final Map<int, Color> _fills = {};
   final List<ColoringStroke> _strokes = [];
@@ -68,9 +120,11 @@ class ColoringController extends ChangeNotifier {
   List<ColoringStroke> get strokes => List.unmodifiable(_strokes);
   ColoringStroke? get activeStroke => _active;
 
+  @override
   bool get canUndo => _history.isNotEmpty;
 
   /// هل لوّن الطفلُ شيئاً بعد؟
+  @override
   bool get isEmpty => _fills.isEmpty && _strokes.isEmpty;
 
   void _remember() {
@@ -80,6 +134,7 @@ class ColoringController extends ChangeNotifier {
 
   /// يملأ المنطقةَ تحت [point] بـ[color]، ويمحو خطوطَ الفرشاة فيها — دلوٌ
   /// جديدٌ يبدأ المنطقةَ من جديد. يعيد رقمَ المنطقة.
+  @override
   int fillAt(Offset point, Color color) {
     final region = drawing.regionAt(point);
     final hadStrokes = _strokes.any((s) => s.region == region);
@@ -92,11 +147,13 @@ class ColoringController extends ChangeNotifier {
   }
 
   /// يبدأ خطَّ فرشاةٍ في المنطقة التي تحت [point].
+  @override
   void beginStroke(Offset point, {required Color? color, required double width}) {
     _active = ColoringStroke(region: drawing.regionAt(point), color: color, width: width, points: [point]);
     notifyListeners();
   }
 
+  @override
   void extendStroke(Offset point) {
     final active = _active;
     if (active == null) return;
@@ -106,6 +163,7 @@ class ColoringController extends ChangeNotifier {
     notifyListeners();
   }
 
+  @override
   void endStroke() {
     final active = _active;
     if (active == null) return;
@@ -115,6 +173,7 @@ class ColoringController extends ChangeNotifier {
     notifyListeners();
   }
 
+  @override
   void undo() {
     if (_history.isEmpty) return;
     final (fills, strokes) = _history.removeLast();
@@ -128,6 +187,7 @@ class ColoringController extends ChangeNotifier {
     notifyListeners();
   }
 
+  @override
   void clear() {
     if (isEmpty) return;
     _remember();
@@ -136,6 +196,7 @@ class ColoringController extends ChangeNotifier {
     notifyListeners();
   }
 
+  @override
   Map<String, Object?> toJson() => {
         'id': drawing.id,
         'f': {for (final e in _fills.entries) '${e.key}': e.value.toARGB32()},
@@ -214,7 +275,7 @@ class ColoringPainter extends CustomPainter {
           ..save()
           ..clipPath(region);
         for (final s in strokes) {
-          _paintStroke(canvas, s);
+          paintStroke(canvas, s);
         }
         canvas.restore();
       }
@@ -232,7 +293,8 @@ class ColoringPainter extends CustomPainter {
     canvas.restore();
   }
 
-  static void _paintStroke(Canvas canvas, ColoringStroke s) {
+  /// خطُّ فرشاةٍ واحد: لونٌ واحد بانحناءٍ ناعم، أو قوسُ قزحٍ قطعةً قطعة.
+  static void paintStroke(Canvas canvas, ColoringStroke s) {
     final paint = Paint()
       ..style = PaintingStyle.stroke
       ..strokeWidth = s.width
@@ -278,7 +340,7 @@ class ColoringGallery {
   /// أقصى ما يُحفظ — الأقدمُ يخرج.
   static const maxArtworks = 12;
 
-  static Future<List<ColoringController>> load() async {
+  static Future<List<ColoringArtwork>> load() async {
     try {
       final prefs = await SharedPreferences.getInstance();
       final raw = prefs.getStringList(_galleryKey) ?? const [];
@@ -292,9 +354,9 @@ class ColoringGallery {
     }
   }
 
-  static ColoringController? _decode(String item) {
+  static ColoringArtwork? _decode(String item) {
     try {
-      return ColoringController.fromJson(jsonDecode(item));
+      return ColoringArtwork.fromJson(jsonDecode(item));
     } catch (_) {
       return null;
     }
@@ -302,7 +364,7 @@ class ColoringGallery {
 
   /// يحفظ [controller] في أوّل «لوحاتي». [replacing] لوحةٌ فُتحت من المعرض
   /// فعُدّلت: تحلّ النسخةُ الجديدة محلّها لا بجانبها.
-  static Future<bool> save(ColoringController controller, {int? replacing}) async {
+  static Future<bool> save(ColoringArtwork controller, {int? replacing}) async {
     try {
       final prefs = await SharedPreferences.getInstance();
       final list = List.of(prefs.getStringList(_galleryKey) ?? const <String>[]);

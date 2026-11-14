@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -159,6 +160,12 @@ void main() {
     for (var i = 0; i < 6; i++) {
       await tester.pump(const Duration(milliseconds: 100));
     }
+    // ‏خياران: «لوحاتي» واستوديو الجهاز.
+    expect(find.byKey(const ValueKey('chat-attach-device')), findsOneWidget);
+    await tester.tap(find.byKey(const ValueKey('chat-attach-art')));
+    for (var i = 0; i < 6; i++) {
+      await tester.pump(const Duration(milliseconds: 100));
+    }
     expect(find.byKey(const ValueKey('chat-art-0')), findsOneWidget);
     await tester.tap(find.byKey(const ValueKey('chat-art-0')));
     for (var i = 0; i < 10; i++) {
@@ -169,5 +176,88 @@ void main() {
     expect(body['to'], 'teacher:t1');
     expect(base64Decode(body['image'] as String), png);
     expect(find.text(tr('chat.art.mine')), findsOneWidget);
+  });
+
+  Future<void> pumpWith(
+    WidgetTester tester, {
+    Future<Uint8List?> Function()? pick,
+    Future<PhotoSaveResult> Function(Uint8List)? save,
+  }) async {
+    tester.view.physicalSize = const Size(420, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    await tester.pumpWidget(MaterialApp(
+      home: StudentChatScreen(
+        profile: profile,
+        apiBaseUrl: 'http://api.test',
+        authService: FakeAuth(),
+        httpClient: client(),
+        pickDeviceImage: pick,
+        saveToPhotos: save,
+      ),
+    ));
+    for (var i = 0; i < 10; i++) {
+      await tester.pump(const Duration(milliseconds: 100));
+    }
+  }
+
+  Future<void> settle(WidgetTester tester) async {
+    for (var i = 0; i < 8; i++) {
+      await tester.pump(const Duration(milliseconds: 100));
+    }
+  }
+
+  testWidgets('صورةٌ من استوديو الجهاز تُرسل، والكبيرةُ تُرفض قبل الرفع', (tester) async {
+    var picked = png;
+    await pumpWith(tester, pick: () async => picked);
+    await tester.tap(find.byKey(const ValueKey('chat-send-art')));
+    await settle(tester);
+    await tester.tap(find.byKey(const ValueKey('chat-attach-device')));
+    await settle(tester);
+    final sent = requests.where((r) => r.url.path.endsWith('/chat/image') && r.method == 'POST').toList();
+    expect(sent, hasLength(1));
+    expect(base64Decode((jsonDecode(sent.single.body) as Map)['image'] as String), png);
+
+    picked = Uint8List(chatImageMaxBytes + 1);
+    await tester.tap(find.byKey(const ValueKey('chat-send-art')));
+    await settle(tester);
+    await tester.tap(find.byKey(const ValueKey('chat-attach-device')));
+    await settle(tester);
+    expect(requests.where((r) => r.url.path.endsWith('/chat/image') && r.method == 'POST'), hasLength(1));
+    expect(find.text(tr('chat.attach.tooBig')), findsOneWidget);
+  });
+
+  testWidgets('مستلمُ الصورة يحفظها في الاستوديو، ويُقال له إن رُفض الإذن', (tester) async {
+    final saved = <Uint8List>[];
+    var result = PhotoSaveResult.denied;
+    await pumpWith(tester, save: (bytes) async {
+      saved.add(bytes);
+      return result;
+    });
+    await tester.tap(find.byKey(const ValueKey('chat-image-tile')));
+    await settle(tester);
+    expect(find.byKey(const ValueKey('chat-image-save')), findsOneWidget);
+
+    await tester.tap(find.byKey(const ValueKey('chat-image-save')));
+    await settle(tester);
+    expect(find.text(tr('chat.art.saveDenied')), findsOneWidget);
+
+    result = PhotoSaveResult.saved;
+    await tester.tap(find.byKey(const ValueKey('chat-image-save')));
+    await settle(tester);
+    expect(saved, hasLength(2));
+    expect(saved.last, png);
+    expect(find.text(tr('chat.art.savedToPhotos')), findsOneWidget);
+  });
+
+  testWidgets('صورتي أنا: لا زرَّ حفظٍ في الاستوديو', (tester) async {
+    messages = [
+      {...messages.single, 'from': 'me', 'name': 'أنا'},
+    ];
+    await pumpWith(tester, save: (_) async => PhotoSaveResult.saved);
+    await tester.tap(find.byKey(const ValueKey('chat-image-tile')));
+    await settle(tester);
+    expect(find.byKey(const ValueKey('chat-image-viewer')), findsOneWidget);
+    expect(find.byKey(const ValueKey('chat-image-save')), findsNothing);
   });
 }

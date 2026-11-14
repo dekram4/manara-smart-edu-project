@@ -113,7 +113,7 @@ void main() {
       c.beginStroke(const Offset(10, 10), color: null, width: 6);
       c.endStroke();
       final restored = ColoringController.fromJson(jsonDecode(jsonEncode(c.toJson())))!;
-      expect(restored.drawing.id, 'cat');
+      expect(restored.artworkId, 'cat');
       expect(restored.fills, c.fills);
       expect(restored.strokes, hasLength(2));
       expect(restored.strokes.last.color, isNull, reason: 'قوسُ قزح');
@@ -132,7 +132,7 @@ void main() {
       }
       final gallery = await ColoringGallery.load();
       expect(gallery, hasLength(ColoringGallery.maxArtworks));
-      expect(gallery.first.drawing.id, 'mandala:${ColoringGallery.maxArtworks + 2}');
+      expect(gallery.first.artworkId, 'mandala:${ColoringGallery.maxArtworks + 2}');
     });
   });
 
@@ -152,13 +152,20 @@ void main() {
       await tester.pump(const Duration(seconds: 1));
       expect(events, ['intro']);
       final state = tester.state<MagicColoringScreenState>(find.byType(MagicColoringScreen));
+      // ‏أوّلاً: الاختيارُ بين التلوين الجاهز والرسم الحرّ.
+      expect(state.mode, isNull);
+      expect(find.byKey(const ValueKey('coloring-mode-ready')), findsOneWidget);
+      expect(find.byKey(const ValueKey('coloring-mode-free')), findsOneWidget);
+      await tester.tap(find.byKey(const ValueKey('coloring-mode-ready')));
+      await tester.pump(const Duration(milliseconds: 500));
+      expect(state.mode, ColoringMode.ready);
       expect(state.drawingSet, hasLength(8));
       expect(find.byKey(const ValueKey('coloring-pick-0')), findsOneWidget);
 
       await tester.tap(find.byKey(const ValueKey('coloring-pick-0')));
       await tester.pump(const Duration(milliseconds: 400));
       expect(state.controller, isNotNull);
-      expect(state.controller!.drawing.id, state.drawingSet.first);
+      expect(state.controller!.artworkId, state.drawingSet.first);
 
       // ‏الحفظُ قبل أيّ لون: تنبيهٌ لا احتفال.
       await tester.tap(find.byKey(const ValueKey('coloring-save')));
@@ -174,7 +181,7 @@ void main() {
       await tester.pump();
       await tester.drag(find.byKey(const ValueKey('coloring-board')), const Offset(60, 20));
       await tester.pump(const Duration(milliseconds: 100));
-      expect(state.controller!.strokes, isNotEmpty);
+      expect((state.controller! as ColoringController).strokes, isNotEmpty);
 
       await tester.tap(find.byKey(const ValueKey('coloring-save')));
       await tester.pump(const Duration(milliseconds: 300));
@@ -187,7 +194,7 @@ void main() {
       await tester.tap(find.byKey(const ValueKey('coloring-next')));
       await tester.pump(const Duration(seconds: 2));
       expect(state.celebrating, isFalse);
-      expect(state.controller!.drawing.id, isNot(state.drawingSet.first));
+      expect(state.controller!.artworkId, isNot(state.drawingSet.first));
       expect(state.controller!.isEmpty, isTrue);
       await tester.pump(const Duration(seconds: 2));
     });
@@ -198,7 +205,7 @@ void main() {
       await ColoringGallery.save(ColoringController(mandala(i))..fillAt(const Offset(150, 150), const Color(0xFFEF4444)));
     }
     expect(await ColoringGallery.delete(1), isTrue);
-    final left = (await ColoringGallery.load()).map((c) => c.drawing.id).toList();
+    final left = (await ColoringGallery.load()).map((c) => c.artworkId).toList();
     expect(left, ['mandala:2', 'mandala:0']);
     expect(await ColoringGallery.delete(9), isFalse);
   });
@@ -237,7 +244,7 @@ void main() {
     await tester.pump(const Duration(milliseconds: 400));
     await tester.pump(const Duration(milliseconds: 400));
     final left = await ColoringGallery.load();
-    expect(left.map((c) => c.drawing.id), ['mandala:0']);
+    expect(left.map((c) => c.artworkId), ['mandala:0']);
     expect(find.byKey(const ValueKey('coloring-art-delete-1')), findsNothing);
     await tester.pump(const Duration(seconds: 4));
   });

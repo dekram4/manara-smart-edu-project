@@ -15,8 +15,10 @@ import '../services/student_sound_service.dart';
 import '../services/student_study_service.dart';
 import '../theme/student_theme.dart';
 import '../widgets/portal_watermark.dart';
+import '../services/tracing_scope.dart' show isKindergartenGrade;
 import '../widgets/study_games.dart';
 import '../widgets/student_experience.dart';
+import 'magic_coloring_screen.dart';
 
 /// «مغامرة الأذكياء ومهمة المذاكرة»: ألعابُ الدرس وحدها.
 ///
@@ -122,10 +124,22 @@ class _StudentStudyScreenState extends State<StudentStudyScreen> {
     );
   }
 
+  /// ‏«لوحة الألوان السحرية» في بطاقة المذاكرة للصفوف كلِّها إلا الروضة: للروضة
+  /// بطاقتُها في «عالم الحكايات والمغامرات» كما هي.
+  bool get _showsColoring =>
+      !isKindergartenGrade(widget.academicContext?.grade ?? widget.profile.grade);
+
+  void _openColoring() {
+    StudentSoundService.instance.playTap();
+    Navigator.of(context).push(
+      StudentPageRoute<void>(immersive: true, builder: (_) => const MagicColoringScreen()),
+    );
+  }
+
   Widget _body(BuildContext context) {
     if (_lessonId.isEmpty) {
       return Center(
-        child: Padding(
+        child: SingleChildScrollView(
           padding: const EdgeInsets.all(24),
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -137,6 +151,14 @@ class _StudentStudyScreenState extends State<StudentStudyScreen> {
                 textAlign: TextAlign.center,
                 style: TextStyle(fontSize: 15, height: 1.6, fontWeight: FontWeight.w800, color: StudentSurface.ink(context)),
               ),
+              // ‏بلا درسٍ لا ألعابَ للدرس — والتلوينُ لا يحتاج درساً.
+              if (_showsColoring) ...[
+                const SizedBox(height: 22),
+                ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 520),
+                  child: _ColoringInvite(onOpen: _openColoring),
+                ),
+              ],
             ],
           ),
         ),
@@ -172,6 +194,13 @@ class _StudentStudyScreenState extends State<StudentStudyScreen> {
                 ),
                 seenKey: 'study.seen.${widget.profile.id}.$_lessonId',
               ),
+              if (_showsColoring) ...[
+                const SizedBox(height: 18),
+                StudentEntrance(
+                  delay: const Duration(milliseconds: 200),
+                  child: _ColoringInvite(onOpen: _openColoring),
+                ),
+              ],
             ],
           ),
         ),
@@ -449,4 +478,61 @@ class _SkyPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(_SkyPainter old) => old.dark != dark;
+}
+
+/// دعوةٌ إلى «لوحة الألوان السحرية» تحت ألعاب الدرس — للصفوف غير الروضة.
+class _ColoringInvite extends StatelessWidget {
+  const _ColoringInvite({required this.onOpen});
+
+  final VoidCallback onOpen;
+
+  @override
+  Widget build(BuildContext context) => Semantics(
+        button: true,
+        label: tr('study.coloring.title'),
+        child: GestureDetector(
+          key: const ValueKey('study-coloring'),
+          onTap: onOpen,
+          child: Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [Color(0xFFF97316), Color(0xFFEC4899), Color(0xFF8B5CF6)],
+              ),
+              borderRadius: BorderRadius.circular(24),
+              border: Border.all(color: Colors.white.withValues(alpha: 0.8), width: 2.5),
+              boxShadow: const [BoxShadow(color: Color(0x40EC4899), blurRadius: 16, offset: Offset(0, 8))],
+            ),
+            child: Row(
+              children: [
+                const Text('🎨', style: TextStyle(fontSize: 46)),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        tr('study.coloring.title'),
+                        style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w900, color: Colors.white),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        tr('study.coloring.sub'),
+                        style: TextStyle(
+                          fontSize: 13.5,
+                          fontWeight: FontWeight.w700,
+                          color: Colors.white.withValues(alpha: 0.95),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const Icon(Icons.play_circle_fill_rounded, color: Colors.white, size: 40),
+              ],
+            ),
+          ),
+        ),
+      );
 }
