@@ -17,6 +17,7 @@ import DuelQuestionReview from '../shared/DuelQuestionReview';
 import CardPermissions from '../shared/CardPermissions';
 import { getTeacherPermissions } from '../../permissions';
 import PrivateChat from '../shared/PrivateChat';
+import StudentInbox from './StudentInbox';
 import { playWelcomeAdult } from '../../utils/sounds';
 import { getTeacherParents, getTeacherStudents, getRecordTeacherId, normalizeScopeValue } from '../../utils/scope';
 import ManaraBrand from '../../components/ManaraBrand';
@@ -38,6 +39,7 @@ import {
   LayoutDashboard,
   MessageSquareText,
   Package,
+  Palette,
   Settings2,
   ShieldCheck,
   Swords,
@@ -111,6 +113,7 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onLogout }) => {
   // ‏الصفحةُ في العنوان: التحديثُ يُبقي المعلمَ حيث كان — انظر utils/dashboardRoute.
   const [storedMenu, setActiveMenu] = useDashboardPage('teacher', TEACHER_PAGES, TeacherMenuType.DASHBOARD);
   const [showChat, setShowChat] = useState(false);
+  const [showInbox, setShowInbox] = useState(false);
   /// يتغيّر مع كل قراءةٍ للبيانات، فتُعيد الصفحةُ الرئيسية حسابَ ما تعرضه.
   const [refreshToken, setRefreshToken] = useState(0);
   const [dashboardStats, setDashboardStats] = useState({
@@ -301,12 +304,17 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onLogout }) => {
         userName={currentTeacher.name}
         userRole={currentTeacher.subject ? `معلم ${currentTeacher.subject}` : 'معلم'}
         nav={nav}
-        secondaryNav={[{ id: 'chat', label: 'الدردشة والدعم', icon: MessageSquareText, onSelect: () => setShowChat(true) }]}
+        secondaryNav={[
+          { id: 'student-inbox', label: 'رسائل طلابي', icon: Palette, onSelect: () => setShowInbox(true) },
+          { id: 'chat', label: 'الدردشة والدعم', icon: MessageSquareText, onSelect: () => setShowChat(true) },
+        ]}
         onLogout={handleLogout}
         pageTitle={TEACHER_MENU[activeMenu].label}
       >
         {renderContent()}
       </PortalShell>
+
+      {showInbox && <StudentInbox onClose={() => setShowInbox(false)} />}
 
       {showChat && currentTeacher && (
         <PrivateChat

@@ -8,6 +8,7 @@ import 'package:http/http.dart' as http;
 
 import '../models/student_profile.dart';
 import '../l10n/student_strings.dart';
+import '../services/coloring_canvas.dart';
 import '../services/duel_voice_recorder.dart';
 import '../services/student_auth_service.dart';
 import '../services/student_media_permissions.dart';
@@ -26,6 +27,8 @@ class StudentChatScreen extends StatefulWidget {
     @visibleForTesting this.httpClient,
     @visibleForTesting this.recorder,
     @visibleForTesting this.micAccess,
+    @visibleForTesting this.loadArtworks,
+    @visibleForTesting this.renderArtwork,
     super.key,
   });
 
@@ -37,6 +40,11 @@ class StudentChatScreen extends StatefulWidget {
   final http.Client? httpClient;
   final DuelVoiceRecorder? recorder;
   final Future<MicAccess> Function()? micAccess;
+
+  /// «لوحاتي» ورسمُ اللوحة صورةً. وبلا قيمة: [ColoringGallery.load]
+  /// و[renderColoringPng].
+  final Future<List<ColoringController>> Function()? loadArtworks;
+  final Future<Uint8List?> Function(ColoringController artwork)? renderArtwork;
 
   @override
   State<StudentChatScreen> createState() => _StudentChatScreenState();
@@ -70,6 +78,16 @@ class _StudentChatScreenState extends State<StudentChatScreen>
   final Map<String, Uint8List> _clips = {};
   String? _playingId;
   String? _loadingId;
+
+  // ── اللوحات ──
+  bool _sendingImage = false;
+
+  /// اللوحاتُ التي جُلبت أو أُرسلت في هذه الزيارة — في الذاكرة وحدها، لا على القرص.
+  final Map<String, Uint8List> _images = {};
+  String? _imageLoadingId;
+
+  /// ما شاهده الطالبُ من لوحات زملائه في هذه الزيارة: تختفي حين يخرج.
+  final Set<String> _viewedImages = {};
 
   // ── رسائلُ تختفي بعد قراءتها ──
   /// الخادمُ يدعم الاختفاءَ والحفظ (جدولُ الإيصالات منشأ).
@@ -129,7 +147,12 @@ class _StudentChatScreenState extends State<StudentChatScreen>
     WidgetsBinding.instance.addObserver(this);
     _refresh();
     _poll = Timer.periodic(const Duration(seconds: 8), (_) {
-      if (!mounted || _loading || _sending || _sendingVoice || !_chatEnabled) {
+      if (!mounted ||
+          _loading ||
+          _sending ||
+          _sendingVoice ||
+          _sendingImage ||
+          !_chatEnabled) {
         return;
       }
       unawaited(_refresh(silent: true));
@@ -226,8 +249,10 @@ class _StudentChatScreenState extends State<StudentChatScreen>
           ? messageData['visit'] as String
           : null;
       for (final message in messages) {
-        // النصُّ يُقرأ بعرضه، والمقطعُ بسماعه — ورسائلي قرأتُها حين كتبتُها.
-        if (!message.isVoice || message.from == widget.profile.id) {
+        // النصُّ يُقرأ بعرضه، والمقطعُ بسماعه، واللوحةُ بمشاهدتها — ورسائلي
+        // قرأتُها حين كتبتُها.
+        if ((!message.isVoice && !message.isImage) ||
+            message.from == widget.profile.id) {
           _readNow.add(message.id);
         }
         // ── رسالتي قرأها الجميع، ورأيتُ ذلك ──
@@ -473,6 +498,228 @@ class _StudentChatScreenState extends State<StudentChatScreen>
     } finally {
       if (mounted) setState(() => _sendingVoice = false);
     }
+  }
+
+  // ── لوحاتُ «لوحاتي» في الدردشة ──────────────────────────────────
+
+  /// يختار الطالبُ لوحةً من «لوحاتي» فتُرسل إلى من اختاره في «أرسل إلى».
+  Future<void> _pickArtwork() async {
+    if (_sending || _sendingVoice || _sendingImage || _recording) return;
+    StudentSoundService.instance.playTap();
+    final artworks =
+        await (widget.loadArtworks ?? ColoringGallery.load)();
+    if (!mounted) return;
+    if (artworks.isEmpty) {
+      _toast(tr('chat.art.none'));
+      return;
+    }
+    final to = _recipient == 'all'
+        ? tr('chat.classmates')
+        : _peers
+            .firstWhere((p) => p.id == _recipient,
+                orElse: () => _ChatPeer(_recipient, tr('chat.student')))
+            .label;
+    final chosen = await showModalBottomSheet<ColoringController>(
+      context: context,
+      showDragHandle: true,
+      isScrollControlled: true,
+      builder: (sheet) => Directionality(
+        textDirection: StudentSettings.direction,
+        child: SafeArea(
+          child: ConstrainedBox(
+            constraints: BoxConstraints(
+                maxHeight: MediaQuery.sizeOf(sheet).height * 0.7),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text('🎨 ${tr('chat.art.pick')}',
+                    style: const TextStyle(
+                        fontSize: 18, fontWeight: FontWeight.w900)),
+                const SizedBox(height: 4),
+                Text(
+                  trf('chat.art.pickHint', {'to': to}),
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                      fontWeight: FontWeight.w700,
+                      color: StudentSurface.mutedInk(sheet)),
+                ),
+                Flexible(
+                  child: GridView.builder(
+                    shrinkWrap: true,
+                    padding: const EdgeInsets.all(16),
+                    gridDelegate:
+                        const SliverGridDelegateWithMaxCrossAxisExtent(
+                      maxCrossAxisExtent: 150,
+                      mainAxisSpacing: 12,
+                      crossAxisSpacing: 12,
+                    ),
+                    itemCount: artworks.length,
+                    itemBuilder: (_, i) => GestureDetector(
+                      key: ValueKey('chat-art-$i'),
+                      onTap: () => Navigator.of(sheet).pop(artworks[i]),
+                      child: Container(
+                        padding: const EdgeInsets.all(4),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(
+                              color: const Color(0xFFF9A8D4), width: 2),
+                        ),
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(12),
+                          child: CustomPaint(
+                              painter:
+                                  ColoringPainter(artworks[i], outline: 4)),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+    if (chosen == null || !mounted) return;
+    final bytes = await (widget.renderArtwork ?? renderColoringPng)(chosen);
+    if (!mounted) return;
+    if (bytes == null || bytes.isEmpty) {
+      _toast(tr('chat.art.sendFailed'));
+      return;
+    }
+    await _sendImage(bytes);
+  }
+
+  Future<void> _sendImage(Uint8List bytes) async {
+    final endpoint = _endpoint('image');
+    if (endpoint == null) return;
+    setState(() {
+      _sendingImage = true;
+      _error = null;
+    });
+    try {
+      final token = await widget.authService.ensureApiSession();
+      if (token == null || token.isEmpty) {
+        throw ChatRequestFailure(
+          401,
+          widget.authService.apiSessionError ?? tr('chat.sessionFailed'),
+        );
+      }
+      final response = await _client
+          .post(
+            endpoint,
+            headers: _headers,
+            body: jsonEncode({'image': base64Encode(bytes), 'to': _recipient}),
+          )
+          .timeout(const Duration(seconds: 30));
+      final data = _decode(response);
+      if (response.statusCode != 201) {
+        throw _failure(
+          response,
+          fallbackKey: 'chat.art.sendFailed',
+          missingKey: 'chat.art.notDeployed',
+        );
+      }
+      final sent = data['message'];
+      if (sent is Map && sent['imageId'] is String) {
+        // المرسِلُ يرى لوحتَه بلا تنزيل: هي عنده.
+        _images['${sent['imageId']}'] = bytes;
+      }
+      StudentSoundService.instance.playTap();
+      await _refresh();
+    } catch (error) {
+      StudentSoundService.instance.play(StudentSoundCue.warning);
+      if (mounted) setState(() => _error = _safeError(error));
+    } finally {
+      if (mounted) setState(() => _sendingImage = false);
+    }
+  }
+
+  /// يفتح اللوحةَ ملءَ الشاشة. مشاهدتُها قراءتُها: تُبلَّغ، فتختفي عند الخروج.
+  Future<void> _viewImage(_ChatMessage message) async {
+    final id = message.imageId;
+    if (id.isEmpty || _imageLoadingId != null) return;
+    StudentSoundService.instance.playTap();
+    var bytes = _images[id];
+    if (bytes == null) {
+      setState(() => _imageLoadingId = id);
+      try {
+        final endpoint = _endpoint('image/$id');
+        if (endpoint == null || _token == null) {
+          throw ChatRequestFailure(0, tr('chat.sessionFailed'));
+        }
+        final response = await _client
+            .get(endpoint, headers: _headers)
+            .timeout(const Duration(seconds: 20));
+        if (response.statusCode != 200 || response.bodyBytes.isEmpty) {
+          throw _failure(
+            response,
+            fallbackKey: 'chat.art.loadFailed',
+            missingKey: 'chat.art.notDeployed',
+          );
+        }
+        bytes = response.bodyBytes;
+        _images[id] = bytes;
+      } catch (error) {
+        debugPrint('[chat] image load failed: $error');
+        if (mounted) {
+          _toast(error is ChatRequestFailure
+              ? error.message
+              : error is TimeoutException
+                  ? tr('chat.timeout')
+                  : tr('chat.art.loadFailed'));
+        }
+        return;
+      } finally {
+        if (mounted) setState(() => _imageLoadingId = null);
+      }
+    }
+    if (!mounted) return;
+    _readNow.add(message.id);
+    unawaited(_reportRead());
+    setState(() => _viewedImages.add(message.id));
+    await showDialog<void>(
+      context: context,
+      barrierColor: Colors.black.withValues(alpha: 0.85),
+      builder: (dialog) => Dialog(
+        key: const ValueKey('chat-image-viewer'),
+        backgroundColor: Colors.transparent,
+        insetPadding: const EdgeInsets.all(16),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              message.from == widget.profile.id
+                  ? tr('chat.you')
+                  : '🎨 ${message.name}',
+              style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 18,
+                  fontWeight: FontWeight.w900),
+            ),
+            const SizedBox(height: 10),
+            Flexible(
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(20),
+                child: InteractiveViewer(
+                  maxScale: 4,
+                  child: Image.memory(bytes!,
+                      fit: BoxFit.contain, gaplessPlayback: true),
+                ),
+              ),
+            ),
+            const SizedBox(height: 12),
+            FilledButton.icon(
+              onPressed: () => Navigator.of(dialog).pop(),
+              icon: const Icon(Icons.close_rounded),
+              label: Text(tr('chat.art.close'),
+                  style: const TextStyle(fontWeight: FontWeight.w900)),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   Future<void> _toggleVoice(_ChatMessage message) async {
@@ -873,7 +1120,25 @@ class _StudentChatScreenState extends State<StudentChatScreen>
                                                 onTogglePin: () => unawaited(
                                                     _toggleSave(
                                                         _messages[index])),
-                                                voice: _messages[index].isVoice
+                                                voice: _messages[index].isImage
+                                                    ? _ChatImageTile(
+                                                        mine: _messages[index]
+                                                                .from ==
+                                                            widget.profile.id,
+                                                        viewed: _viewedImages
+                                                            .contains(
+                                                                _messages[index]
+                                                                    .id),
+                                                        loading:
+                                                            _imageLoadingId ==
+                                                                _messages[index]
+                                                                    .imageId,
+                                                        onTap: () => unawaited(
+                                                            _viewImage(
+                                                                _messages[
+                                                                    index])),
+                                                      )
+                                                    : _messages[index].isVoice
                                                     ? ChatVoiceNoteView(
                                                         seed: _messages[index]
                                                             .voiceId,
@@ -927,14 +1192,14 @@ class _StudentChatScreenState extends State<StudentChatScreen>
                 DropdownMenuItem(
                     value: 'all', child: Text(tr('chat.classmates'))),
                 ..._peers.map((peer) =>
-                    DropdownMenuItem(value: peer.id, child: Text(peer.name))),
+                    DropdownMenuItem(value: peer.id, child: Text(peer.label))),
               ],
-              onChanged: _sending || _recording || _sendingVoice
+              onChanged: _sending || _recording || _sendingVoice || _sendingImage
                   ? null
                   : (value) => setState(() => _recipient = value ?? 'all'),
             ),
             const SizedBox(height: 8),
-            if (_sendingVoice)
+            if (_sendingVoice || _sendingImage)
               Padding(
                 padding: const EdgeInsets.only(bottom: 6),
                 child: Row(children: [
@@ -944,7 +1209,7 @@ class _StudentChatScreenState extends State<StudentChatScreen>
                       child: CircularProgressIndicator(strokeWidth: 2)),
                   const SizedBox(width: 8),
                   Text(
-                    tr('chat.voice.sending'),
+                    tr(_sendingImage ? 'chat.art.sending' : 'chat.voice.sending'),
                     style: TextStyle(
                         fontWeight: FontWeight.w800,
                         color: StudentSurface.mutedInk(context)),
@@ -952,6 +1217,21 @@ class _StudentChatScreenState extends State<StudentChatScreen>
                 ]),
               ),
             Row(children: [
+              if (!_recording) ...[
+                IconButton.filledTonal(
+                  key: const ValueKey('chat-send-art'),
+                  tooltip: tr('chat.art.button'),
+                  onPressed: _sending || _sendingVoice || _sendingImage
+                      ? null
+                      : () => unawaited(_pickArtwork()),
+                  style: IconButton.styleFrom(
+                    backgroundColor: const Color(0xFFFCE7F3),
+                    foregroundColor: const Color(0xFFDB2777),
+                  ),
+                  icon: const Icon(Icons.palette_rounded),
+                ),
+                const SizedBox(width: 6),
+              ],
               Expanded(
                 child: _recording
                     ? ChatRecordingStrip(
@@ -1010,6 +1290,7 @@ class _ChatMessage {
     required this.time,
     this.kind = 'text',
     this.voiceId = '',
+    this.imageId = '',
     this.durationMs = 0,
     this.savedUntil,
     this.readBy = const [],
@@ -1028,6 +1309,7 @@ class _ChatMessage {
       time: '${map['time'] ?? ''}',
       kind: '${map['kind'] ?? 'text'}',
       voiceId: '${map['voiceId'] ?? ''}',
+      imageId: '${map['imageId'] ?? ''}',
       durationMs: duration is num ? duration.round() : 0,
       savedUntil: DateTime.tryParse('${map['savedUntil'] ?? ''}')?.toLocal(),
       readBy: [
@@ -1045,13 +1327,14 @@ class _ChatMessage {
   final List<String> readBy;
   final bool readByAll;
   final int recipients;
-  final String id, from, name, to, message, time, kind, voiceId;
+  final String id, from, name, to, message, time, kind, voiceId, imageId;
   final int durationMs;
 
   /// محفوظةٌ لي حتى هذا الوقت، أو `null`.
   final DateTime? savedUntil;
 
   bool get isVoice => kind == 'voice' && voiceId.isNotEmpty;
+  bool get isImage => kind == 'image' && imageId.isNotEmpty;
   bool get saved => savedUntil != null && savedUntil!.isAfter(DateTime.now());
 
   _ChatMessage withSavedUntil(DateTime? until) => _ChatMessage(
@@ -1063,6 +1346,7 @@ class _ChatMessage {
         time: time,
         kind: kind,
         voiceId: voiceId,
+        imageId: imageId,
         durationMs: durationMs,
         savedUntil: until,
         readBy: readBy,
@@ -1073,6 +1357,11 @@ class _ChatMessage {
 
 class _ChatPeer {
   const _ChatPeer(this.id, this.name);
+
+  /// معلّمُ الصفّ: `teacher:<معرّفه>` — تصله الرسائلُ في بوابته.
+  bool get isTeacher => id.startsWith('teacher:');
+
+  String get label => isTeacher ? '👩‍🏫 ${tr('chat.teacher')}' : name;
   factory _ChatPeer.fromJson(dynamic value) {
     final map = value is Map ? value : const <String, dynamic>{};
     return _ChatPeer(
@@ -1366,4 +1655,93 @@ class _ReadReceipt extends StatelessWidget {
       ),
     );
   }
+}
+
+/// لوحةٌ في الدردشة: مغطّاةٌ حتى تُضغط — تُشاهد ثم تختفي كالرسائل الأخرى.
+class _ChatImageTile extends StatelessWidget {
+  const _ChatImageTile({
+    required this.mine,
+    required this.viewed,
+    required this.loading,
+    required this.onTap,
+  });
+
+  final bool mine;
+  final bool viewed;
+  final bool loading;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) => Semantics(
+        button: true,
+        label: tr('chat.art.label'),
+        child: InkWell(
+          key: const ValueKey('chat-image-tile'),
+          borderRadius: BorderRadius.circular(14),
+          onTap: loading ? null : onTap,
+          child: Container(
+            width: 230,
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(14),
+              gradient: LinearGradient(
+                colors: viewed
+                    ? const [Color(0xFF9CA3AF), Color(0xFFD1D5DB)]
+                    : const [
+                        Color(0xFFF97316),
+                        Color(0xFFEC4899),
+                        Color(0xFF8B5CF6)
+                      ],
+              ),
+            ),
+            child: Row(
+              children: [
+                Container(
+                  width: 46,
+                  height: 46,
+                  decoration: const BoxDecoration(
+                      color: Colors.white, shape: BoxShape.circle),
+                  alignment: Alignment.center,
+                  child: loading
+                      ? const SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(strokeWidth: 2.5))
+                      : Text(viewed ? '✓' : '🎨',
+                          style: const TextStyle(
+                              fontSize: 22,
+                              fontWeight: FontWeight.w900,
+                              color: Color(0xFF17233A))),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(tr('chat.art.label'),
+                          style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 15,
+                              fontWeight: FontWeight.w900)),
+                      const SizedBox(height: 2),
+                      Text(
+                        tr(mine
+                            ? 'chat.art.mine'
+                            : viewed
+                                ? 'chat.art.viewed'
+                                : 'chat.art.tapToView'),
+                        style: TextStyle(
+                            color: Colors.white.withValues(alpha: 0.95),
+                            fontSize: 12,
+                            fontWeight: FontWeight.w700),
+                      ),
+                    ],
+                  ),
+                ),
+                const Icon(Icons.visibility_rounded, color: Colors.white),
+              ],
+            ),
+          ),
+        ),
+      );
 }

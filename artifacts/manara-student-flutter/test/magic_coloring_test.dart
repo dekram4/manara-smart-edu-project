@@ -193,6 +193,55 @@ void main() {
     });
   });
 
+  test('حذفُ لوحةٍ من «لوحاتي» يمحوها من الجهاز وحدها', () async {
+    for (var i = 0; i < 3; i++) {
+      await ColoringGallery.save(ColoringController(mandala(i))..fillAt(const Offset(150, 150), const Color(0xFFEF4444)));
+    }
+    expect(await ColoringGallery.delete(1), isTrue);
+    final left = (await ColoringGallery.load()).map((c) => c.drawing.id).toList();
+    expect(left, ['mandala:2', 'mandala:0']);
+    expect(await ColoringGallery.delete(9), isFalse);
+  });
+
+  testWidgets('اللوحةُ تُرسم صورةَ PNG لتُرسل في الدردشة', (tester) async {
+    final c = ColoringController(handDrawnDrawings['fish']!())..fillAt(const Offset(160, 150), const Color(0xFF38BDF8));
+    final bytes = await tester.runAsync(() => renderColoringPng(c, size: 200));
+    expect(bytes, isNotNull);
+    expect(bytes!.sublist(1, 4), 'PNG'.codeUnits);
+  });
+
+  testWidgets('زرُّ الحذف في «لوحاتي»: يسأل، ثم يمحو اللوحة', (tester) async {
+    await tester.binding.setSurfaceSize(const Size(800, 1100));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    for (var i = 0; i < 2; i++) {
+      await ColoringGallery.save(ColoringController(mandala(i))..fillAt(const Offset(150, 150), const Color(0xFFEF4444)));
+    }
+    await tester.pumpWidget(MaterialApp(
+      home: MagicColoringScreen(random: math.Random(1), playIntro: () {}, cheer: () async {}),
+    ));
+    await tester.pump(const Duration(milliseconds: 300));
+    await tester.pump(const Duration(seconds: 1));
+    expect(find.byKey(const ValueKey('coloring-art-delete-0')), findsOneWidget);
+    expect(find.byKey(const ValueKey('coloring-art-delete-1')), findsOneWidget);
+
+    // ‏«إلغاء» لا يمحو شيئاً.
+    await tester.tap(find.byKey(const ValueKey('coloring-art-delete-0')));
+    await tester.pump(const Duration(milliseconds: 400));
+    await tester.tap(find.byKey(const ValueKey('coloring-delete-cancel')));
+    await tester.pump(const Duration(milliseconds: 400));
+    expect((await ColoringGallery.load()), hasLength(2));
+
+    await tester.tap(find.byKey(const ValueKey('coloring-art-delete-0')));
+    await tester.pump(const Duration(milliseconds: 400));
+    await tester.tap(find.byKey(const ValueKey('coloring-delete-confirm')));
+    await tester.pump(const Duration(milliseconds: 400));
+    await tester.pump(const Duration(milliseconds: 400));
+    final left = await ColoringGallery.load();
+    expect(left.map((c) => c.drawing.id), ['mandala:0']);
+    expect(find.byKey(const ValueKey('coloring-art-delete-1')), findsNothing);
+    await tester.pump(const Duration(seconds: 4));
+  });
+
   testWidgets('«عالم الحكايات والمغامرات»: خمسُ ألعابٍ في بطاقةٍ واحدة', (tester) async {
     await tester.binding.setSurfaceSize(const Size(800, 1200));
     addTearDown(() => tester.binding.setSurfaceSize(null));

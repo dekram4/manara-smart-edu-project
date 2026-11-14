@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
@@ -68,6 +69,7 @@ class KgWorldScreen extends StatelessWidget {
         body: Stack(
           children: [
             const PortalWatermark(asset: PortalBackgrounds.games, opacity: 0.24),
+            if (!still) const Positioned.fill(child: _FloatingDecor()),
             SafeArea(
               child: LayoutBuilder(
                 builder: (context, constraints) {
@@ -144,22 +146,46 @@ class KgWorldScreen extends StatelessWidget {
     );
   }
 
+  /// دخولٌ يقفز فيه كلُّ لوحٍ إلى مكانه بنابض، ثم يطفو بعده على مهلٍ كأنه
+  /// بالونٌ — كلُّ لوحٍ بإيقاعه، فلا يتحرّك الرفُّ كتلةً واحدة.
   Widget _entrance(Widget child, int order, bool still) {
     if (still) return child;
-    return child
-        .animate(delay: Duration(milliseconds: 90 * order))
-        .fadeIn(duration: 380.ms)
-        .slideY(begin: 0.18, end: 0, duration: 460.ms, curve: Curves.easeOutBack)
-        .scaleXY(begin: 0.92, end: 1, duration: 460.ms, curve: Curves.easeOutBack);
+    final floating = child
+        .animate(onPlay: (c) => c.repeat(reverse: true), delay: Duration(milliseconds: 900 + 260 * order))
+        .moveY(begin: 0, end: -6, duration: (1500 + 180 * order).ms, curve: Curves.easeInOut)
+        .rotate(begin: -0.004, end: 0.004, duration: (1700 + 150 * order).ms, curve: Curves.easeInOut);
+    return floating
+        .animate(delay: Duration(milliseconds: 110 * order))
+        .fadeIn(duration: 320.ms)
+        .slideY(begin: 0.35, end: 0, duration: 700.ms, curve: Curves.elasticOut)
+        .scaleXY(begin: 0.7, end: 1, duration: 700.ms, curve: Curves.elasticOut)
+        .rotate(begin: order.isEven ? -0.04 : 0.04, end: 0, duration: 600.ms, curve: Curves.easeOutBack);
   }
 
   Widget _header(BuildContext context, bool still) {
-    // ‏شخصيّةُ الطفل التي اختارها — هي من يدعوه إلى اللعب.
-    Widget mascot = const StudentAvatarView(size: 68);
+    // ‏شخصيّةُ الطفل التي اختارها — هي من يدعوه إلى اللعب: تقفز وتلوّح.
+    Widget mascot = Stack(
+      clipBehavior: Clip.none,
+      children: [
+        const StudentAvatarView(size: 68),
+        PositionedDirectional(
+          end: -6,
+          top: -4,
+          child: still
+              ? const Text('👋', style: TextStyle(fontSize: 22))
+              : const Text('👋', style: TextStyle(fontSize: 22))
+                  .animate(onPlay: (c) => c.repeat(reverse: true))
+                  .rotate(begin: -0.08, end: 0.08, duration: 420.ms, curve: Curves.easeInOut),
+        ),
+      ],
+    );
     if (!still) {
       mascot = mascot
-          .animate(onPlay: (c) => c.repeat(reverse: true))
-          .moveY(begin: 0, end: -6, duration: 1200.ms, curve: Curves.easeInOut);
+          .animate(onPlay: (c) => c.repeat())
+          .moveY(begin: 0, end: -12, duration: 380.ms, curve: Curves.easeOut)
+          .then()
+          .moveY(begin: 0, end: 12, duration: 380.ms, curve: Curves.bounceOut)
+          .then(delay: 1400.ms);
     }
     return Padding(
       padding: const EdgeInsets.fromLTRB(8, 6, 16, 8),
@@ -178,16 +204,7 @@ class KgWorldScreen extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
               children: [
-                ShaderMask(
-                  shaderCallback: (rect) => const LinearGradient(
-                    colors: [Color(0xFF7C3AED), Color(0xFFEC4899), Color(0xFFF59E0B)],
-                  ).createShader(rect),
-                  child: Text(
-                    tr('portal.kgworld'),
-                    maxLines: 2,
-                    style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w900, color: Colors.white, height: 1.15),
-                  ),
-                ),
+                _RainbowTitle(text: tr('portal.kgworld'), still: still),
                 const SizedBox(height: 4),
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
@@ -216,7 +233,68 @@ void _open(BuildContext context, Widget screen) {
   Navigator.of(context).push(StudentPageRoute<void>(immersive: true, builder: (_) => screen));
 }
 
-/// لوحٌ يكبر قليلاً تحت الإصبع ويعود — ضغطةٌ يراها الطفل.
+/// عنوانٌ بألوان قوس قزح تسري فيه ببطء.
+class _RainbowTitle extends StatefulWidget {
+  const _RainbowTitle({required this.text, required this.still});
+
+  final String text;
+  final bool still;
+
+  @override
+  State<_RainbowTitle> createState() => _RainbowTitleState();
+}
+
+class _RainbowTitleState extends State<_RainbowTitle> with SingleTickerProviderStateMixin {
+  late final AnimationController _flow = AnimationController(vsync: this, duration: const Duration(seconds: 4));
+
+  @override
+  void initState() {
+    super.initState();
+    if (!widget.still) _flow.repeat();
+  }
+
+  @override
+  void dispose() {
+    _flow.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => AnimatedBuilder(
+        animation: _flow,
+        builder: (context, child) => ShaderMask(
+          shaderCallback: (rect) => LinearGradient(
+            colors: const [
+              Color(0xFF7C3AED),
+              Color(0xFFEC4899),
+              Color(0xFFF59E0B),
+              Color(0xFF10B981),
+              Color(0xFF7C3AED),
+            ],
+            tileMode: TileMode.repeated,
+            transform: _SlideGradient(_flow.value),
+          ).createShader(rect),
+          child: child,
+        ),
+        child: Text(
+          widget.text,
+          maxLines: 2,
+          style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w900, color: Colors.white, height: 1.15),
+        ),
+      );
+}
+
+class _SlideGradient extends GradientTransform {
+  const _SlideGradient(this.t);
+
+  final double t;
+
+  @override
+  Matrix4? transform(Rect bounds, {TextDirection? textDirection}) =>
+      Matrix4.translationValues(bounds.width * t, 0, 0);
+}
+
+/// لوحٌ ينضغط تحت الإصبع، ثم يقفز وتتطاير منه نجيماتٌ ملوّنة — ثم تُفتح لعبتُه.
 class _Pressable extends StatefulWidget {
   const _Pressable({required this.onTap, required this.child, required this.semantics});
 
@@ -228,8 +306,32 @@ class _Pressable extends StatefulWidget {
   State<_Pressable> createState() => _PressableState();
 }
 
-class _PressableState extends State<_Pressable> {
+class _PressableState extends State<_Pressable> with SingleTickerProviderStateMixin {
   bool _down = false;
+  late final AnimationController _burst =
+      AnimationController(vsync: this, duration: const Duration(milliseconds: 520));
+  Timer? _opening;
+
+  @override
+  void dispose() {
+    _opening?.cancel();
+    _burst.dispose();
+    super.dispose();
+  }
+
+  void _tap() {
+    if (_opening?.isActive ?? false) return;
+    HapticFeedback.lightImpact();
+    if (MediaQuery.of(context).disableAnimations) {
+      widget.onTap();
+      return;
+    }
+    _burst.forward(from: 0);
+    // ‏تُرى القفزةُ والنجيماتُ أوّلاً، ثم تُفتح اللعبة.
+    _opening = Timer(const Duration(milliseconds: 240), () {
+      if (mounted) widget.onTap();
+    });
+  }
 
   @override
   Widget build(BuildContext context) => Semantics(
@@ -239,14 +341,145 @@ class _PressableState extends State<_Pressable> {
           onTapDown: (_) => setState(() => _down = true),
           onTapCancel: () => setState(() => _down = false),
           onTapUp: (_) => setState(() => _down = false),
-          onTap: widget.onTap,
-          child: AnimatedScale(
-            scale: _down ? 0.95 : 1,
-            duration: const Duration(milliseconds: 120),
+          onTap: _tap,
+          child: AnimatedBuilder(
+            animation: _burst,
+            builder: (context, child) {
+              final t = _burst.value;
+              // ‏قفزةٌ مطاطيّة: يتمدّد ثم يعود.
+              final pop = math.sin(t * math.pi) * 0.07;
+              return Stack(
+                clipBehavior: Clip.none,
+                fit: StackFit.passthrough,
+                children: [
+                  Transform.scale(
+                    scaleX: (_down ? 0.94 : 1) + pop,
+                    scaleY: (_down ? 0.9 : 1) + pop * 1.3,
+                    child: child,
+                  ),
+                  if (t > 0 && t < 1)
+                    Positioned.fill(
+                      child: IgnorePointer(child: CustomPaint(painter: _SparkleBurst(t))),
+                    ),
+                ],
+              );
+            },
             child: widget.child,
           ),
         ),
       );
+}
+
+/// نجيماتٌ ودوائرُ ملوّنة تنطلق من وسط اللوح وتخفت.
+class _SparkleBurst extends CustomPainter {
+  _SparkleBurst(this.t);
+
+  final double t;
+
+  static const _colors = [
+    Color(0xFFFDE047),
+    Color(0xFFF472B6),
+    Color(0xFF60A5FA),
+    Color(0xFF34D399),
+    Color(0xFFFB923C),
+    Color(0xFFA78BFA),
+  ];
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final center = size.center(Offset.zero);
+    final reach = size.shortestSide * 0.75;
+    final fade = (1 - t).clamp(0.0, 1.0);
+    for (var i = 0; i < 14; i++) {
+      final a = i * 2 * math.pi / 14 + i * 0.3;
+      final d = reach * Curves.easeOut.transform(t) * (0.6 + (i % 3) * 0.2);
+      final p = center + Offset(math.cos(a), math.sin(a)) * d;
+      final paint = Paint()..color = _colors[i % _colors.length].withValues(alpha: fade);
+      final r = (i.isEven ? 7.0 : 4.5) * (1 - t * 0.4);
+      if (i % 3 == 0) {
+        final path = Path();
+        for (var k = 0; k < 10; k++) {
+          final rr = k.isEven ? r * 1.6 : r * 0.7;
+          final ka = -math.pi / 2 + k * math.pi / 5 + t * 3;
+          final q = p + Offset(math.cos(ka), math.sin(ka)) * rr;
+          k == 0 ? path.moveTo(q.dx, q.dy) : path.lineTo(q.dx, q.dy);
+        }
+        canvas.drawPath(path..close(), paint);
+      } else {
+        canvas.drawCircle(p, r, paint);
+      }
+    }
+  }
+
+  @override
+  bool shouldRepaint(_SparkleBurst old) => old.t != t;
+}
+
+/// زينةٌ تطفو في الخلفية: نجومٌ وبالوناتٌ وفراشاتٌ وفرشاة، تصعد على مهلٍ وتتمايل.
+class _FloatingDecor extends StatefulWidget {
+  const _FloatingDecor();
+
+  @override
+  State<_FloatingDecor> createState() => _FloatingDecorState();
+}
+
+class _FloatingDecorState extends State<_FloatingDecor> with SingleTickerProviderStateMixin {
+  late final AnimationController _drift =
+      AnimationController(vsync: this, duration: const Duration(seconds: 24))..repeat();
+
+  @override
+  void dispose() {
+    _drift.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => IgnorePointer(
+        child: RepaintBoundary(
+          child: CustomPaint(painter: _DecorPainter(_drift), size: Size.infinite),
+        ),
+      );
+}
+
+class _DecorPainter extends CustomPainter {
+  _DecorPainter(this.drift) : super(repaint: drift);
+
+  final Animation<double> drift;
+
+  static const _glyphs = ['⭐', '🎈', '🦋', '🎨', '✨', '🌈', '🫧', '🖍️', '☁️', '🌟', '🎈', '⭐', '🫧', '🦋', '✨', '🌸'];
+  static final List<TextPainter> _painters = [
+    for (final g in _glyphs)
+      TextPainter(text: TextSpan(text: g, style: const TextStyle(fontSize: 26)), textDirection: TextDirection.ltr)
+        ..layout(),
+  ];
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (size.isEmpty) return;
+    final t = drift.value;
+    for (var i = 0; i < _painters.length; i++) {
+      final seed = i * 0.6180339;
+      final x0 = (seed % 1) * size.width;
+      final speed = 0.6 + (i % 4) * 0.25;
+      final y = size.height + 40 - ((t * speed + seed) % 1) * (size.height + 80);
+      final sway = math.sin((t * 2 * math.pi * speed) * 2 + i) * 18;
+      final scale = 0.7 + (i % 3) * 0.25;
+      final painter = _painters[i];
+      canvas
+        ..save()
+        ..translate(x0 + sway, y)
+        ..rotate(math.sin(t * 2 * math.pi + i) * 0.25)
+        ..scale(scale);
+      canvas.saveLayer(null, Paint()..color = const Color(0x8CFFFFFF));
+      painter.paint(canvas, Offset(-painter.width / 2, -painter.height / 2));
+      canvas
+        ..restore()
+        ..restore();
+    }
+  }
+
+  @override
+  bool shouldRepaint(_DecorPainter old) => false;
 }
 
 BoxDecoration _tileDecoration(List<Color> colors) => BoxDecoration(
@@ -286,11 +519,25 @@ class _GameTile extends StatelessWidget {
                 child: Container(
                   padding: const EdgeInsets.all(5),
                   decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.25), shape: BoxShape.circle),
-                  child: const Icon(Icons.mic_rounded, color: Colors.white, size: 18),
+                  child: _alive(
+                    context,
+                    const Icon(Icons.mic_rounded, color: Colors.white, size: 18),
+                    (w) => w
+                        .animate(onPlay: (c) => c.repeat(reverse: true))
+                        .scaleXY(begin: 1, end: 1.25, duration: 700.ms, curve: Curves.easeInOut),
+                  ),
                 ),
               ),
               Expanded(
-                child: Image.asset(image, fit: BoxFit.contain, errorBuilder: (_, __, ___) => const SizedBox()),
+                // ‏صورةُ اللعبة تتمايل وتتنفّس.
+                child: _alive(
+                  context,
+                  Image.asset(image, fit: BoxFit.contain, errorBuilder: (_, __, ___) => const SizedBox()),
+                  (w) => w
+                      .animate(onPlay: (c) => c.repeat(reverse: true), delay: (kind.index * 230).ms)
+                      .rotate(begin: -0.035, end: 0.035, duration: 1300.ms, curve: Curves.easeInOut)
+                      .scaleXY(begin: 0.96, end: 1.04, duration: 1300.ms, curve: Curves.easeInOut),
+                ),
               ),
               const SizedBox(height: 6),
               Text(
@@ -328,7 +575,17 @@ class _ColoringTile extends StatelessWidget {
   Widget build(BuildContext context) => _Pressable(
         semantics: tr('portal.coloring'),
         onTap: () => _open(context, const MagicColoringScreen()),
-        child: Container(
+        // ‏لمعةٌ تمرّ على اللوح كلَّ حين: «هنا شيءٌ جديد».
+        child: _alive(
+          context,
+          _face(context),
+          (w) => w
+              .animate(onPlay: (c) => c.repeat(), delay: 1200.ms)
+              .shimmer(duration: 1600.ms, delay: 2200.ms, color: Colors.white.withValues(alpha: 0.55)),
+        ),
+      );
+
+  Widget _face(BuildContext context) => Container(
           decoration: _tileDecoration(_colors),
           clipBehavior: Clip.antiAlias,
           child: Stack(
@@ -357,16 +614,23 @@ class _ColoringTile extends StatelessWidget {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
-                            decoration: BoxDecoration(
-                              color: const Color(0xFFFDE047),
-                              borderRadius: BorderRadius.circular(999),
+                          _alive(
+                            context,
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFFDE047),
+                                borderRadius: BorderRadius.circular(999),
+                              ),
+                              child: Text(
+                                '✨ ${tr('kgworld.new')}',
+                                style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w900, color: Color(0xFF7C2D12)),
+                              ),
                             ),
-                            child: Text(
-                              '✨ ${tr('kgworld.new')}',
-                              style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w900, color: Color(0xFF7C2D12)),
-                            ),
+                            (w) => w
+                                .animate(onPlay: (c) => c.repeat(reverse: true))
+                                .scaleXY(begin: 1, end: 1.12, duration: 600.ms, curve: Curves.easeInOut)
+                                .rotate(begin: -0.03, end: 0.03, duration: 600.ms),
                           ),
                           const SizedBox(height: 8),
                           Text(
@@ -397,9 +661,12 @@ class _ColoringTile extends StatelessWidget {
               ),
             ],
           ),
-        ),
-      );
+        );
 }
+
+/// حركةٌ دائمة — إلا لمن طلب من جهازه تقليلَ الحركة.
+Widget _alive(BuildContext context, Widget child, Widget Function(Widget) animate) =>
+    MediaQuery.of(context).disableAnimations ? child : animate(child);
 
 /// لوحُ الرسّام بألوانه وفرشاته — يدور على مهلٍ.
 class _PaletteBadge extends StatelessWidget {

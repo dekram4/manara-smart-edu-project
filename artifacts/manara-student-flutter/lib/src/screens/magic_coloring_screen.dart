@@ -172,6 +172,77 @@ class MagicColoringScreenState extends State<MagicColoringScreen> {
     _replaceController(ColoringController(drawing), galleryIndex: null);
   }
 
+  /// يسأل ثم يمحو اللوحةَ من «لوحاتي» على الجهاز.
+  Future<void> _confirmDelete(int index) async {
+    if (index < 0 || index >= _gallery.length) return;
+    HapticFeedback.mediumImpact();
+    final yes = await showDialog<bool>(
+      context: context,
+      builder: (dialog) => Directionality(
+        textDirection: StudentSettings.direction,
+        child: AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+          title: Row(
+            children: [
+              const Icon(Icons.delete_rounded, color: Color(0xFFDC2626)),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(tr('coloring.deleteAsk'), style: const TextStyle(fontWeight: FontWeight.w900)),
+              ),
+            ],
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              SizedBox.square(
+                dimension: 140,
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: const Color(0xFFFCA5A5), width: 2),
+                  ),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(14),
+                    child: CustomPaint(painter: ColoringPainter(_gallery[index], outline: 4)),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12),
+              Text(tr('coloring.deleteHint'), textAlign: TextAlign.center),
+            ],
+          ),
+          actions: [
+            TextButton(
+              key: const ValueKey('coloring-delete-cancel'),
+              onPressed: () => Navigator.of(dialog).pop(false),
+              child: Text(tr('coloring.cancel'), style: const TextStyle(fontWeight: FontWeight.w800)),
+            ),
+            FilledButton.icon(
+              key: const ValueKey('coloring-delete-confirm'),
+              style: FilledButton.styleFrom(backgroundColor: const Color(0xFFDC2626), shape: const StadiumBorder()),
+              onPressed: () => Navigator.of(dialog).pop(true),
+              icon: const Icon(Icons.delete_forever_rounded),
+              label: Text(tr('coloring.deleteYes'), style: const TextStyle(fontWeight: FontWeight.w900)),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (yes != true || !mounted) return;
+    final ok = await ColoringGallery.delete(index);
+    if (!mounted) return;
+    if (!ok) {
+      _toast(tr('coloring.saveFailed'));
+      return;
+    }
+    // ‏لوحةٌ مفتوحةٌ من «لوحاتي»: موضعُها يتبع الحذف، أو تصير جديدةً إن حُذفت هي.
+    final open = _galleryIndex;
+    if (open != null) _galleryIndex = open == index ? null : (open > index ? open - 1 : open);
+    await _loadGallery();
+    _toast(tr('coloring.deleted'));
+  }
+
   void _openArtwork(int index) {
     final saved = _gallery[index];
     // ‏نسخةٌ للتعديل: الصورةُ المصغّرة في «لوحاتي» تبقى كما حُفظت حتى يُحفظ جديد.
@@ -377,17 +448,49 @@ class MagicColoringScreenState extends State<MagicColoringScreen> {
                   SliverToBoxAdapter(child: _sectionLabel(context, '🖼️ ${tr('coloring.myArt')}')),
                   SliverToBoxAdapter(
                     child: SizedBox(
-                      height: 112,
+                      height: 128,
                       child: ListView.separated(
-                        padding: const EdgeInsets.symmetric(horizontal: 16),
+                        padding: const EdgeInsets.fromLTRB(16, 10, 16, 4),
                         scrollDirection: Axis.horizontal,
+                        clipBehavior: Clip.none,
                         itemCount: _gallery.length,
-                        separatorBuilder: (_, __) => const SizedBox(width: 10),
-                        itemBuilder: (context, i) => _thumb(
-                          key: ValueKey('coloring-art-$i'),
-                          controller: _gallery[i],
-                          size: 104,
-                          onTap: () => _openArtwork(i),
+                        separatorBuilder: (_, __) => const SizedBox(width: 14),
+                        itemBuilder: (context, i) => Stack(
+                          clipBehavior: Clip.none,
+                          children: [
+                            _thumb(
+                              key: ValueKey('coloring-art-$i'),
+                              controller: _gallery[i],
+                              size: 104,
+                              onTap: () => _openArtwork(i),
+                            ),
+                            // ‏زرُّ حذفٍ أحمرُ ظاهرٌ على زاوية اللوحة، وبتأكيد.
+                            PositionedDirectional(
+                              top: -8,
+                              end: -8,
+                              child: Semantics(
+                                button: true,
+                                label: tr('coloring.delete'),
+                                child: GestureDetector(
+                                  key: ValueKey('coloring-art-delete-$i'),
+                                  onTap: () => unawaited(_confirmDelete(i)),
+                                  child: Container(
+                                    width: 34,
+                                    height: 34,
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xFFDC2626),
+                                      shape: BoxShape.circle,
+                                      border: Border.all(color: Colors.white, width: 2.5),
+                                      boxShadow: const [
+                                        BoxShadow(color: Color(0x40000000), blurRadius: 6, offset: Offset(0, 2)),
+                                      ],
+                                    ),
+                                    child: const Icon(Icons.delete_rounded, size: 18, color: Colors.white),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
                       ),
                     ),

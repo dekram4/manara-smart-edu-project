@@ -1,4 +1,6 @@
 import 'dart:convert';
+import 'dart:ui' as ui;
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/rendering.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -316,6 +318,20 @@ class ColoringGallery {
     }
   }
 
+  /// يمحو اللوحةَ ذات الموضع [index] من «لوحاتي» على الجهاز نهائياً.
+  static Future<bool> delete(int index) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final list = List.of(prefs.getStringList(_galleryKey) ?? const <String>[]);
+      if (index < 0 || index >= list.length) return false;
+      list.removeAt(index);
+      return prefs.setStringList(_galleryKey, list);
+    } catch (error) {
+      debugPrint('[coloring] artwork not deleted: $error');
+      return false;
+    }
+  }
+
   static Future<List<String>> recent() async {
     try {
       final prefs = await SharedPreferences.getInstance();
@@ -336,5 +352,25 @@ class ColoringGallery {
       final keep = handDrawnDrawings.length - 6;
       await prefs.setStringList(_recentKey, next.take(keep).toList());
     } catch (_) {}
+  }
+}
+
+/// اللوحةُ صورةَ PNG مربّعةً بضلع [size] — لتُرسل في الدردشة.
+///
+/// تُرسم بالرسّام نفسه الذي يراه الطفل، فما يصل زميلَه هو ما لوّنه بعينه.
+Future<Uint8List?> renderColoringPng(ColoringController controller, {int size = 600}) async {
+  try {
+    final recorder = ui.PictureRecorder();
+    final canvas = Canvas(recorder);
+    ColoringPainter(controller).paint(canvas, Size.square(size.toDouble()));
+    final picture = recorder.endRecording();
+    final image = await picture.toImage(size, size);
+    final data = await image.toByteData(format: ui.ImageByteFormat.png);
+    picture.dispose();
+    image.dispose();
+    return data?.buffer.asUint8List();
+  } catch (error) {
+    debugPrint('[coloring] render failed: $error');
+    return null;
   }
 }

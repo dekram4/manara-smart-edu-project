@@ -1,7 +1,9 @@
 import { Router } from "express";
 import crypto from "node:crypto";
-import { apiSupabaseConfig, findStudentsInScope, type StudentActor } from "../lib/studentAccess";
+import { apiSupabaseConfig, findStudentsInScope, normalizeScopeId, type StudentActor } from "../lib/studentAccess";
 import { requireStudentSession } from "../middleware/studentAuth";
+import { readCookie, TEACHER_SESSION_COOKIE, verifyTeacherSession } from "../middleware/adminAuth";
+import { isChatImageId, parseChatImage, teacherRecipient } from "../lib/chatImage";
 import { createRateLimit, createStudentRateLimit } from "../middleware/rateLimiter";
 import { logger } from "../lib/logger";
 import { CHAT_VOICE_MAX_MS, isChatVoiceId, parseChatVoice } from "../lib/chatVoice";
@@ -24,6 +26,15 @@ const chatRateLimit = createRateLimit(30);
 const voiceSendLimit = createStudentRateLimit(12);
 const voiceFetchLimit = createStudentRateLimit(90);
 const receiptLimit = createStudentRateLimit(60);
+// ‏اللوحاتُ أثقلُ من المقاطع: إرسالُها أقلّ.
+const imageSendLimit = createStudentRateLimit(10);
+const imageFetchLimit = createStudentRateLimit(90);
+const teacherChatLimit = createRateLimit(120);
+
+/** من يكتب إيصالاً: طالبٌ، أو معلّمُ الصفّ باسم `teacher:<معرّفه>`. */
+type ChatReader = { id: string; grade: string; teacherId: string };
+/** صفٌّ بعينه: صفُّ الطالب ومعلّمُه. */
+type ChatScope = { grade: string; teacherId: string };
 
 /** نوعُ صفّ الإيصال في `interactions` — بجانب الرسائل نفسها. */
 const RECEIPT_TYPE = "student_chat_receipt";
@@ -75,6 +86,9 @@ async function writeRow(id: string, data: Record<string, unknown>, now: string):
 /** يعيّن المستلم: «الكل» أو زميلٌ في صفّ المرسِل نفسه، وإلا فلا أحد. */
 async function recipientFor(student: StudentActor, requested: string): Promise<string> {
   if (requested === "all") return "all";
+  // ‏معلّمُ الصفّ نفسُه، لا أيُّ معلّم.
+  const teacher = teacherRecipient(student.teacherId);
+  if (teacher && requested === teacher) return teacher;
   const peers = await findStudentsInScope(student.grade, student.teacherId);
   return peers.some((peer) => peer.id === requested && peer.id !== student.id)
     ? requested
@@ -172,7 +186,7 @@ const receiptsOfMessages = (ids: readonly string[]) =>
  * وحفظٌ لا يمحو قراءة.
  */
 async function writeReceipts(
-  student: StudentActor,
+  student: ChatReader,
   changes: ReadonlyArray<{ messageId: string; seen?: boolean; savedUntil?: string | null }>,
 ): Promise<boolean> {
   if (changes.length === 0) return true;
@@ -241,7 +255,7 @@ function metaOf(row: Record<string, unknown>): ChatMessageMeta {
 }
 
 /** رسالةٌ من صفّ هذا الطالب — لا يُكنس إلا صفُّه. */
-function inClassOf(data: Record<string, unknown>, student: StudentActor): boolean {
+function inClassOf(data: Record<string, unknown>, student: ChatScope): boolean {
   return normalized(data.grade) === normalized(student.grade) &&
     normalized(data.teacherId) === normalized(student.teacherId);
 }
@@ -257,7 +271,7 @@ const lastClassPurge = new Map<string, number>();
  * [onlyIds]: بعد قراءةٍ تُكنس الرسائلُ المقروءةُ الآن وحدها، بلا انتظار. وبدونها
  * يُكنس الصفُّ كلُّه مرّةً في الدقيقة على الأكثر.
  */
-async function purgeClass(student: StudentActor, onlyIds?: readonly string[]): Promise<number> {
+async function purgeClass(student: ChatScope, onlyIds?: readonly string[]): Promise<number> {
   const key = `${normalized(student.teacherId)}:${normalized(student.grade)}`;
   if (!onlyIds) {
     const last = lastClassPurge.get(key) ?? 0;
@@ -285,11 +299,15 @@ async function purgeClass(student: StudentActor, onlyIds?: readonly string[]): P
   const voices = doomed
     .map((row) => dataOf(row).voiceId)
     .filter((id): id is string => isChatVoiceId(id));
-  for (const part of chunks([...ids, ...voices])) {
+  // ‏واللوحاتُ معها: صورةٌ شوهدت لا تبقى في القاعدة.
+  const images = doomed
+    .map((row) => dataOf(row).imageId)
+    .filter((id): id is string => isChatImageId(id));
+  for (const part of chunks([...ids, ...voices, ...images])) {
     await rest(`interactions?id=${inList(part)}`, { method: "DELETE" });
   }
   await deleteReceipts(ids);
-  logger.info({ messages: ids.length, voices: voices.length }, "[student-chat] purged");
+  logger.info({ messages: ids.length, voices: voices.length, images: images.length }, "[student-chat] purged");
   return ids.length;
 }
 
@@ -306,6 +324,7 @@ function publicMessage(row: Record<string, unknown>): Record<string, unknown> {
     ? row.data as Record<string, unknown>
     : {};
   const voice = isChatVoiceId(data.voiceId) ? data.voiceId : "";
+  const image = isChatImageId(data.imageId) ? data.imageId : "";
   return {
     id: text(row.id),
     from: text(data.from),
@@ -313,13 +332,15 @@ function publicMessage(row: Record<string, unknown>): Record<string, unknown> {
     to: text(data.to),
     message: text(data.message),
     time: text(data.time) || text(row.updated_at),
-    ...(voice
-      ? {
-        kind: "voice",
-        voiceId: voice,
-        durationMs: Math.min(Math.max(Number(data.durationMs) || 0, 0), CHAT_VOICE_MAX_MS),
-      }
-      : { kind: "text" }),
+    ...(image
+      ? { kind: "image", imageId: image }
+      : voice
+        ? {
+          kind: "voice",
+          voiceId: voice,
+          durationMs: Math.min(Math.max(Number(data.durationMs) || 0, 0), CHAT_VOICE_MAX_MS),
+        }
+        : { kind: "text" }),
   };
 }
 
@@ -330,11 +351,16 @@ router.get("/student/chat/peers", requireStudentSession, async (_req, res) => {
   }
   try {
     const peers = await findStudentsInScope(student.grade, student.teacherId);
+    const teacher = teacherRecipient(student.teacherId);
     return res.json({
-      peers: peers.filter((peer) => peer.id !== student.id).map((peer) => ({
-        id: peer.id,
-        name: peer.name,
-      })),
+      peers: [
+        // ‏معلّمُ الصفّ أوّلاً: تصله الرسائلُ في «رسائل طلابي» في بوابته.
+        ...(teacher ? [{ id: teacher, name: "معلّمي", teacher: true }] : []),
+        ...peers.filter((peer) => peer.id !== student.id).map((peer) => ({
+          id: peer.id,
+          name: peer.name,
+        })),
+      ],
     });
   } catch (error) {
     logger.error({ err: error }, "[student-chat] peer lookup failed");
@@ -367,6 +393,8 @@ router.get("/student/chat/messages", requireStudentSession, async (req, res) => 
     const classmates = await findStudentsInScope(student.grade, student.teacherId);
     const classIds = [...new Set([...classmates.map((p) => p.id), student.id])];
     const names = new Map(classmates.map((p) => [p.id, p.name]));
+    const myTeacher = teacherRecipient(student.teacherId);
+    if (myTeacher) names.set(myTeacher, "معلّمي");
     const receipts: ChatReceipt[] = [];
     let ephemeral = true;
     for (const part of chunks(rows.map((row) => text(row.id)))) {
@@ -399,7 +427,7 @@ router.get("/student/chat/messages", requireStudentSession, async (req, res) => 
         }
         return out;
       })
-      .filter((message) => text(message.message) || message.kind === "voice")
+      .filter((message) => text(message.message) || message.kind === "voice" || message.kind === "image")
       .slice(-120);
     if (ephemeral) {
       void purgeClass(student).catch((error) =>
@@ -656,5 +684,222 @@ router.get("/student/chat/voice/:id", requireStudentSession, voiceFetchLimit, as
     return res.status(503).json({ error: "تعذر تحميل الرسالة الصوتية الآن" });
   }
 });
+
+/** صفٌّ واحدٌ بمعرّفه من `interactions` — مقطعٌ أو صورة. */
+async function storedRow(id: string): Promise<Record<string, unknown> | null> {
+  const config = apiSupabaseConfig();
+  if (!config) throw new Error("Supabase is not configured");
+  const url = new URL(`${config.url}/rest/v1/interactions`);
+  url.searchParams.set("select", "id,data");
+  url.searchParams.set("id", `eq.${id}`);
+  url.searchParams.set("limit", "1");
+  const response = await fetch(url, { headers: serviceHeaders(config.key) });
+  if (!response.ok) throw new Error(`Chat row read failed (${response.status})`);
+  const rows = await response.json();
+  return Array.isArray(rows) && rows[0]?.data && typeof rows[0].data === "object"
+    ? rows[0].data as Record<string, unknown>
+    : null;
+}
+
+function sendImage(res: any, data: Record<string, unknown>) {
+  const image = Buffer.from(String(data.image), "base64");
+  res.setHeader(
+    "Content-Type",
+    typeof data.mime === "string" && data.mime.startsWith("image/") ? data.mime : "image/png",
+  );
+  // ‏صورةٌ تختفي بعد مشاهدتها: لا تُحفظ في ذاكرة المتصفّح أو الجهاز.
+  res.setHeader("Cache-Control", "private, no-store");
+  return res.status(200).send(image);
+}
+
+/**
+ * لوحةٌ من «لوحاتي»: الصورةُ في صفٍّ، والرسالةُ التي تشير إليها في صفٍّ آخر —
+ * كالرسالة الصوتية. وتُكتب الصورةُ أوّلاً: رسالةٌ بلا صورتها زرٌّ لا يعمل.
+ */
+router.post("/student/chat/image", requireStudentSession, imageSendLimit, async (req, res) => {
+  const student = activeStudent(res);
+  if (!canUseChat(student)) {
+    return res.status(403).json({ error: "الدردشة غير مفعلة لحسابك" });
+  }
+  const image = parseChatImage(req.body?.image);
+  if (!image.ok) {
+    logger.warn({ studentId: student.id, code: image.error }, "[student-chat] image rejected");
+    return res.status(image.error === "tooBig" ? 413 : 400).json({
+      error: image.error === "tooBig"
+        ? "اللوحة أكبر من المسموح"
+        : image.error === "missing"
+          ? "لم تصل اللوحة إلى الخادم"
+          : "اللوحة بصيغة غير مدعومة",
+      code: image.error,
+    });
+  }
+  try {
+    const recipient = await recipientFor(student, text(req.body?.to) || "all");
+    if (!recipient) {
+      return res.status(403).json({ error: "لا يمكنك إرسال رسالة إلى هذا الحساب" });
+    }
+    const now = new Date().toISOString();
+    const scope = {
+      from: student.id,
+      to: recipient,
+      grade: student.grade,
+      teacherId: student.teacherId,
+    };
+    const imageId = `chatimage_${Date.now()}_${crypto.randomUUID()}`;
+    await writeRow(
+      imageId,
+      { type: "student_chat_image", ...scope, image: image.base64, mime: image.mime, time: now },
+      now,
+    );
+    const id = `chat_${Date.now()}_${crypto.randomUUID()}`;
+    await writeRow(id, { type: "student_chat", ...scope, name: student.name, message: "", imageId, time: now }, now);
+    return res.status(201).json({
+      message: { id, from: student.id, name: student.name, to: recipient, message: "", kind: "image", imageId, time: now },
+    });
+  } catch (error) {
+    logger.error({ err: error, studentId: student.id }, "[student-chat] image send failed");
+    return res.status(503).json({ error: "تعذر إرسال اللوحة الآن", code: "storage" });
+  }
+});
+
+/** اللوحةُ لمن يرى رسالتَها وحده. ولا يحقّ له: 404 لا 403 — فلا يُعرف أنها موجودة. */
+router.get("/student/chat/image/:id", requireStudentSession, imageFetchLimit, async (req, res) => {
+  const student = activeStudent(res);
+  if (!canUseChat(student)) {
+    return res.status(403).json({ error: "الدردشة غير مفعلة لحسابك" });
+  }
+  const id = req.params.id;
+  if (!isChatImageId(id)) return res.status(404).json({ error: "اللوحة غير موجودة" });
+  try {
+    const data = await storedRow(id);
+    if (!data || data.type !== "student_chat_image" || !visibleToStudent(data, student) ||
+        typeof data.image !== "string") {
+      return res.status(404).json({ error: "اللوحة غير موجودة" });
+    }
+    return sendImage(res, data);
+  } catch (error) {
+    logger.error({ err: error }, "[student-chat] image load failed");
+    return res.status(503).json({ error: "تعذر تحميل اللوحة الآن" });
+  }
+});
+
+// ── «رسائل طلابي»: ما أرسله الطلابُ إلى معلّمهم ──────────────────────────
+//
+// المعلّمُ مستلمٌ كأيّ زميل (`teacher:<معرّفه>`)، فتجري عليه الدورةُ نفسها: يرى
+// الرسالةَ ويغادر فتختفي عنده، ويرى الطالبُ أنها قُرئت، ثم تُحذف نهائياً.
+
+/** المعلّمُ من جلسته — بمعرّفه كما يُقارن في نطاق الطلاب. */
+function teacherReader(req: any): { key: string; recipient: string } | null {
+  const actor = verifyTeacherSession(readCookie(req, TEACHER_SESSION_COOKIE));
+  if (!actor || actor.role !== "teacher") return null;
+  const key = normalizeScopeId(actor.teacherId);
+  return key ? { key, recipient: teacherRecipient(key) } : null;
+}
+
+/** رسالةٌ إلى هذا المعلّم من طلابه. */
+function toTeacher(data: Record<string, unknown>, teacher: { key: string; recipient: string }): boolean {
+  return text(data.to) === teacher.recipient && normalizeScopeId(data.teacherId) === teacher.key;
+}
+
+router.get("/teacher/chat/messages", teacherChatLimit, async (req, res) => {
+  const teacher = teacherReader(req);
+  if (!teacher) return res.status(401).json({ error: "سجّل الدخول كمعلّم أولاً" });
+  try {
+    const now = new Date();
+    const asked = Date.parse(text(req.query?.visit));
+    const visit = Number.isFinite(asked) && asked <= now.getTime() && now.getTime() - asked < 24 * 3600e3
+      ? new Date(asked)
+      : now;
+    const rows = (await readMessages()).filter((row) => toTeacher(dataOf(row), teacher));
+    const receipts: ChatReceipt[] = [];
+    let ephemeral = true;
+    for (const part of chunks(rows.map((row) => text(row.id)))) {
+      const found = await receiptsOfMessages(part);
+      if (found === null) {
+        ephemeral = false;
+        break;
+      }
+      receipts.push(...found);
+    }
+    const messages = rows
+      .filter((row) => {
+        if (!ephemeral) return true;
+        const meta = metaOf(row);
+        return visibleTo(meta, teacher.recipient, [teacher.recipient], receipts, visit, now);
+      })
+      .map((row): Record<string, unknown> => ({ ...publicMessage(row), grade: text(dataOf(row).grade) }))
+      .filter((message) => text(message.message) || message.kind === "voice" || message.kind === "image")
+      .slice(-200);
+    return res.json({ messages, ephemeral, visit: visit.toISOString() });
+  } catch (error) {
+    logger.error({ err: error }, "[teacher-chat] message load failed");
+    return res.status(503).json({ error: "تعذر تحميل رسائل الطلاب الآن" });
+  }
+});
+
+/** شاهد المعلّمُ هذه الرسائل: لا تعود له بعد مغادرته، ويرى الطالبُ أنها قُرئت. */
+router.post("/teacher/chat/seen", teacherChatLimit, async (req, res) => {
+  const teacher = teacherReader(req);
+  if (!teacher) return res.status(401).json({ error: "سجّل الدخول كمعلّم أولاً" });
+  const asked = Array.isArray(req.body?.ids) ? req.body.ids : [];
+  const ids = [...new Set(asked.filter(isChatMessageId))].slice(0, 300) as string[];
+  if (ids.length === 0) return res.json({ seen: 0, purged: 0 });
+  try {
+    const mine = (await readMessages()).filter((row) =>
+      ids.includes(text(row.id)) && toTeacher(dataOf(row), teacher));
+    // ‏إيصالٌ لكل صفّ: الصفُّ يُكنس بنطاقه.
+    const byGrade = new Map<string, string[]>();
+    for (const row of mine) {
+      const grade = text(dataOf(row).grade);
+      byGrade.set(grade, [...(byGrade.get(grade) ?? []), text(row.id)]);
+    }
+    let seen = 0;
+    let purged = 0;
+    for (const [grade, gradeIds] of byGrade) {
+      const reader = { id: teacher.recipient, grade, teacherId: teacher.key };
+      const written = await writeReceipts(reader, gradeIds.map((id) => ({ messageId: id, seen: true })));
+      if (!written) return res.json({ seen, purged, ephemeral: false });
+      seen += gradeIds.length;
+      purged += await purgeClass({ grade, teacherId: teacher.key }, gradeIds).catch((error) => {
+        logger.error({ err: error }, "[teacher-chat] purge after seen failed");
+        return 0;
+      });
+    }
+    return res.json({ seen, purged });
+  } catch (error) {
+    logger.error({ err: error }, "[teacher-chat] seen failed");
+    return res.status(503).json({ error: "تعذر تحديث حالة الرسائل الآن" });
+  }
+});
+
+/** لوحةٌ أو مقطعٌ أرسله طالبٌ إلى هذا المعلّم وحده. */
+async function teacherMedia(req: any, res: any, kind: "image" | "voice") {
+  const teacher = teacherReader(req);
+  if (!teacher) return res.status(401).json({ error: "سجّل الدخول كمعلّم أولاً" });
+  const id = String(req.params.id ?? "");
+  const valid = kind === "image" ? isChatImageId(id) : isChatVoiceId(id);
+  if (!valid) return res.status(404).json({ error: "غير موجود" });
+  try {
+    const data = await storedRow(id);
+    const type = kind === "image" ? "student_chat_image" : "student_chat_voice";
+    const field = kind === "image" ? "image" : "audio";
+    if (!data || data.type !== type || !toTeacher(data, teacher) || typeof data[field] !== "string") {
+      return res.status(404).json({ error: "غير موجود" });
+    }
+    if (kind === "image") return sendImage(res, data);
+    res.setHeader(
+      "Content-Type",
+      typeof data.mime === "string" && data.mime.startsWith("audio/") ? data.mime : "audio/mp4",
+    );
+    res.setHeader("Cache-Control", "private, no-store");
+    return res.status(200).send(Buffer.from(String(data.audio), "base64"));
+  } catch (error) {
+    logger.error({ err: error }, "[teacher-chat] media load failed");
+    return res.status(503).json({ error: "تعذر التحميل الآن" });
+  }
+}
+
+router.get("/teacher/chat/image/:id", teacherChatLimit, (req, res) => teacherMedia(req, res, "image"));
+router.get("/teacher/chat/voice/:id", teacherChatLimit, (req, res) => teacherMedia(req, res, "voice"));
 
 export default router;

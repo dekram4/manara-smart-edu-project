@@ -36,6 +36,11 @@ function text(value: unknown): string {
  * فتُوحَّد صور الألف والياء والتاء المربوطة، وتُسقط الحركات والتطويل،
  * وتُردّ الأرقام العربية إلى نظيراتها، وتُجمع المسافات المتتابعة في واحدة.
  */
+/** معرّفُ نطاقٍ (معلّمٍ أو صفّ) كما يُقارن به في كل مكان — لمن هو خارج هذا الملفّ. */
+export function normalizeScopeId(value: unknown): string {
+  return normalize(value);
+}
+
 function normalize(value: unknown): string {
   return text(value)
     .toLowerCase()

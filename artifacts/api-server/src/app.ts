@@ -111,6 +111,8 @@ app.use("/api/gemini/generate-quiz", express.json({ limit: "1mb" }));
 // والرسالةُ الصوتية في الدردشة: ثلاثون ثانيةً ≈ ستون كيلوبايت، وبـ base64 أكثرُ
 // بالثلث. والسقفُ الحقيقيّ في `parseChatVoice`، وهذا أوسعُ منه قليلاً.
 app.use("/api/student/chat/voice", express.json({ limit: "320kb" }));
+// ‏ولوحةُ «لوحاتي»: ستّمئة كيلوبايت أقصى، وبـ base64 أكثرُ بالثلث. والسقفُ في `parseChatImage`.
+app.use("/api/student/chat/image", express.json({ limit: "900kb" }));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
