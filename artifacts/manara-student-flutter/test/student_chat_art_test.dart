@@ -1,16 +1,19 @@
 import 'dart:convert';
+import 'dart:math' as math;
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
+import 'package:image/image.dart' as img;
 
 import 'package:manara_student/src/l10n/student_strings.dart';
 import 'package:manara_student/src/models/student_profile.dart';
 import 'package:manara_student/src/screens/student_chat_screen.dart';
 import 'package:manara_student/src/services/coloring_canvas.dart';
 import 'package:manara_student/src/services/coloring_drawings.dart';
+import 'package:manara_student/src/services/image_compress.dart';
 import 'package:manara_student/src/services/student_auth_service.dart';
 
 /// لوحاتُ «لوحاتي» في دردشة الصفّ: تُرسل إلى زميلٍ أو إلى المعلّم، وتُشاهد
@@ -232,12 +235,36 @@ void main() {
     expect(sent, hasLength(1));
     expect(base64Decode((jsonDecode(sent.single.body) as Map)['image'] as String), png);
 
+    // ‏صورةُ كاميرا كبيرة: تُضغط على الجهاز ثم تُرسل تحت السقف، JPEG.
+    final photo = img.Image(width: 1800, height: 1400);
+    final noise = math.Random(1);
+    for (final p in photo) {
+      p
+        ..r = (p.x * 255 ~/ 1800 + noise.nextInt(40)).clamp(0, 255)
+        ..g = (p.y * 255 ~/ 1400 + noise.nextInt(40)).clamp(0, 255)
+        ..b = noise.nextInt(255);
+    }
+    picked = img.encodePng(photo);
+    expect(picked.length, greaterThan(uploadMaxBytes));
+    await tester.tap(find.byKey(const ValueKey('chat-send-art')));
+    await settle(tester);
+    await tester.tap(find.byKey(const ValueKey('chat-attach-device')));
+    await tester.runAsync(() => Future<void>.delayed(const Duration(seconds: 8)));
+    await settle(tester);
+    final posts = requests.where((r) => r.url.path.endsWith('/chat/image') && r.method == 'POST').toList();
+    expect(posts, hasLength(2));
+    final compressed = base64Decode((jsonDecode(posts.last.body) as Map)['image'] as String);
+    expect(compressed.length, lessThanOrEqualTo(uploadMaxBytes));
+    expect(compressed.sublist(0, 2), [0xFF, 0xD8], reason: 'JPEG');
+
+    // ‏وما لا يُفكّ ولا يدخل السقف: يُرفض قبل الرفع بجملةٍ واضحة.
     picked = Uint8List(chatImageMaxBytes + 1);
     await tester.tap(find.byKey(const ValueKey('chat-send-art')));
     await settle(tester);
     await tester.tap(find.byKey(const ValueKey('chat-attach-device')));
+    await tester.runAsync(() => Future<void>.delayed(const Duration(seconds: 2)));
     await settle(tester);
-    expect(requests.where((r) => r.url.path.endsWith('/chat/image') && r.method == 'POST'), hasLength(1));
+    expect(requests.where((r) => r.url.path.endsWith('/chat/image') && r.method == 'POST'), hasLength(2));
     expect(find.text(tr('chat.attach.tooBig')), findsOneWidget);
   });
 

@@ -156,6 +156,11 @@ void main() {
     await tester.scrollUntilVisible(find.byKey(const ValueKey('study-coloring')), 200,
         scrollable: find.byType(Scrollable).first);
     expect(find.byKey(const ValueKey('study-coloring')), findsOneWidget);
+    // ‏مربّعٌ في رفّ ألعاب المادة نفسه، بحجم أغلفتها.
+    final coloring = tester.getSize(find.byKey(const ValueKey('study-coloring')));
+    final balloons = tester.getSize(find.byKey(const ValueKey('arcade-balloons'), skipOffstage: false));
+    expect(coloring.width, closeTo(balloons.width, 0.5));
+    expect(coloring.height, closeTo(balloons.height, 0.5));
 
     await tester.pumpWidget(const SizedBox());
     // ‏الروضةُ تلوّن في «عالم الحكايات والمغامرات» كما كانت.

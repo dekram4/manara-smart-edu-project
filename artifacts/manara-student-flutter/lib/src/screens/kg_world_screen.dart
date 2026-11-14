@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 
 import '../l10n/student_strings.dart';
+import '../services/coloring_cloud.dart';
 import '../services/kindergarten_voice_quiz.dart';
 import '../services/student_settings.dart';
 import '../services/student_sound_service.dart';
@@ -26,7 +27,10 @@ import 'magic_coloring_screen.dart';
 /// [MagicColoringScreen])، فلا تتغيّر قاعدةٌ من قواعدها، والعودةُ منها إلى هنا
 /// لا إلى الواجهة — فيتنقّل الطفلُ بين الألعاب بلا خروج.
 class KgWorldScreen extends StatelessWidget {
-  const KgWorldScreen({super.key});
+  const KgWorldScreen({this.account, super.key});
+
+  /// الطفلُ: لوحاتُه في «لوحة الألوان السحرية» باسمه وحده، وفي سحابته.
+  final ColoringAccount? account;
 
   static const _voiceGames = [
     _GameTile(
@@ -73,68 +77,32 @@ class KgWorldScreen extends StatelessWidget {
             SafeArea(
               child: LayoutBuilder(
                 builder: (context, constraints) {
-                  final wide = constraints.maxWidth > constraints.maxHeight * 1.15 && constraints.maxWidth > 640;
+                  // ‏خمسُ ألعابٍ في مربّعاتٍ متساوية: «لوحة الألوان السحرية» أوّلُها،
+                  // ‏ثم الألعابُ الصوتية — كلُّها بالحجم نفسه والحركة نفسها.
                   final tiles = [
+                    _entrance(_ColoringTile(key: const ValueKey('kgworld-coloring'), account: account), 0, still),
                     for (var i = 0; i < _voiceGames.length; i++) _entrance(_voiceGames[i], i + 1, still),
                   ];
-                  final featured = _entrance(const _ColoringTile(key: ValueKey('kgworld-coloring')), 0, still);
+                  final columns = constraints.maxWidth >= 900
+                      ? 5
+                      : constraints.maxWidth >= 600
+                          ? 3
+                          : 2;
                   return CustomScrollView(
                     slivers: [
                       SliverToBoxAdapter(child: _header(context, still)),
-                      if (wide)
-                        SliverPadding(
-                          padding: const EdgeInsets.fromLTRB(16, 4, 16, 20),
-                          sliver: SliverToBoxAdapter(
-                            child: SizedBox(
-                              height: math.max(300, constraints.maxHeight - 130),
-                              child: Row(
-                                crossAxisAlignment: CrossAxisAlignment.stretch,
-                                children: [
-                                  Expanded(flex: 5, child: featured),
-                                  const SizedBox(width: 14),
-                                  Expanded(
-                                    flex: 6,
-                                    child: Column(
-                                      children: [
-                                        for (var row = 0; row < 2; row++) ...[
-                                          if (row > 0) const SizedBox(height: 14),
-                                          Expanded(
-                                            child: Row(
-                                              crossAxisAlignment: CrossAxisAlignment.stretch,
-                                              children: [
-                                                Expanded(child: tiles[row * 2]),
-                                                const SizedBox(width: 14),
-                                                Expanded(child: tiles[row * 2 + 1]),
-                                              ],
-                                            ),
-                                          ),
-                                        ],
-                                      ],
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
+                      SliverPadding(
+                        padding: const EdgeInsets.fromLTRB(16, 6, 16, 28),
+                        sliver: SliverGrid(
+                          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                            crossAxisCount: columns,
+                            mainAxisSpacing: 16,
+                            crossAxisSpacing: 16,
+                            childAspectRatio: 1,
                           ),
-                        )
-                      else ...[
-                        SliverPadding(
-                          padding: const EdgeInsets.fromLTRB(16, 4, 16, 14),
-                          sliver: SliverToBoxAdapter(child: SizedBox(height: 210, child: featured)),
+                          delegate: SliverChildListDelegate(tiles),
                         ),
-                        SliverPadding(
-                          padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
-                          sliver: SliverGrid(
-                            gridDelegate: SliverGridDelegateWithMaxCrossAxisExtent(
-                              maxCrossAxisExtent: 260,
-                              mainAxisSpacing: 14,
-                              crossAxisSpacing: 14,
-                              childAspectRatio: constraints.maxWidth < 380 ? 0.92 : 1.05,
-                            ),
-                            delegate: SliverChildListDelegate(tiles),
-                          ),
-                        ),
-                      ],
+                      ),
                     ],
                   );
                 },
@@ -567,14 +535,16 @@ class _GameTile extends StatelessWidget {
 
 /// بطاقةُ «لوحة الألوان السحرية»: أكبرُ من أخواتها، وعليها «جديد».
 class _ColoringTile extends StatelessWidget {
-  const _ColoringTile({super.key});
+  const _ColoringTile({this.account, super.key});
+
+  final ColoringAccount? account;
 
   static const _colors = [Color(0xFFF97316), Color(0xFFEC4899), Color(0xFF8B5CF6)];
 
   @override
   Widget build(BuildContext context) => _Pressable(
         semantics: tr('portal.coloring'),
-        onTap: () => _open(context, const MagicColoringScreen()),
+        onTap: () => _open(context, MagicColoringScreen(account: account)),
         // ‏لمعةٌ تمرّ على اللوح كلَّ حين: «هنا شيءٌ جديد».
         child: _alive(
           context,
@@ -605,57 +575,53 @@ class _ColoringTile extends StatelessWidget {
                     decoration: BoxDecoration(color: c.withValues(alpha: 0.55), shape: BoxShape.circle),
                   ),
                 ),
+              // ‏المربّعُ نفسه الذي لأخواتها: شارةٌ في الأعلى، فرسمُها، فاسمُها.
               Padding(
-                padding: const EdgeInsets.all(16),
-                child: Row(
+                padding: const EdgeInsets.all(12),
+                child: Column(
                   children: [
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          _alive(
-                            context,
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
-                              decoration: BoxDecoration(
-                                color: const Color(0xFFFDE047),
-                                borderRadius: BorderRadius.circular(999),
-                              ),
-                              child: Text(
-                                '✨ ${tr('kgworld.new')}',
-                                style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w900, color: Color(0xFF7C2D12)),
-                              ),
-                            ),
-                            (w) => w
-                                .animate(onPlay: (c) => c.repeat(reverse: true))
-                                .scaleXY(begin: 1, end: 1.12, duration: 600.ms, curve: Curves.easeInOut)
-                                .rotate(begin: -0.03, end: 0.03, duration: 600.ms),
+                    Align(
+                      alignment: AlignmentDirectional.topStart,
+                      child: _alive(
+                        context,
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 3),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFFDE047),
+                            borderRadius: BorderRadius.circular(999),
                           ),
-                          const SizedBox(height: 8),
-                          Text(
-                            tr('portal.coloring'),
-                            maxLines: 2,
-                            style: const TextStyle(
-                              fontSize: 24,
-                              height: 1.15,
-                              fontWeight: FontWeight.w900,
-                              color: Colors.white,
-                              shadows: [Shadow(color: Color(0x66000000), blurRadius: 6, offset: Offset(0, 2))],
-                            ),
+                          child: Text(
+                            '✨ ${tr('kgworld.new')}',
+                            style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w900, color: Color(0xFF7C2D12)),
                           ),
-                          const SizedBox(height: 6),
-                          Text(
-                            tr('portal.coloring.desc'),
-                            maxLines: 3,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: Colors.white.withValues(alpha: 0.95)),
-                          ),
-                        ],
+                        ),
+                        (w) => w
+                            .animate(onPlay: (c) => c.repeat(reverse: true))
+                            .scaleXY(begin: 1, end: 1.12, duration: 600.ms, curve: Curves.easeInOut)
+                            .rotate(begin: -0.03, end: 0.03, duration: 600.ms),
                       ),
                     ),
-                    const SizedBox(width: 10),
-                    const _PaletteBadge(),
+                    const Expanded(child: FittedBox(child: _PaletteBadge())),
+                    const SizedBox(height: 6),
+                    Text(
+                      tr('portal.coloring'),
+                      textAlign: TextAlign.center,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontSize: 17,
+                        fontWeight: FontWeight.w900,
+                        color: Colors.white,
+                        shadows: [Shadow(color: Color(0x55000000), blurRadius: 4, offset: Offset(0, 2))],
+                      ),
+                    ),
+                    Text(
+                      tr('portal.coloring.sub'),
+                      textAlign: TextAlign.center,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: Colors.white.withValues(alpha: 0.9)),
+                    ),
                   ],
                 ),
               ),

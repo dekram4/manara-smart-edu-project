@@ -12,6 +12,7 @@ import '../models/cinema_unlock.dart';
 import '../models/student_content.dart';
 import '../models/student_profile.dart';
 import '../models/student_gamification.dart';
+import '../services/coloring_cloud.dart';
 import '../services/student_auth_service.dart';
 import '../services/student_path_memory.dart';
 import '../services/student_challenge_service.dart';
@@ -607,7 +608,13 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> with RouteAware {
           .push(
             StudentPageRoute<void>(
               immersive: true,
-              builder: (_) => const KgWorldScreen(),
+              builder: (_) => KgWorldScreen(
+                // ‏لوحاتُ الطفل باسمه وحده على التابلت، وفي سحابته.
+                account: ColoringAccount(
+                  studentId: widget.profile.id,
+                  cloud: ColoringCloud(baseUrl: widget.apiBaseUrl, authService: widget.authService),
+                ),
+              ),
             ),
           )
           .then((_) => _loadGamification());

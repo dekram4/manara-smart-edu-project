@@ -6,7 +6,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../l10n/student_strings.dart';
+import 'package:gal/gal.dart';
+
 import '../services/coloring_canvas.dart';
+import '../services/coloring_cloud.dart';
 import '../services/coloring_drawings.dart';
 import '../services/free_drawing.dart';
 import '../services/student_settings.dart';
@@ -30,7 +33,21 @@ import '../widgets/student_avatar_view.dart';
 /// كلُّ دخولٍ يأتي بمجموعةٍ جديدة ([pickColoringSet]): ما عُرض في المرّة
 /// السابقة لا يعود حتى تُعرض البقية، ورسمتان مولَّدتان لم تُرَيا قط.
 class MagicColoringScreen extends StatefulWidget {
-  const MagicColoringScreen({this.random, this.playIntro, this.cheer, super.key});
+  const MagicColoringScreen({
+    this.account,
+    this.random,
+    this.playIntro,
+    this.cheer,
+    this.saveToPhotos,
+    super.key,
+  });
+
+  /// الطالبُ: معرّفُه يفصل «لوحاتي» على الجهاز، وسحابتُه تحفظ لوحاته على
+  /// الخادم. وبلا قيمة (الاختبار): «لوحاتُ» ضيفٍ على الجهاز وحده.
+  final ColoringAccount? account;
+
+  /// يحفظ صورةً في استوديو الجهاز. وبلا قيمة: `gal`.
+  final Future<bool> Function(Uint8List png)? saveToPhotos;
 
   /// تُستبدل في الاختبار.
   final math.Random? random;
@@ -50,6 +67,9 @@ class MagicColoringScreen extends StatefulWidget {
 }
 
 enum ColoringTool { fill, brush, rainbow, eraser }
+
+/// أين حُفظت اللوحة: على الجهاز، أو في السحابة، أو في استوديو الجهاز.
+enum ColoringSaveTarget { device, cloud, photos }
 
 /// طريقتا اللعب: رسمةٌ جاهزةٌ تُلوَّن، أو ورقةٌ بيضاء يرسم عليها الطفلُ بنفسه.
 enum ColoringMode { ready, free }
@@ -93,6 +113,20 @@ class MagicColoringScreenState extends State<MagicColoringScreen> {
   /// `null`: شاشةُ الاختيار بين الطريقتين.
   ColoringMode? _mode;
 
+  String get _owner => widget.account?.studentId ?? 'guest';
+  ColoringCloud? get _cloud => widget.account?.cloud;
+
+  /// «لوحاتي في السحابة»، و`null` قبل أن تُحمَّل.
+  List<CloudArtwork>? _cloudItems;
+  CloudProblem? _cloudProblem;
+
+  /// اللوحةُ مفتوحةٌ من السحابة: حفظُها فيها يحلّ محلّها.
+  String? _cloudId;
+  ColoringSaveTarget? _savedTo;
+
+  @visibleForTesting
+  List<CloudArtwork>? get cloudItems => _cloudItems;
+
   /// موضعُ اللوحة في «لوحاتي» إن فُتحت منها: حفظُها يحلّ محلّ القديمة.
   int? _galleryIndex;
 
@@ -119,6 +153,7 @@ class MagicColoringScreenState extends State<MagicColoringScreen> {
     super.initState();
     unawaited(_loadSet());
     unawaited(_loadGallery());
+    unawaited(_loadCloud());
     try {
       (widget.playIntro ?? () => StudentSoundService.instance.playGameIntro(MagicColoringScreen.introClip))();
     } catch (error) {
@@ -149,7 +184,7 @@ class MagicColoringScreenState extends State<MagicColoringScreen> {
   }
 
   Future<void> _loadGallery() async {
-    final gallery = await ColoringGallery.load();
+    final gallery = await ColoringGallery.load(owner: _owner);
     if (!mounted) {
       for (final c in gallery) {
         c.dispose();
@@ -186,8 +221,25 @@ class MagicColoringScreenState extends State<MagicColoringScreen> {
   /// يسأل ثم يمحو اللوحةَ من «لوحاتي» على الجهاز.
   Future<void> _confirmDelete(int index) async {
     if (index < 0 || index >= _gallery.length) return;
+    final yes = await _askDelete(CustomPaint(painter: _gallery[index].painter(outline: 4)));
+    if (yes != true || !mounted) return;
+    final ok = await ColoringGallery.delete(index, owner: _owner);
+    if (!mounted) return;
+    if (!ok) {
+      _toast(tr('coloring.saveFailed'));
+      return;
+    }
+    // ‏لوحةٌ مفتوحةٌ من «لوحاتي»: موضعُها يتبع الحذف، أو تصير جديدةً إن حُذفت هي.
+    final open = _galleryIndex;
+    if (open != null) _galleryIndex = open == index ? null : (open > index ? open - 1 : open);
+    await _loadGallery();
+    _toast(tr('coloring.deleted'));
+  }
+
+  /// نافذةُ «حذف هذه اللوحة؟» بصورتها — للجهاز وللسحابة.
+  Future<bool?> _askDelete(Widget preview) {
     HapticFeedback.mediumImpact();
-    final yes = await showDialog<bool>(
+    return showDialog<bool>(
       context: context,
       builder: (dialog) => Directionality(
         textDirection: StudentSettings.direction,
@@ -215,7 +267,7 @@ class MagicColoringScreenState extends State<MagicColoringScreen> {
                   ),
                   child: ClipRRect(
                     borderRadius: BorderRadius.circular(14),
-                    child: CustomPaint(painter: _gallery[index].painter(outline: 4)),
+                    child: preview,
                   ),
                 ),
               ),
@@ -240,19 +292,75 @@ class MagicColoringScreenState extends State<MagicColoringScreen> {
         ),
       ),
     );
-    if (yes != true || !mounted) return;
-    final ok = await ColoringGallery.delete(index);
-    if (!mounted) return;
-    if (!ok) {
-      _toast(tr('coloring.saveFailed'));
-      return;
-    }
-    // ‏لوحةٌ مفتوحةٌ من «لوحاتي»: موضعُها يتبع الحذف، أو تصير جديدةً إن حُذفت هي.
-    final open = _galleryIndex;
-    if (open != null) _galleryIndex = open == index ? null : (open > index ? open - 1 : open);
-    await _loadGallery();
-    _toast(tr('coloring.deleted'));
   }
+
+  // ── السحابة ──
+
+  Future<void> _loadCloud() async {
+    final cloud = _cloud;
+    if (cloud == null) return;
+    try {
+      final items = await cloud.list();
+      if (mounted) {
+        setState(() {
+          _cloudItems = items;
+          _cloudProblem = null;
+        });
+      }
+    } on CloudException catch (error) {
+      debugPrint('[coloring] cloud list: ${error.problem}');
+      if (mounted) setState(() => _cloudProblem = error.problem);
+    }
+  }
+
+  String _cloudMessage(CloudProblem problem, [String? said]) => switch (problem) {
+        CloudProblem.notDeployed => tr('coloring.cloud.notDeployed'),
+        CloudProblem.full => said ?? tr('coloring.cloud.full'),
+        CloudProblem.session => tr('coloring.cloud.session'),
+        CloudProblem.unavailable => tr('coloring.cloud.unavailable'),
+      };
+
+  Future<void> _openCloud(CloudArtwork item) async {
+    final cloud = _cloud;
+    if (cloud == null) return;
+    HapticFeedback.selectionClick();
+    try {
+      final artwork = await cloud.open(item.id);
+      if (!mounted) return;
+      if (artwork == null) {
+        _toast(tr('coloring.cloud.unavailable'));
+        return;
+      }
+      _mode = artwork is FreeDrawingController ? ColoringMode.free : ColoringMode.ready;
+      if (artwork is FreeDrawingController) _tool = ColoringTool.brush;
+      _replaceController(artwork, galleryIndex: null);
+      _cloudId = item.id;
+    } on CloudException catch (error) {
+      if (mounted) _toast(_cloudMessage(error.problem, error.message));
+    }
+  }
+
+  Future<void> _deleteCloud(CloudArtwork item) async {
+    final cloud = _cloud;
+    if (cloud == null) return;
+    final yes = await _askDelete(_cloudThumb(item));
+    if (yes != true || !mounted) return;
+    try {
+      await cloud.delete(item.id);
+      if (_cloudId == item.id) _cloudId = null;
+      await _loadCloud();
+      if (mounted) _toast(tr('coloring.deleted'));
+    } on CloudException catch (error) {
+      if (mounted) _toast(_cloudMessage(error.problem, error.message));
+    }
+  }
+
+  Widget _cloudThumb(CloudArtwork item) => Image.network(
+        _cloud!.imageUrl(item.id).toString(),
+        headers: _cloud!.imageHeaders,
+        fit: BoxFit.cover,
+        errorBuilder: (_, __, ___) => const Center(child: Text('☁️', style: TextStyle(fontSize: 34))),
+      );
 
   void _openArtwork(int index) {
     final saved = _gallery[index];
@@ -264,6 +372,7 @@ class MagicColoringScreenState extends State<MagicColoringScreen> {
     if (copy is FreeDrawingController) _tool = ColoringTool.brush;
     _replaceController(copy, galleryIndex: index);
   }
+
 
   /// ورقةٌ بيضاءُ جديدة: قلمٌ أسودُ رفيعٌ في اليد، ليرسم الطفلُ خطوطَه أوّلاً.
   void _startFree() {
@@ -287,6 +396,7 @@ class MagicColoringScreenState extends State<MagicColoringScreen> {
     setState(() {
       _controller = next;
       _galleryIndex = galleryIndex;
+      _cloudId = null;
       _celebrating = false;
     });
     if (old != null) _disposeAfterFrame([old]);
@@ -315,6 +425,8 @@ class MagicColoringScreenState extends State<MagicColoringScreen> {
     _openDrawing(next.first);
   }
 
+  /// «احفظ لوحتي»: يختار الطالبُ أين — على هذا الجهاز، أو في السحابة، أو في
+  /// استوديو الجهاز.
   Future<void> _save() async {
     final controller = _controller;
     if (controller == null || _saving) return;
@@ -322,18 +434,147 @@ class MagicColoringScreenState extends State<MagicColoringScreen> {
       _toast(tr('coloring.empty'));
       return;
     }
+    HapticFeedback.selectionClick();
+    final cloudReady = _cloud != null && _cloudProblem != CloudProblem.notDeployed;
+    final target = await showModalBottomSheet<ColoringSaveTarget>(
+      context: context,
+      showDragHandle: true,
+      builder: (sheet) => Directionality(
+        textDirection: StudentSettings.direction,
+        child: SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text('💾 ${tr('coloring.saveWhere')}',
+                    style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900)),
+                const SizedBox(height: 8),
+                _saveOption(sheet,
+                    key: 'coloring-save-device',
+                    emoji: '📱',
+                    title: tr('coloring.save.device'),
+                    subtitle: tr('coloring.save.deviceSub'),
+                    target: ColoringSaveTarget.device),
+                if (_cloud != null)
+                  _saveOption(sheet,
+                      key: 'coloring-save-cloud',
+                      emoji: '☁️',
+                      title: tr('coloring.save.cloud'),
+                      subtitle: cloudReady ? tr('coloring.save.cloudSub') : tr('coloring.cloud.notDeployed'),
+                      target: cloudReady ? ColoringSaveTarget.cloud : null),
+                _saveOption(sheet,
+                    key: 'coloring-save-photos',
+                    emoji: '🖼️',
+                    title: tr('coloring.save.photos'),
+                    subtitle: tr('coloring.save.photosSub'),
+                    target: ColoringSaveTarget.photos),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+    if (target == null || !mounted) return;
     setState(() => _saving = true);
-    final ok = await ColoringGallery.save(controller, replacing: _galleryIndex);
+    final ok = switch (target) {
+      ColoringSaveTarget.device => await _saveDevice(controller),
+      ColoringSaveTarget.cloud => await _saveCloud(controller),
+      ColoringSaveTarget.photos => await _savePhotos(controller),
+    };
     if (!mounted) return;
     setState(() => _saving = false);
+    if (ok) await _celebrate(controller, target);
+  }
+
+  Widget _saveOption(
+    BuildContext sheet, {
+    required String key,
+    required String emoji,
+    required String title,
+    required String subtitle,
+    required ColoringSaveTarget? target,
+  }) =>
+      ListTile(
+        key: ValueKey(key),
+        enabled: target != null,
+        leading: CircleAvatar(
+          backgroundColor: const Color(0xFFFCE7F3),
+          child: Text(emoji, style: const TextStyle(fontSize: 22)),
+        ),
+        title: Text(title, style: const TextStyle(fontWeight: FontWeight.w900)),
+        subtitle: Text(subtitle),
+        onTap: target == null ? null : () => Navigator.of(sheet).pop(target),
+      );
+
+  Future<bool> _saveDevice(ColoringArtwork controller) async {
+    final ok = await ColoringGallery.save(controller, owner: _owner, replacing: _galleryIndex);
+    if (!mounted) return false;
     if (!ok) {
       _toast(tr('coloring.saveFailed'));
-      return;
+      return false;
     }
-    _colored.add(controller.artworkId);
     _galleryIndex = 0;
     unawaited(_loadGallery());
-    setState(() => _celebrating = true);
+    return true;
+  }
+
+  Future<bool> _saveCloud(ColoringArtwork controller) async {
+    final cloud = _cloud;
+    if (cloud == null) return false;
+    try {
+      final saved = await cloud.save(
+        controller,
+        title: controller.title(arabic: StudentSettings.isArabic),
+        replaces: _cloudId,
+      );
+      _cloudId = saved.id.isEmpty ? null : saved.id;
+      unawaited(_loadCloud());
+      return true;
+    } on CloudException catch (error) {
+      if (error.problem == CloudProblem.notDeployed && mounted) {
+        setState(() => _cloudProblem = CloudProblem.notDeployed);
+      }
+      if (mounted) _toast(_cloudMessage(error.problem, error.message));
+      return false;
+    }
+  }
+
+  /// صورةٌ بضلع ١٠٢٤ في استوديو الجهاز — الصور في iOS والمعرض في أندرويد.
+  Future<bool> _savePhotos(ColoringArtwork controller) async {
+    final png = await controller.toPng(size: 1024);
+    if (png == null) {
+      if (mounted) _toast(tr('chat.art.saveToPhotosFailed'));
+      return false;
+    }
+    final saver = widget.saveToPhotos ??
+        (Uint8List bytes) async {
+          if (!await Gal.hasPermission() && !await Gal.requestPermission()) {
+            if (mounted) _toast(tr('chat.art.saveDenied'));
+            return false;
+          }
+          await Gal.putImageBytes(bytes, name: 'manara_${DateTime.now().millisecondsSinceEpoch}');
+          return true;
+        };
+    try {
+      return await saver(png);
+    } catch (error) {
+      debugPrint('[coloring] photos save failed: $error');
+      if (mounted) {
+        _toast(tr(error is GalException && error.type == GalExceptionType.permissionDenied
+            ? 'chat.art.saveDenied'
+            : 'chat.art.saveToPhotosFailed'));
+      }
+      return false;
+    }
+  }
+
+  Future<void> _celebrate(ColoringArtwork controller, ColoringSaveTarget target) async {
+    _colored.add(controller.artworkId);
+    setState(() {
+      _savedTo = target;
+      _celebrating = true;
+    });
     _confetti.play();
     try {
       if (widget.cheer != null) {
@@ -517,6 +758,7 @@ class MagicColoringScreenState extends State<MagicColoringScreen> {
 
   /// «لوحاتي»: اللوحاتُ المحفوظة بنوعيها، وعلى كلٍّ منها زرُّ حذف.
   List<Widget> _gallerySlivers(BuildContext context) => [
+        ..._cloudSlivers(context),
         if (_gallery.isNotEmpty) ...[
                   SliverToBoxAdapter(child: _sectionLabel(context, '🖼️ ${tr('coloring.myArt')}')),
                   SliverToBoxAdapter(
@@ -570,6 +812,70 @@ class MagicColoringScreenState extends State<MagicColoringScreen> {
                   ),
         ],
       ];
+
+  /// «لوحاتي في السحابة»: تُفتح من أيّ جهاز، وعلى كلٍّ منها زرُّ حذف.
+  List<Widget> _cloudSlivers(BuildContext context) {
+    final items = _cloudItems;
+    if (_cloud == null || items == null || items.isEmpty) return const [];
+    return [
+      SliverToBoxAdapter(child: _sectionLabel(context, '☁️ ${tr('coloring.cloud.title')}')),
+      SliverToBoxAdapter(
+        child: SizedBox(
+          height: 128,
+          child: ListView.separated(
+            padding: const EdgeInsets.fromLTRB(16, 10, 16, 4),
+            scrollDirection: Axis.horizontal,
+            clipBehavior: Clip.none,
+            itemCount: items.length,
+            separatorBuilder: (_, __) => const SizedBox(width: 14),
+            itemBuilder: (context, i) => Stack(
+              clipBehavior: Clip.none,
+              children: [
+                GestureDetector(
+                  key: ValueKey('coloring-cloud-$i'),
+                  onTap: () => unawaited(_openCloud(items[i])),
+                  child: Container(
+                    width: 104,
+                    height: 104,
+                    padding: const EdgeInsets.all(4),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: const Color(0xFF93C5FD), width: 2),
+                      boxShadow: const [BoxShadow(color: Color(0x22000000), blurRadius: 8, offset: Offset(0, 3))],
+                    ),
+                    child: ClipRRect(borderRadius: BorderRadius.circular(12), child: _cloudThumb(items[i])),
+                  ),
+                ),
+                PositionedDirectional(
+                  top: -8,
+                  end: -8,
+                  child: Semantics(
+                    button: true,
+                    label: tr('coloring.delete'),
+                    child: GestureDetector(
+                      key: ValueKey('coloring-cloud-delete-$i'),
+                      onTap: () => unawaited(_deleteCloud(items[i])),
+                      child: Container(
+                        width: 34,
+                        height: 34,
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFDC2626),
+                          shape: BoxShape.circle,
+                          border: Border.all(color: Colors.white, width: 2.5),
+                        ),
+                        child: const Icon(Icons.delete_rounded, size: 18, color: Colors.white),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    ];
+  }
 
   // ── شاشةُ الاختيار: تلوينٌ جاهز، أو رسمٌ حرّ ──
 
@@ -1054,7 +1360,11 @@ class MagicColoringScreenState extends State<MagicColoringScreen> {
                       ),
                       const SizedBox(height: 4),
                       Text(
-                        '⭐⭐⭐  ${tr('coloring.savedSub')}',
+                        '⭐⭐⭐  ${tr(switch (_savedTo) {
+                          ColoringSaveTarget.cloud => 'coloring.saved.cloud',
+                          ColoringSaveTarget.photos => 'coloring.saved.photos',
+                          _ => 'coloring.savedSub',
+                        })}',
                         textAlign: TextAlign.center,
                         style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: Color(0xFF6B21A8)),
                       ),

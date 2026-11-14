@@ -118,7 +118,9 @@ jobs:
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
-          API_BASE_URL: ${{ secrets.API_BASE_URL }}
+          # ‏خادمٌ تجريبيٌّ لهذا الفرع إن ضُبط سرُّه (PREVIEW_API_BASE_URL): مساراتُ
+          # ‏الصور واللوحات السحابية فيه قبل أن تصل الخادمَ الأساسيّ. وإلا فالأساسيّ.
+          API_BASE_URL: ${{ secrets.PREVIEW_API_BASE_URL || secrets.API_BASE_URL }}
 
       - name: Verify release signature and package
         # ‏موقَّعٌ بمفتاح الإصدار لا بمفتاح التطوير، ومعرّفُه com.manara.student.

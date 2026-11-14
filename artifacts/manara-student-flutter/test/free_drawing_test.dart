@@ -121,10 +121,19 @@ void main() {
     expect(state.controller!.isEmpty, isFalse);
 
     await tester.tap(find.byKey(const ValueKey('coloring-save')));
-    await tester.pump(const Duration(milliseconds: 300));
+
+    for (var i = 0; i < 6; i++) {
+
+      await tester.pump(const Duration(milliseconds: 100));
+
+    }
+    await tester.tap(find.byKey(const ValueKey('coloring-save-device')));
+    for (var i = 0; i < 8; i++) {
+      await tester.pump(const Duration(milliseconds: 100));
+    }
     expect(state.celebrating, isTrue);
     expect(events, ['cheer']);
-    final saved = (await SharedPreferences.getInstance()).getStringList('coloring.gallery.v1')!;
+    final saved = (await SharedPreferences.getInstance()).getStringList(ColoringGallery.keyFor('guest'))!;
     expect(jsonDecode(saved.single)['id'], startsWith(FreeDrawingController.idPrefix));
 
     // ‏«رسمة جديدة» في الرسم الحرّ: ورقةٌ بيضاءُ أخرى.
@@ -147,7 +156,7 @@ void main() {
     await tester.tap(find.byKey(const ValueKey('coloring-delete-confirm')));
     await tester.pump(const Duration(milliseconds: 400));
     await tester.pump(const Duration(milliseconds: 400));
-    expect((await SharedPreferences.getInstance()).getStringList('coloring.gallery.v1'), isEmpty);
+    expect((await SharedPreferences.getInstance()).getStringList(ColoringGallery.keyFor('guest')), isEmpty);
     expect(find.byKey(const ValueKey('coloring-art-delete-0')), findsNothing);
     await tester.pump(const Duration(seconds: 4));
   });

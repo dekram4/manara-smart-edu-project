@@ -128,9 +128,9 @@ void main() {
     test('«لوحاتي» تحفظ الأحدثَ أوّلاً ولا تتجاوز حدّها', () async {
       for (var i = 0; i < ColoringGallery.maxArtworks + 3; i++) {
         final c = ColoringController(mandala(i))..fillAt(const Offset(150, 150), const Color(0xFFEF4444));
-        expect(await ColoringGallery.save(c), isTrue);
+        expect(await ColoringGallery.save(c, owner: 'guest'), isTrue);
       }
-      final gallery = await ColoringGallery.load();
+      final gallery = await ColoringGallery.load(owner: 'guest');
       expect(gallery, hasLength(ColoringGallery.maxArtworks));
       expect(gallery.first.artworkId, 'mandala:${ColoringGallery.maxArtworks + 2}');
     });
@@ -184,12 +184,24 @@ void main() {
       expect((state.controller! as ColoringController).strokes, isNotEmpty);
 
       await tester.tap(find.byKey(const ValueKey('coloring-save')));
-      await tester.pump(const Duration(milliseconds: 300));
+
+      for (var i = 0; i < 6; i++) {
+
+        await tester.pump(const Duration(milliseconds: 100));
+
+      }
+      // ‏أين يحفظ: على الجهاز، أو في استوديو الجهاز (ولا سحابةَ بلا حساب).
+      expect(find.byKey(const ValueKey('coloring-save-photos')), findsOneWidget);
+      expect(find.byKey(const ValueKey('coloring-save-cloud')), findsNothing);
+      await tester.tap(find.byKey(const ValueKey('coloring-save-device')));
+      for (var i = 0; i < 8; i++) {
+        await tester.pump(const Duration(milliseconds: 100));
+      }
       expect(state.celebrating, isTrue);
       expect(events, contains('cheer'));
       expect(find.text('أحسنت يا بطل!'), findsOneWidget);
       final prefs = await SharedPreferences.getInstance();
-      expect(prefs.getStringList('coloring.gallery.v1'), hasLength(1));
+      expect(prefs.getStringList(ColoringGallery.keyFor('guest')), hasLength(1));
 
       await tester.tap(find.byKey(const ValueKey('coloring-next')));
       await tester.pump(const Duration(seconds: 2));
@@ -202,12 +214,15 @@ void main() {
 
   test('حذفُ لوحةٍ من «لوحاتي» يمحوها من الجهاز وحدها', () async {
     for (var i = 0; i < 3; i++) {
-      await ColoringGallery.save(ColoringController(mandala(i))..fillAt(const Offset(150, 150), const Color(0xFFEF4444)));
+      await ColoringGallery.save(
+        ColoringController(mandala(i))..fillAt(const Offset(150, 150), const Color(0xFFEF4444)),
+        owner: 'guest',
+      );
     }
-    expect(await ColoringGallery.delete(1), isTrue);
-    final left = (await ColoringGallery.load()).map((c) => c.artworkId).toList();
+    expect(await ColoringGallery.delete(1, owner: 'guest'), isTrue);
+    final left = (await ColoringGallery.load(owner: 'guest')).map((c) => c.artworkId).toList();
     expect(left, ['mandala:2', 'mandala:0']);
-    expect(await ColoringGallery.delete(9), isFalse);
+    expect(await ColoringGallery.delete(9, owner: 'guest'), isFalse);
   });
 
   testWidgets('اللوحةُ تُرسم صورةَ PNG لتُرسل في الدردشة', (tester) async {
@@ -221,7 +236,10 @@ void main() {
     await tester.binding.setSurfaceSize(const Size(800, 1100));
     addTearDown(() => tester.binding.setSurfaceSize(null));
     for (var i = 0; i < 2; i++) {
-      await ColoringGallery.save(ColoringController(mandala(i))..fillAt(const Offset(150, 150), const Color(0xFFEF4444)));
+      await ColoringGallery.save(
+        ColoringController(mandala(i))..fillAt(const Offset(150, 150), const Color(0xFFEF4444)),
+        owner: 'guest',
+      );
     }
     await tester.pumpWidget(MaterialApp(
       home: MagicColoringScreen(random: math.Random(1), playIntro: () {}, cheer: () async {}),
@@ -236,14 +254,14 @@ void main() {
     await tester.pump(const Duration(milliseconds: 400));
     await tester.tap(find.byKey(const ValueKey('coloring-delete-cancel')));
     await tester.pump(const Duration(milliseconds: 400));
-    expect((await ColoringGallery.load()), hasLength(2));
+    expect((await ColoringGallery.load(owner: 'guest')), hasLength(2));
 
     await tester.tap(find.byKey(const ValueKey('coloring-art-delete-0')));
     await tester.pump(const Duration(milliseconds: 400));
     await tester.tap(find.byKey(const ValueKey('coloring-delete-confirm')));
     await tester.pump(const Duration(milliseconds: 400));
     await tester.pump(const Duration(milliseconds: 400));
-    final left = await ColoringGallery.load();
+    final left = await ColoringGallery.load(owner: 'guest');
     expect(left.map((c) => c.artworkId), ['mandala:0']);
     expect(find.byKey(const ValueKey('coloring-art-delete-1')), findsNothing);
     await tester.pump(const Duration(seconds: 4));

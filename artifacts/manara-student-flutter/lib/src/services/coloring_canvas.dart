@@ -334,16 +334,26 @@ class ColoringPainter extends CustomPainter {
 class ColoringGallery {
   ColoringGallery._();
 
-  static const _galleryKey = 'coloring.gallery.v1';
+  /// «لوحاتي» لكلّ طالبٍ وحده: `coloring.gallery.v2.<معرّفه>`.
+  ///
+  /// ── لماذا بمعرّف الطالب ──
+  /// التابلتُ الواحد يتناوبه أكثرُ من طفل (سادن وجوري)، وكانت «لوحاتي» مفتاحاً
+  /// واحداً للجهاز كلّه: ترى جوري لوحاتِ سادن وتحذفها. فصار لكلّ معرّفٍ مفتاحُه،
+  /// ولا يُقرأ مفتاحُ غيره أبداً. والمفتاحُ القديم (`v1`) لا يُقرأ: لا يُعرف لمن
+  /// كان، فلا يُنسب إلى أحد.
+  static const _galleryKey = 'coloring.gallery.v2';
+
+  @visibleForTesting
+  static String keyFor(String owner) => '$_galleryKey.${owner.trim().isEmpty ? 'guest' : owner.trim()}';
   static const _recentKey = 'coloring.recent.v1';
 
   /// أقصى ما يُحفظ — الأقدمُ يخرج.
   static const maxArtworks = 12;
 
-  static Future<List<ColoringArtwork>> load() async {
+  static Future<List<ColoringArtwork>> load({required String owner}) async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      final raw = prefs.getStringList(_galleryKey) ?? const [];
+      final raw = prefs.getStringList(keyFor(owner)) ?? const [];
       return [
         for (final item in raw)
           if (_decode(item) case final controller?) controller,
@@ -364,16 +374,16 @@ class ColoringGallery {
 
   /// يحفظ [controller] في أوّل «لوحاتي». [replacing] لوحةٌ فُتحت من المعرض
   /// فعُدّلت: تحلّ النسخةُ الجديدة محلّها لا بجانبها.
-  static Future<bool> save(ColoringArtwork controller, {int? replacing}) async {
+  static Future<bool> save(ColoringArtwork controller, {required String owner, int? replacing}) async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      final list = List.of(prefs.getStringList(_galleryKey) ?? const <String>[]);
+      final list = List.of(prefs.getStringList(keyFor(owner)) ?? const <String>[]);
       if (replacing != null && replacing >= 0 && replacing < list.length) list.removeAt(replacing);
       list.insert(0, jsonEncode(controller.toJson()));
       while (list.length > maxArtworks) {
         list.removeLast();
       }
-      return prefs.setStringList(_galleryKey, list);
+      return prefs.setStringList(keyFor(owner), list);
     } catch (error) {
       debugPrint('[coloring] artwork not saved: $error');
       return false;
@@ -381,13 +391,13 @@ class ColoringGallery {
   }
 
   /// يمحو اللوحةَ ذات الموضع [index] من «لوحاتي» على الجهاز نهائياً.
-  static Future<bool> delete(int index) async {
+  static Future<bool> delete(int index, {required String owner}) async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      final list = List.of(prefs.getStringList(_galleryKey) ?? const <String>[]);
+      final list = List.of(prefs.getStringList(keyFor(owner)) ?? const <String>[]);
       if (index < 0 || index >= list.length) return false;
       list.removeAt(index);
-      return prefs.setStringList(_galleryKey, list);
+      return prefs.setStringList(keyFor(owner), list);
     } catch (error) {
       debugPrint('[coloring] artwork not deleted: $error');
       return false;

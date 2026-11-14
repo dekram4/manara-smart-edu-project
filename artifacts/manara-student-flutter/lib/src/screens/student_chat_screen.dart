@@ -11,6 +11,7 @@ import 'package:image_picker/image_picker.dart';
 import '../models/student_profile.dart';
 import '../l10n/student_strings.dart';
 import '../services/coloring_canvas.dart';
+import '../services/image_compress.dart';
 import '../services/duel_voice_recorder.dart';
 import '../services/student_auth_service.dart';
 import '../services/student_media_permissions.dart';
@@ -51,7 +52,7 @@ class StudentChatScreen extends StatefulWidget {
   final DuelVoiceRecorder? recorder;
   final Future<MicAccess> Function()? micAccess;
 
-  /// «لوحاتي» ورسمُ اللوحة صورةً. وبلا قيمة: [ColoringGallery.load]
+  /// «لوحاتي» ورسمُ اللوحة صورةً. وبلا قيمة: [ColoringGallery.load] بمعرّف الطالب
   /// و[renderColoringPng].
   final Future<List<ColoringArtwork>> Function()? loadArtworks;
   final Future<Uint8List?> Function(ColoringArtwork artwork)? renderArtwork;
@@ -97,6 +98,10 @@ class _StudentChatScreenState extends State<StudentChatScreen>
 
   // ── اللوحات ──
   bool _sendingImage = false;
+
+  /// هل على الخادم مسارُ الصور؟ `null` حتى يُعرف. خادمٌ أقدمُ من التطبيق يردّ
+  /// 404 `not_found` — فيُقال ذلك عند الإرفاق مرّةً، بلا ضغطٍ ولا رفعٍ يضيع.
+  bool? _imagesDeployed;
 
   /// اللوحاتُ التي جُلبت أو أُرسلت في هذه الزيارة — في الذاكرة وحدها، لا على القرص.
   final Map<String, Uint8List> _images = {};
@@ -261,6 +266,7 @@ class _StudentChatScreenState extends State<StudentChatScreen>
           : <_ChatPeer>[];
       if (!mounted) return;
       _ephemeral = messageData['ephemeral'] == true;
+      if (_imagesDeployed == null) unawaited(_probeImages());
       _visit ??= messageData['visit'] is String
           ? messageData['visit'] as String
           : null;
@@ -520,10 +526,31 @@ class _StudentChatScreenState extends State<StudentChatScreen>
 
   bool get _recipientIsTeacher => _recipient.startsWith('teacher:');
 
+  /// يسأل الخادمَ عن صورةٍ لا وجود لها: المسارُ القائمُ يقول «غير موجودة»، والغائبُ
+  /// يقول `not_found` بلا مسار. ولا يُعرف شيءٌ إن لم يُجب — فيُحاوَل عند الإرسال.
+  Future<void> _probeImages() async {
+    final endpoint = _endpoint('image/chatimage_probe_00000000');
+    if (endpoint == null || _token == null) return;
+    try {
+      final response = await _client
+          .get(endpoint, headers: _headers)
+          .timeout(const Duration(seconds: 10));
+      final missing = response.statusCode == 404 && _decode(response)['code'] == 'not_found';
+      if (mounted) setState(() => _imagesDeployed = !missing);
+    } catch (_) {
+      // الشبكة: يبقى غيرَ معروف.
+    }
+  }
+
   /// زرُّ الإرفاق: صورةٌ من «لوحاتي»، أو من استوديو الجهاز.
   Future<void> _attach() async {
     if (_sending || _sendingVoice || _sendingImage || _recording) return;
     // ‏الصورُ واللوحاتُ بين الطلاب وحدهم — والخادمُ يرفضها للمعلّم أيضاً.
+    if (_imagesDeployed == false) {
+      StudentSoundService.instance.play(StudentSoundCue.warning);
+      _toast(tr('chat.art.notDeployed'));
+      return;
+    }
     if (_recipientIsTeacher) {
       StudentSoundService.instance.play(StudentSoundCue.warning);
       _toast(tr('chat.attach.studentsOnly'));
@@ -602,6 +629,11 @@ class _StudentChatScreenState extends State<StudentChatScreen>
       return;
     }
     if (!mounted || bytes == null || bytes.isEmpty) return;
+    // ‏ضغطٌ على الجهاز: صورةُ كاميرا تصير بضعَ مئاتٍ من الكيلوبايتات.
+    setState(() => _sendingImage = true);
+    bytes = await compressForUpload(bytes);
+    if (!mounted) return;
+    setState(() => _sendingImage = false);
     if (bytes.length > chatImageMaxBytes) {
       _toast(tr('chat.attach.tooBig'));
       return;
@@ -639,7 +671,8 @@ class _StudentChatScreenState extends State<StudentChatScreen>
     if (_sending || _sendingVoice || _sendingImage || _recording) return;
     StudentSoundService.instance.playTap();
     final artworks =
-        await (widget.loadArtworks ?? ColoringGallery.load)();
+        await (widget.loadArtworks ??
+            () => ColoringGallery.load(owner: widget.profile.id))();
     if (!mounted) return;
     if (artworks.isEmpty) {
       _toast(tr('chat.art.none'));
@@ -713,7 +746,8 @@ class _StudentChatScreenState extends State<StudentChatScreen>
       ),
     );
     if (chosen == null || !mounted) return;
-    final bytes = await (widget.renderArtwork ?? (a) => a.toPng())(chosen);
+    final rendered = await (widget.renderArtwork ?? (a) => a.toPng())(chosen);
+    final bytes = rendered == null ? null : await compressForUpload(rendered);
     if (!mounted) return;
     if (bytes == null || bytes.isEmpty) {
       _toast(tr('chat.art.sendFailed'));
@@ -746,6 +780,7 @@ class _StudentChatScreenState extends State<StudentChatScreen>
           .timeout(const Duration(seconds: 30));
       final data = _decode(response);
       if (response.statusCode != 201) {
+        if (response.statusCode == 404 && data['code'] == 'not_found') _imagesDeployed = false;
         throw _failure(
           response,
           fallbackKey: 'chat.art.sendFailed',

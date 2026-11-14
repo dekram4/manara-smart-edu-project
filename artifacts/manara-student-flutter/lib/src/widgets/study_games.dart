@@ -90,6 +90,42 @@ StudyQuickQuestion? _collectOf(StudyGame game, String target) {
 /// الرفُّ أغلفةٌ مجسّمةٌ بطوله في صفحة المذاكرة (تمرّره الصفحة)، وكلُّ لعبةٍ
 /// تُفتح في صفحةٍ كاملةٍ فوقها، بشريطٍ علويٍّ ثابتٍ يُنتقل منه إلى أيّ لعبةٍ
 /// أخرى فوراً بلا رجوع.
+/// لعبةٌ إضافيّة في رفّ ألعاب المادة بالغلاف المجسّم نفسه — «لوحة الألوان
+/// السحرية» في الصفوف غير الروضة. لا أسئلةَ لها: لمسةٌ تفتح شاشتَها.
+class StudyShelfExtra {
+  const StudyShelfExtra({
+    required this.key,
+    required this.emoji,
+    required this.title,
+    required this.hint,
+    required this.colors,
+    required this.art,
+    required this.onTap,
+  });
+
+  final Key key;
+  final String emoji;
+  final String title;
+  final String hint;
+  final List<Color> colors;
+
+  /// بطلُ الغلاف: يبرز من فوق إطاره ويطفو.
+  final Widget art;
+  final VoidCallback onTap;
+}
+
+/// غلافُ [StudyShelfExtra] وحده — حيث لا رفَّ ألعابٍ (درسٌ لم يُختر بعد).
+class StudyShelfTile extends StatelessWidget {
+  const StudyShelfTile({required this.extra, this.width = 210, super.key});
+
+  final StudyShelfExtra extra;
+  final double width;
+
+  @override
+  Widget build(BuildContext context) =>
+      SizedBox(width: width, child: _ArcadeCover(spec: _CoverSpec.extra(extra, 0)));
+}
+
 class StudyGamesTab extends StatefulWidget {
   const StudyGamesTab({
     required this.load,
@@ -97,8 +133,12 @@ class StudyGamesTab extends StatefulWidget {
     this.fresh,
     this.seenKey,
     this.cached,
+    this.extras = const [],
     super.key,
   });
+
+  /// ألعابٌ تُضاف إلى الرفّ بعد ألعاب الأسئلة، بالحجم والحركة نفسيهما.
+  final List<StudyShelfExtra> extras;
 
   final Future<StudyGamesPack> Function() load;
 
@@ -300,35 +340,46 @@ class _StudyGamesTabState extends State<StudyGamesTab> {
 
   @override
   Widget build(BuildContext context) {
+    final extras = widget.extras;
     if (_loading) {
-      return _Waiting(emoji: '🎲', text: tr('study.games.loading'));
+      return Column(children: [
+        _Waiting(emoji: '🎲', text: tr('study.games.loading')),
+        if (extras.isNotEmpty) _ArcadeShelf(extras: extras),
+      ]);
     }
     final error = _error;
     if (error != null) {
-      return Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Text('🧩', style: TextStyle(fontSize: 52)),
-            const SizedBox(height: 12),
-            Text(
-              error,
-              textAlign: TextAlign.center,
-              style: TextStyle(fontSize: 15, height: 1.6, fontWeight: FontWeight.w800, color: StudentSurface.ink(context)),
-            ),
-            const SizedBox(height: 16),
-            _GameButton(label: tr('study.again'), color: _Palette.violet, onPressed: _fetch),
-          ],
-        ),
-      );
+      return Column(children: [
+        _errorView(context, error),
+        if (extras.isNotEmpty) _ArcadeShelf(extras: extras),
+      ]);
     }
     final pack = _pack;
     final arcade = pack == null ? null : arcadeGameOf(pack);
-    if (arcade == null) return const SizedBox.shrink();
+    if (arcade == null) {
+      return extras.isEmpty ? const SizedBox.shrink() : _ArcadeShelf(extras: extras);
+    }
     if (_preparing) return _Waiting(emoji: '✨', text: tr('study.games.fresh'));
-    return _ArcadeShelf(game: arcade, onOpen: _open);
+    return _ArcadeShelf(game: arcade, onOpen: _open, extras: extras);
   }
+
+  Widget _errorView(BuildContext context, String error) => Padding(
+      padding: const EdgeInsets.all(24),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Text('🧩', style: TextStyle(fontSize: 52)),
+          const SizedBox(height: 12),
+          Text(
+            error,
+            textAlign: TextAlign.center,
+            style: TextStyle(fontSize: 15, height: 1.6, fontWeight: FontWeight.w800, color: StudentSurface.ink(context)),
+          ),
+          const SizedBox(height: 16),
+          _GameButton(label: tr('study.again'), color: _Palette.violet, onPressed: _fetch),
+        ],
+      ),
+    );
 }
 
 class _Waiting extends StatelessWidget {
@@ -391,10 +442,12 @@ class _ArcadeInfo {
 
 /// رفُّ ألعاب الأسئلة: أربعةُ أغلفةٍ، كلٌّ منها يلعب أسئلةَ الدرس بطريقته.
 class _ArcadeShelf extends StatelessWidget {
-  const _ArcadeShelf({required this.game, required this.onOpen});
+  const _ArcadeShelf({this.game, this.onOpen, this.extras = const []});
 
-  final StudyGame game;
-  final ValueChanged<QuizGameStyle> onOpen;
+  /// ألعابُ أسئلة الدرس — أو لا شيء: الرفُّ إذن للإضافيّات وحدها.
+  final StudyGame? game;
+  final ValueChanged<QuizGameStyle>? onOpen;
+  final List<StudyShelfExtra> extras;
 
   @override
   Widget build(BuildContext context) {
@@ -413,10 +466,11 @@ class _ArcadeShelf extends StatelessWidget {
                   style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: StudentSurface.ink(context)),
                 ),
               ),
-              Text(
-                trf('study.games.reward', {'gems': game.gemsReward, 'points': game.pointsReward}),
-                style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w900, color: _Palette.gold),
-              ),
+              if (game != null)
+                Text(
+                  trf('study.games.reward', {'gems': game!.gemsReward, 'points': game!.pointsReward}),
+                  style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w900, color: _Palette.gold),
+                ),
             ],
           ),
           const SizedBox(height: 14),
@@ -428,10 +482,16 @@ class _ArcadeShelf extends StatelessWidget {
               spacing: gap,
               runSpacing: gap + 6,
               children: [
-                for (final style in QuizGameStyle.values)
+                if (game != null)
+                  for (final style in QuizGameStyle.values)
+                    SizedBox(
+                      width: width,
+                      child: _ArcadeCover(spec: _CoverSpec.arcade(style, () => onOpen?.call(style))),
+                    ),
+                for (var i = 0; i < extras.length; i++)
                   SizedBox(
                     width: width,
-                    child: _ArcadeCover(style: style, onTap: () => onOpen(style)),
+                    child: _ArcadeCover(spec: _CoverSpec.extra(extras[i], QuizGameStyle.values.length + i)),
                   ),
               ],
             );
@@ -445,11 +505,83 @@ class _ArcadeShelf extends StatelessWidget {
 /// غلافُ لعبةٍ مجسّم: لوحٌ مائلٌ بمنظورٍ على حافّةٍ سميكةٍ أغمق، فيه خلفيةُ
 /// اللعبة نفسها، وبطلُها (بالونات، سمكة، قطار، هدف) يبرز من فوق إطاره ويطفو،
 /// وشريطُ اسمها في أسفله. تحت الإصبع يستوي اللوحُ وينضغط.
-class _ArcadeCover extends StatefulWidget {
-  const _ArcadeCover({required this.style, required this.onTap});
+/// ما يُرسم على الغلاف: لعبةُ أسئلةٍ بخلفيّتها وبطلها، أو لعبةٌ إضافيّة.
+class _CoverSpec {
+  _CoverSpec.arcade(QuizGameStyle style, this.onTap)
+      : key = ValueKey('arcade-${style.name}'),
+        index = style.index,
+        emoji = _ArcadeInfo.emoji(style),
+        title = _ArcadeInfo.title(style),
+        hint = _ArcadeInfo.hint(style),
+        colors = _ArcadeInfo.colors(style),
+        background = Image.asset(
+          QuizGameArt.background(style),
+          fit: BoxFit.cover,
+          cacheWidth: 480,
+          errorBuilder: (_, __, ___) => ColoredBox(color: _ArcadeInfo.colors(style).last),
+        ),
+        art = QuizGameCoverArt(style: style);
 
-  final QuizGameStyle style;
+  _CoverSpec.extra(StudyShelfExtra extra, this.index)
+      : key = extra.key,
+        emoji = extra.emoji,
+        title = extra.title,
+        hint = extra.hint,
+        colors = extra.colors,
+        onTap = extra.onTap,
+        background = _SplashBackground(colors: extra.colors),
+        art = extra.art;
+
+  final Key key;
+  final int index;
+  final String emoji;
+  final String title;
+  final String hint;
+  final List<Color> colors;
+  final Widget background;
+  final Widget art;
   final VoidCallback onTap;
+}
+
+/// خلفيّةُ غلافٍ بلا صورة: تدرّجُ ألوان اللعبة وبقعُ ألوانٍ مرشوشة.
+class _SplashBackground extends StatelessWidget {
+  const _SplashBackground({required this.colors});
+
+  final List<Color> colors;
+
+  @override
+  Widget build(BuildContext context) => DecoratedBox(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(begin: Alignment.topRight, end: Alignment.bottomLeft, colors: [
+            Color.lerp(colors.first, Colors.white, 0.55)!,
+            Color.lerp(colors.last, Colors.white, 0.35)!,
+          ]),
+        ),
+        child: Stack(
+          children: [
+            for (final (x, y, r, c) in const [
+              (-0.8, -0.2, 22.0, Color(0xFFFDE047)),
+              (0.85, 0.1, 18.0, Color(0xFF34D399)),
+              (0.6, 0.75, 26.0, Color(0xFF60A5FA)),
+              (-0.6, 0.55, 16.0, Color(0xFFF472B6)),
+            ])
+              Align(
+                alignment: Alignment(x, y),
+                child: Container(
+                  width: r * 2,
+                  height: r * 2,
+                  decoration: BoxDecoration(color: c.withValues(alpha: 0.6), shape: BoxShape.circle),
+                ),
+              ),
+          ],
+        ),
+      );
+}
+
+class _ArcadeCover extends StatefulWidget {
+  const _ArcadeCover({required this.spec});
+
+  final _CoverSpec spec;
 
   @override
   State<_ArcadeCover> createState() => _ArcadeCoverState();
@@ -457,7 +589,7 @@ class _ArcadeCover extends StatefulWidget {
 
 class _ArcadeCoverState extends State<_ArcadeCover> with SingleTickerProviderStateMixin {
   late final AnimationController _float =
-      AnimationController(vsync: this, duration: Duration(milliseconds: 2300 + widget.style.index * 260));
+      AnimationController(vsync: this, duration: Duration(milliseconds: 2300 + widget.spec.index * 260));
   bool _down = false;
 
   @override
@@ -480,14 +612,14 @@ class _ArcadeCoverState extends State<_ArcadeCover> with SingleTickerProviderSta
 
   @override
   Widget build(BuildContext context) {
-    final style = widget.style;
-    final colors = _ArcadeInfo.colors(style);
+    final spec = widget.spec;
+    final colors = spec.colors;
     final ledge = Color.lerp(colors.first, Colors.black, 0.42)!;
     return Semantics(
       button: true,
-      label: _ArcadeInfo.title(style),
+      label: spec.title,
       child: GestureDetector(
-        key: ValueKey('arcade-${style.name}'),
+        key: spec.key,
         behavior: HitTestBehavior.opaque,
         onTapDown: (_) {
           HapticFeedback.selectionClick();
@@ -495,7 +627,7 @@ class _ArcadeCoverState extends State<_ArcadeCover> with SingleTickerProviderSta
         },
         onTapCancel: () => setState(() => _down = false),
         onTapUp: (_) => setState(() => _down = false),
-        onTap: widget.onTap,
+        onTap: spec.onTap,
         child: AnimatedBuilder(
           animation: _float,
           builder: (context, _) {
@@ -537,12 +669,7 @@ class _ArcadeCoverState extends State<_ArcadeCover> with SingleTickerProviderSta
                             child: Stack(
                               fit: StackFit.expand,
                               children: [
-                                Image.asset(
-                                  QuizGameArt.background(style),
-                                  fit: BoxFit.cover,
-                                  cacheWidth: 480,
-                                  errorBuilder: (_, __, ___) => ColoredBox(color: colors.last),
-                                ),
+                                spec.background,
                                 // ‏لمعةُ زجاجٍ مائلة.
                                 DecoratedBox(
                                   decoration: BoxDecoration(
@@ -574,7 +701,7 @@ class _ArcadeCoverState extends State<_ArcadeCover> with SingleTickerProviderSta
                                         FittedBox(
                                           fit: BoxFit.scaleDown,
                                           child: Text(
-                                            '${_ArcadeInfo.emoji(style)} ${_ArcadeInfo.title(style)}',
+                                            '${spec.emoji} ${spec.title}',
                                             maxLines: 1,
                                             style: const TextStyle(
                                               fontSize: 19,
@@ -585,7 +712,7 @@ class _ArcadeCoverState extends State<_ArcadeCover> with SingleTickerProviderSta
                                           ),
                                         ),
                                         Text(
-                                          _ArcadeInfo.hint(style),
+                                          spec.hint,
                                           maxLines: 1,
                                           overflow: TextOverflow.ellipsis,
                                           textAlign: TextAlign.center,
@@ -607,7 +734,7 @@ class _ArcadeCoverState extends State<_ArcadeCover> with SingleTickerProviderSta
                       right: 8,
                       top: -6 + t * 8,
                       height: 128,
-                      child: IgnorePointer(child: QuizGameCoverArt(style: style)),
+                      child: IgnorePointer(child: spec.art),
                     ),
                     // ‏زرُّ اللعب.
                     PositionedDirectional(
