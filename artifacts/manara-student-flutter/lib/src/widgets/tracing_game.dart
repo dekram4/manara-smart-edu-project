@@ -479,7 +479,7 @@ class TracingGameState extends State<TracingGame> with SingleTickerProviderState
   }
 
   void _miss(String hint) {
-    StudentSoundService.instance.play(StudentSoundCue.warning);
+    StudentSoundService.instance.playTryAgain();
     setState(() {
       _mistakes += 1;
       _reached = -1;

@@ -96,8 +96,8 @@ void _celebrate(bool correct) {
   if (correct) {
     StudentSoundService.instance.playCheer();
   } else {
-    HapticFeedback.lightImpact();
-    StudentSoundService.instance.play(StudentSoundCue.warning);
+    // ‏«حاول مرة ثانية يا بطل» — صوتُ الخطأ الموحّد (والاهتزازُ معه).
+    StudentSoundService.instance.playTryAgain();
   }
 }
 

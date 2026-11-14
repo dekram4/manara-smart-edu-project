@@ -1415,6 +1415,27 @@ class StudentSoundService with WidgetsBindingObserver {
     play(StudentSoundCue.success);
   }
 
+  /// «حاول مرة ثانية يا بطل» — صوتُ الخطأ الموحّد في كلّ سؤالٍ ولعبةٍ داخل
+  /// البطاقات التعليمية: ألعابُ الأسئلة، والتتبّعُ، والمنازلة، وألعابُ الروضة
+  /// الصوتية. المقطعُ نفسُه الذي كان لألعاب الروضة وحدها.
+  static const tryAgainClip = 'audio/kg_games/wrong_answer.mp3';
+
+  /// بين «حاول مرة ثانية» والتي بعدها: أخطاءٌ متتابعة (إصبعٌ يخرج عن الخطّ
+  /// مراراً) لا تتراكب جملةً فوق جملة — تُسمع مرّةً وتكتمل.
+  static const tryAgainCooldown = Duration(milliseconds: 1800);
+  DateTime? _lastTryAgain;
+
+  /// يُشغّل [tryAgainClip] بلا انتظار، مع اهتزازٍ خفيف. يحترم الكتمَ والخلفية.
+  void playTryAgain() {
+    HapticFeedback.lightImpact();
+    if (muted.value || _backgrounded) return;
+    final now = DateTime.now();
+    final last = _lastTryAgain;
+    if (last != null && now.difference(last) < tryAgainCooldown) return;
+    _lastTryAgain = now;
+    unawaited(playClip(tryAgainClip).catchError((Object _) => false));
+  }
+
   /// التصفيقُ النقيّ: «تصفيق.mp3» منسوخاً إلى المشروع باسمٍ لاتيني — الأسماءُ
   /// العربية في مسارات الأصول تُرمَّز في بيان الحزمة فلا يجدها فحصُ الوجود.
   static const clapping = 'audio/encouragement/clapping.mp3';

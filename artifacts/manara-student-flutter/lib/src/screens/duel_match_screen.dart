@@ -4,7 +4,6 @@ import 'dart:math' as math;
 import 'package:confetti/confetti.dart';
 import 'package:flutter/material.dart';
 import '../theme/motion.dart';
-import 'package:flutter/services.dart';
 
 import '../l10n/student_strings.dart';
 import '../models/duel_question.dart';
@@ -233,8 +232,7 @@ class _DuelMatchScreenState extends State<DuelMatchScreen>
       }
     }
     if (_game.pickedCorrect == false && _lastCorrect != false) {
-      HapticFeedback.lightImpact();
-      sound.play(StudentSoundCue.warning);
+      sound.playTryAgain();
     }
     _lastCorrect = _game.pickedCorrect;
     if (phase == DuelPhase.result && _lastPhase != DuelPhase.result) {
