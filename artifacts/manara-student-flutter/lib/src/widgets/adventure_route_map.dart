@@ -2,6 +2,8 @@ import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+
+import 'fit_text.dart';
 import 'package:flutter/services.dart';
 
 import '../services/student_sound_service.dart';
@@ -982,7 +984,9 @@ class _ChoiceCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final artSize = height * 0.62;
+    // ‏الصورةُ أصغرُ قليلاً من قبل (٠٫٦٢): كان السطرُ الثاني من اسم المادة
+    // ‏لا يجد مكاناً في البطاقة الصغيرة فيُقصّ. والاسمُ يُصغَّر خطُّه حتى يظهر كاملاً.
+    final artSize = height * (label.length > 14 ? 0.5 : 0.56);
     final badge = (height * 0.2).clamp(22.0, 44.0).toDouble();
     return Semantics(
       button: true,
@@ -1080,15 +1084,15 @@ class _ChoiceCard extends StatelessWidget {
                   const SizedBox(height: 4),
                   Expanded(
                     child: Center(
-                      child: Text(
+                      child: FitText(
                         label,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        textAlign: TextAlign.center,
+                        key: ValueKey('adventure-option-label-$index'),
+                        maxLines: 3,
+                        maxFont: (height * 0.11).clamp(15.0, 22.0).toDouble(),
+                        minFont: 10,
                         style: const TextStyle(
                           color: _ink,
-                          fontSize: 16,
-                          height: 1.25,
+                          height: 1.2,
                           fontWeight: FontWeight.w900,
                         ),
                       ),

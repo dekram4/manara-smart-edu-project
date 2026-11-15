@@ -110,7 +110,8 @@ void main() {
     await tester.pump(const Duration(milliseconds: 300));
     final state = tester.state<MagicColoringScreenState>(find.byType(MagicColoringScreen));
 
-    await tester.tap(find.byKey(const ValueKey('coloring-mode-free')));
+    // ‏الرسمُ الحرُّ القديم صار للوحاتٍ قديمة وحدها؛ الجديدُ في «استوديو الرسم».
+    state.startFreeDrawing();
     await tester.pump(const Duration(milliseconds: 400));
     expect(state.mode, ColoringMode.free);
     expect(state.controller, isA<FreeDrawingController>());

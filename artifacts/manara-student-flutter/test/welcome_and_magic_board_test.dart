@@ -31,10 +31,10 @@ void main() {
         ),
       ));
       await tester.pump(const Duration(milliseconds: 100));
+      // ‏الاسمُ كاملاً كما أدخله المعلّم.
       final line = tester.widget<Text>(find.byKey(const ValueKey('home-welcome-name'))).data!;
-      expect(line, contains('سارة'));
-      expect(line, isNot(contains('العلي')));
-      expect(line, startsWith('صباح الخير'));
+      expect(line, 'سارة محمد العلي!');
+      expect(tester.widget<Text>(find.byKey(const ValueKey('home-welcome-greeting'))).data, startsWith('صباح الخير'));
       expect(find.text('🎒 الصف الرابع'), findsOneWidget);
 
       // ‏ضغطةٌ تقفز بها، ولا تُسقط شيئاً.
@@ -44,9 +44,9 @@ void main() {
       expect(tester.takeException(), isNull);
     });
 
-    test('الاسمُ المركّب يبقى كاملاً، والمساءُ تحيّتُه أخرى', () {
-      expect(StudentWelcomeBanner.firstName('عبد الله أحمد'), 'عبد الله');
-      expect(StudentWelcomeBanner.firstName('  '), '');
+    test('الاسمُ كاملاً بمسافاتٍ مفردة، والمساءُ تحيّتُه أخرى', () {
+      expect(StudentWelcomeBanner.fullName('  سادن   داود '), 'سادن داود');
+      expect(StudentWelcomeBanner.fullName('  '), '');
       expect(StudentWelcomeBanner.greetingFor(DateTime(2026, 1, 1, 19)), 'أهلاً بك يا');
     });
 

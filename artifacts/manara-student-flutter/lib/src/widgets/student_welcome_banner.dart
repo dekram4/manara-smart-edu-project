@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 
 import '../l10n/student_strings.dart';
+import 'fit_text.dart';
 
 /// شريطُ الترحيب أعلى شاشة البطاقات: اسمُ الطالب وصفُّه على تدرّجٍ يتلألأ،
 /// ونجومٌ صغيرةٌ تومض حوله — ليشعر الطفلُ أن الشاشة له هو.
@@ -22,14 +23,8 @@ class StudentWelcomeBanner extends StatefulWidget {
   static String greetingFor(DateTime time) =>
       time.hour >= 4 && time.hour < 12 ? tr('home.welcome.morning') : tr('home.welcome.evening');
 
-  /// الاسمُ الأوّل وحده: «سارة» لا «سارة محمد أحمد» — أقربُ للطفل وأقصرُ في الشريط.
-  static String firstName(String name) {
-    final parts = name.trim().split(RegExp(r'\s+')).where((p) => p.isNotEmpty).toList();
-    if (parts.isEmpty) return '';
-    // ‏«عبد الله» اسمٌ واحد.
-    if (parts.length > 1 && (parts.first == 'عبد' || parts.first == 'أبو')) return '${parts[0]} ${parts[1]}';
-    return parts.first;
-  }
+  /// الاسمُ كما أدخله المعلّم كاملاً، بمسافاتٍ مفردة.
+  static String fullName(String name) => name.trim().split(RegExp(r'\s+')).where((p) => p.isNotEmpty).join(' ');
 
   @override
   State<StudentWelcomeBanner> createState() => _StudentWelcomeBannerState();
@@ -74,11 +69,14 @@ class _StudentWelcomeBannerState extends State<StudentWelcomeBanner> with Ticker
 
   @override
   Widget build(BuildContext context) {
-    final first = StudentWelcomeBanner.firstName(widget.name);
+    // ‏الاسمُ كاملاً كما كتبه المعلّم — ثنائياً أو ثلاثياً — بلا اقتطاع.
+    final name = StudentWelcomeBanner.fullName(widget.name);
     final grade = widget.grade?.trim() ?? '';
+    // ‏على التابلت والآيباد (رأسياً وأفقياً) يكبر الشريطُ بما يناسب الشاشة.
+    final scale = ((MediaQuery.maybeOf(context)?.size.shortestSide ?? 400) / 560).clamp(1.0, 1.45).toDouble();
     final greeting = StudentWelcomeBanner.greetingFor(widget.now ?? DateTime.now());
     return Semantics(
-      label: '$greeting $first${grade.isEmpty ? '' : '، $grade'}',
+      label: '$greeting $name${grade.isEmpty ? '' : '، $grade'}',
       child: GestureDetector(
         key: const ValueKey('home-welcome-banner'),
         onTap: _celebrate,
@@ -93,7 +91,7 @@ class _StudentWelcomeBannerState extends State<StudentWelcomeBanner> with Ticker
             return Transform.translate(
               offset: Offset(0, -hop),
               child: Container(
-                padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
+                padding: EdgeInsets.fromLTRB(16 * scale, 14 * scale, 16 * scale, 14 * scale),
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(26),
                   gradient: LinearGradient(
@@ -125,38 +123,47 @@ class _StudentWelcomeBannerState extends State<StudentWelcomeBanner> with Ticker
           child: Row(
             children: [
               Container(
-                width: 54,
-                height: 54,
+                width: 54 * scale,
+                height: 54 * scale,
                 alignment: Alignment.center,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
                   color: Colors.white.withValues(alpha: 0.92),
                   boxShadow: const [BoxShadow(color: Color(0x33000000), blurRadius: 8, offset: Offset(0, 3))],
                 ),
-                child: const Text('🌟', style: TextStyle(fontSize: 30)),
+                child: Text('🌟', style: TextStyle(fontSize: 30 * scale)),
               ),
-              const SizedBox(width: 12),
+              SizedBox(width: 12 * scale),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    FittedBox(
-                      fit: BoxFit.scaleDown,
-                      alignment: AlignmentDirectional.centerStart,
-                      child: Text(
-                        first.isEmpty ? greeting : '$greeting $first!',
-                        key: const ValueKey('home-welcome-name'),
-                        maxLines: 1,
+                    Text(
+                      greeting,
+                      key: const ValueKey('home-welcome-greeting'),
+                      style: TextStyle(
+                        fontSize: 15 * scale,
+                        fontWeight: FontWeight.w800,
+                        color: Colors.white.withValues(alpha: 0.95),
+                        shadows: const [Shadow(color: Color(0x55000000), blurRadius: 4, offset: Offset(0, 1))],
+                      ),
+                    ),
+                    if (name.isNotEmpty)
+                      FitText(
+                        '$name!',
+                        textKey: const ValueKey('home-welcome-name'),
+                        textAlign: TextAlign.start,
+                        maxLines: 2,
+                        maxFont: 26 * scale,
+                        minFont: 15,
                         style: const TextStyle(
-                          fontSize: 25,
                           fontWeight: FontWeight.w900,
                           color: Colors.white,
                           height: 1.15,
                           shadows: [Shadow(color: Color(0x66000000), blurRadius: 6, offset: Offset(0, 2))],
                         ),
                       ),
-                    ),
                     const SizedBox(height: 4),
                     Wrap(
                       spacing: 6,
@@ -166,19 +173,19 @@ class _StudentWelcomeBannerState extends State<StudentWelcomeBanner> with Ticker
                         if (grade.isNotEmpty)
                           Container(
                             key: const ValueKey('home-welcome-grade'),
-                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+                            padding: EdgeInsets.symmetric(horizontal: 10 * scale, vertical: 3 * scale),
                             decoration: BoxDecoration(
                               color: Colors.white.withValues(alpha: 0.9),
                               borderRadius: BorderRadius.circular(999),
                             ),
                             child: Text(
                               '🎒 $grade',
-                              style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w900, color: Color(0xFF5B21B6)),
+                              style: TextStyle(fontSize: 14 * scale, fontWeight: FontWeight.w900, color: const Color(0xFF5B21B6)),
                             ),
                           ),
                         Text(
                           tr('home.welcome.tagline'),
-                          style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: Colors.white),
+                          style: TextStyle(fontSize: 14 * scale, fontWeight: FontWeight.w800, color: Colors.white),
                         ),
                       ],
                     ),

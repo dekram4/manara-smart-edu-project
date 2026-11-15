@@ -21,6 +21,7 @@ import '../widgets/portal_watermark.dart';
 import '../services/tracing_scope.dart' show isKindergartenGrade;
 import '../widgets/study_games.dart';
 import '../widgets/student_experience.dart';
+import 'drawing_studio_screen.dart';
 import 'magic_coloring_screen.dart';
 
 /// «مغامرة الأذكياء ومهمة المذاكرة»: ألعابُ الدرس وحدها.
@@ -151,6 +152,26 @@ class _StudentStudyScreenState extends State<StudentStudyScreen> {
         onTap: _openColoring,
       );
 
+  StudyShelfExtra get _studioExtra => StudyShelfExtra(
+        key: const ValueKey('study-studio'),
+        emoji: '🖌️',
+        title: tr('studio.title'),
+        hint: tr('studio.sub'),
+        colors: const [Color(0xFF0EA5E9), Color(0xFF8B5CF6)],
+        art: const Text('🖌️', style: TextStyle(fontSize: 64)),
+        onTap: _openStudio,
+      );
+
+  void _openStudio() {
+    StudentSoundService.instance.playTap();
+    Navigator.of(context).push(
+      StudentPageRoute<void>(
+        immersive: true,
+        builder: (_) => DrawingStudioScreen(account: _coloringAccount),
+      ),
+    );
+  }
+
   void _openColoring() {
     StudentSoundService.instance.playTap();
     Navigator.of(context).push(
@@ -180,6 +201,8 @@ class _StudentStudyScreenState extends State<StudentStudyScreen> {
               if (_showsColoring) ...[
                 const SizedBox(height: 40),
                 StudyShelfTile(extra: _coloringExtra),
+                const SizedBox(height: 16),
+                StudyShelfTile(extra: _studioExtra),
               ],
             ],
           ),
@@ -216,7 +239,7 @@ class _StudentStudyScreenState extends State<StudentStudyScreen> {
                 ),
                 seenKey: 'study.seen.${widget.profile.id}.$_lessonId',
                 // ‏مربّعٌ في رفّ ألعاب المادة نفسه، بالغلاف المجسّم وحركته.
-                extras: [if (_showsColoring) _coloringExtra],
+                extras: [if (_showsColoring) ...[_coloringExtra, _studioExtra]],
               ),
             ],
           ),

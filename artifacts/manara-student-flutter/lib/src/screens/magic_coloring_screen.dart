@@ -12,6 +12,7 @@ import '../services/coloring_canvas.dart';
 import '../services/coloring_cloud.dart';
 import '../services/coloring_drawings.dart';
 import '../services/free_drawing.dart';
+import 'drawing_studio_screen.dart';
 import '../services/student_settings.dart';
 import '../services/student_sound_service.dart';
 import '../theme/student_theme.dart';
@@ -434,6 +435,17 @@ class MagicColoringScreenState extends State<MagicColoringScreen> {
     _replaceController(copy, galleryIndex: index);
   }
 
+
+  void _openStudio() {
+    HapticFeedback.selectionClick();
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(builder: (_) => DrawingStudioScreen(account: widget.account)),
+    );
+  }
+
+  /// الرسمُ الحرُّ القديم: يبقى للوحاتٍ حُفظت به في «لوحاتي» قبل الاستوديو.
+  @visibleForTesting
+  void startFreeDrawing() => _startFree();
 
   /// ورقةٌ بيضاءُ جديدة: قلمٌ أسودُ رفيعٌ في اليد، ليرسم الطفلُ خطوطَه أوّلاً.
   void _startFree() {
@@ -964,13 +976,14 @@ class MagicColoringScreenState extends State<MagicColoringScreen> {
                             onTap: _chooseReady,
                             index: 0,
                           ),
+                          // ‏الرسمُ الحرُّ صار «استوديو الرسم» في شاشته المستقلّة.
                           _modeCard(
-                            key: const ValueKey('coloring-mode-free'),
-                            emoji: '✏️',
-                            title: tr('coloring.mode.free'),
-                            subtitle: tr('coloring.mode.freeSub'),
+                            key: const ValueKey('coloring-open-studio'),
+                            emoji: '🖌️',
+                            title: tr('studio.title'),
+                            subtitle: tr('studio.sub'),
                             colors: const [Color(0xFF0EA5E9), Color(0xFF8B5CF6)],
-                            onTap: _startFree,
+                            onTap: _openStudio,
                             index: 1,
                           ),
                         ];

@@ -2056,13 +2056,20 @@ class _LighthouseBackdrop extends StatelessWidget {
   /// تحت الرأس قصيرةٌ عريضة، و`contain` فيها صغّر المنارةَ إلى ثلث العرض؛
   /// فيُكبَّر الرسمُ هناك ويُرفع قليلاً حتى تلامس قمّتُه حافّةَ المساحة،
   /// ويُقصّ أسفلُه (الألعابُ عند القاعدة) — المنارةُ هي ما يُرى.
-  static Rect _towerSquare(Size area) {
+  ///
+  /// و[full] ارتفاعُ الصفحة كلِّها: في الأفقيّ يأخذ الشريطُ والملخّصُ أكثرَ ما
+  /// تحت الرأس، فكانت المنارةُ تُقاس بالباقي فتصغر. فتُقاس بالصفحة كلِّها،
+  /// وقمّتُها تحت الرأس كما كانت، وما زاد يُقصّ من أسفلها.
+  static Rect towerSquare(Size area, {double full = 0}) {
     final w = area.width, h = area.height;
     if (w <= h) {
       final side = math.min(w, h);
       return Rect.fromLTWH((w - side) / 2, 0, side, side);
     }
-    final side = math.max(h, math.min(w * 0.62, h * 1.45));
+    final side = math.min(
+      w * 0.7,
+      math.max(math.max(h, full * 0.95), math.min(w * 0.62, h * 1.45)),
+    );
     // ‏قمّةُ البرج على نحو ٢٪ من أعلى الرسم: تُرفع إلى حافّة المساحة.
     return Rect.fromLTWH((w - side) / 2, -side * 0.015, side, side);
   }
@@ -2076,7 +2083,7 @@ class _LighthouseBackdrop extends StatelessWidget {
     // artwork in the dark rather than a bright panel.
     final night = StudentSurface.isDark(context);
     return IgnorePointer(
-      child: Stack(
+      child: LayoutBuilder(builder: (context, page) => Stack(
         fit: StackFit.expand,
         children: [
           DecoratedBox(
@@ -2106,7 +2113,7 @@ class _LighthouseBackdrop extends StatelessWidget {
             ),
             // الرسمُ والإضاءةُ في مربّعٍ واحد، أعلى المساحة تحت الرأس.
             child: LayoutBuilder(builder: (context, box) {
-              final square = _towerSquare(box.biggest);
+              final square = towerSquare(box.biggest, full: page.maxHeight);
               return Stack(
                 fit: StackFit.expand,
                 clipBehavior: Clip.none,
@@ -2143,7 +2150,7 @@ class _LighthouseBackdrop extends StatelessWidget {
             }),
           ),
         ],
-      ),
+      )),
     );
   }
 }

@@ -155,7 +155,7 @@ void main() {
       // ‏أوّلاً: الاختيارُ بين التلوين الجاهز والرسم الحرّ.
       expect(state.mode, isNull);
       expect(find.byKey(const ValueKey('coloring-mode-ready')), findsOneWidget);
-      expect(find.byKey(const ValueKey('coloring-mode-free')), findsOneWidget);
+      expect(find.byKey(const ValueKey('coloring-open-studio')), findsOneWidget);
       await tester.tap(find.byKey(const ValueKey('coloring-mode-ready')));
       await tester.pump(const Duration(milliseconds: 500));
       expect(state.mode, ColoringMode.ready);

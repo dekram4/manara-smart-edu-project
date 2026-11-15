@@ -15,6 +15,7 @@ import '../widgets/portal_watermark.dart';
 import '../widgets/student_avatar_view.dart';
 import '../widgets/student_experience.dart';
 import 'kindergarten_voice_games.dart';
+import 'drawing_studio_screen.dart';
 import 'magic_coloring_screen.dart';
 
 /// «عالم الحكايات والمغامرات»: ألعابُ الروضة في «الثقافة العامة» في بطاقةٍ
@@ -81,7 +82,8 @@ class KgWorldScreen extends StatelessWidget {
                   // ‏ثم الألعابُ الصوتية — كلُّها بالحجم نفسه والحركة نفسها.
                   final tiles = [
                     _entrance(_ColoringTile(key: const ValueKey('kgworld-coloring'), account: account), 0, still),
-                    for (var i = 0; i < _voiceGames.length; i++) _entrance(_voiceGames[i], i + 1, still),
+                    _entrance(_ColoringTile(key: const ValueKey('kgworld-studio'), account: account, studio: true), 1, still),
+                    for (var i = 0; i < _voiceGames.length; i++) _entrance(_voiceGames[i], i + 2, still),
                   ];
                   final columns = constraints.maxWidth >= 900
                       ? 5
@@ -535,16 +537,23 @@ class _GameTile extends StatelessWidget {
 
 /// بطاقةُ «لوحة الألوان السحرية»: أكبرُ من أخواتها، وعليها «جديد».
 class _ColoringTile extends StatelessWidget {
-  const _ColoringTile({this.account, super.key});
+  const _ColoringTile({this.account, this.studio = false, super.key});
 
   final ColoringAccount? account;
 
+  /// «استوديو الرسم» بالمربّع نفسه، بألوانه واسمه.
+  final bool studio;
+
   static const _colors = [Color(0xFFF97316), Color(0xFFEC4899), Color(0xFF8B5CF6)];
+  static const _studioColors = [Color(0xFF0EA5E9), Color(0xFF6366F1), Color(0xFF8B5CF6)];
 
   @override
   Widget build(BuildContext context) => _Pressable(
-        semantics: tr('portal.coloring'),
-        onTap: () => _open(context, MagicColoringScreen(account: account)),
+        semantics: studio ? tr('studio.title') : tr('portal.coloring'),
+        onTap: () => _open(
+          context,
+          studio ? DrawingStudioScreen(account: account) : MagicColoringScreen(account: account),
+        ),
         // ‏لمعةٌ تمرّ على اللوح كلَّ حين: «هنا شيءٌ جديد».
         child: _alive(
           context,
@@ -556,7 +565,7 @@ class _ColoringTile extends StatelessWidget {
       );
 
   Widget _face(BuildContext context) => Container(
-          decoration: _tileDecoration(_colors),
+          decoration: _tileDecoration(studio ? _studioColors : _colors),
           clipBehavior: Clip.antiAlias,
           child: Stack(
             children: [
@@ -601,10 +610,14 @@ class _ColoringTile extends StatelessWidget {
                             .rotate(begin: -0.03, end: 0.03, duration: 600.ms),
                       ),
                     ),
-                    const Expanded(child: FittedBox(child: _PaletteBadge())),
+                    Expanded(
+                      child: FittedBox(
+                        child: studio ? const Text('🖌️', style: TextStyle(fontSize: 80)) : const _PaletteBadge(),
+                      ),
+                    ),
                     const SizedBox(height: 6),
                     Text(
-                      tr('portal.coloring'),
+                      studio ? tr('studio.title') : tr('portal.coloring'),
                       textAlign: TextAlign.center,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
@@ -616,7 +629,7 @@ class _ColoringTile extends StatelessWidget {
                       ),
                     ),
                     Text(
-                      tr('portal.coloring.sub'),
+                      studio ? tr('studio.sub') : tr('portal.coloring.sub'),
                       textAlign: TextAlign.center,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
