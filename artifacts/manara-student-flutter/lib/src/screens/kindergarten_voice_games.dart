@@ -115,8 +115,8 @@ class KgVoiceGameScreenState extends State<KgVoiceGameScreen> {
   @override
   void initState() {
     super.initState();
-    // ‏«اختار اللغة»: لعبةُ الألوان تبدأ بسؤال اللغة.
-    if (widget.kind == KgVoiceGameKind.colors) {
+    // ‏«اختار اللغة»: لعبتا الألوان والأشكال تبدآن بسؤال اللغة.
+    if (kgAsksLanguage(widget.kind)) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted && _stage == _Stage.intro) unawaited(_play(kgChooseLanguageClip));
       });
@@ -559,7 +559,7 @@ class KgVoiceGameScreenState extends State<KgVoiceGameScreen> {
                 style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: StudentSurface.mutedInk(context)),
               ),
               const SizedBox(height: 18),
-              if (widget.kind == KgVoiceGameKind.colors) ...[
+              if (kgAsksLanguage(widget.kind)) ...[
                 // ‏«اختار اللغة»: العربيةُ أو الإنجليزية، والسؤالُ بالعربية.
                 Text(
                   tr('kg.voice.chooseLanguage'),
@@ -1081,6 +1081,31 @@ class KgShapePainter extends CustomPainter {
           ..lineTo(c.dx + w / 2 + k, c.dy - h / 2)
           ..lineTo(c.dx + w / 2 - k, c.dy + h / 2)
           ..lineTo(c.dx - w / 2 - k, c.dy + h / 2)
+          ..close());
+      case KgShape.triangle:
+        flat(Path()
+          ..moveTo(c.dx, c.dy - s * 0.42)
+          ..lineTo(c.dx + s * 0.46, c.dy + s * 0.34)
+          ..lineTo(c.dx - s * 0.46, c.dy + s * 0.34)
+          ..close());
+      case KgShape.star:
+        final star = Path();
+        for (var i = 0; i < 10; i++) {
+          final r = (i.isEven ? 0.46 : 0.2) * s;
+          final angle = -math.pi / 2 + i * math.pi / 5;
+          final p = c + Offset(math.cos(angle) * r, math.sin(angle) * r);
+          i == 0 ? star.moveTo(p.dx, p.dy) : star.lineTo(p.dx, p.dy);
+        }
+        flat(star..close());
+      case KgShape.heart:
+        final w = s * 0.9, h = s * 0.8;
+        final l = c.dx - w / 2, t = c.dy - h / 2;
+        flat(Path()
+          ..moveTo(c.dx, t + h * 0.28)
+          ..cubicTo(c.dx, t, l, t, l, t + h * 0.32)
+          ..cubicTo(l, t + h * 0.62, c.dx - w * 0.1, t + h * 0.8, c.dx, t + h)
+          ..cubicTo(c.dx + w * 0.1, t + h * 0.8, l + w, t + h * 0.62, l + w, t + h * 0.32)
+          ..cubicTo(l + w, t, c.dx, t, c.dx, t + h * 0.28)
           ..close());
       case KgShape.sphere:
         final r = s * 0.4;

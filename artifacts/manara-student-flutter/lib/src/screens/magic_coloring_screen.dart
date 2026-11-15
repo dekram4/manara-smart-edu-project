@@ -12,7 +12,6 @@ import '../services/coloring_canvas.dart';
 import '../services/coloring_cloud.dart';
 import '../services/coloring_drawings.dart';
 import '../services/free_drawing.dart';
-import 'drawing_studio_screen.dart';
 import '../services/student_settings.dart';
 import '../services/student_sound_service.dart';
 import '../theme/student_theme.dart';
@@ -435,13 +434,6 @@ class MagicColoringScreenState extends State<MagicColoringScreen> {
     _replaceController(copy, galleryIndex: index);
   }
 
-
-  void _openStudio() {
-    HapticFeedback.selectionClick();
-    Navigator.of(context).push(
-      MaterialPageRoute<void>(builder: (_) => DrawingStudioScreen(account: widget.account)),
-    );
-  }
 
   /// الرسمُ الحرُّ القديم: يبقى للوحاتٍ حُفظت به في «لوحاتي» قبل الاستوديو.
   @visibleForTesting
@@ -976,25 +968,14 @@ class MagicColoringScreenState extends State<MagicColoringScreen> {
                             onTap: _chooseReady,
                             index: 0,
                           ),
-                          // ‏الرسمُ الحرُّ صار «استوديو الرسم» في شاشته المستقلّة.
-                          _modeCard(
-                            key: const ValueKey('coloring-open-studio'),
-                            emoji: '🖌️',
-                            title: tr('studio.title'),
-                            subtitle: tr('studio.sub'),
-                            colors: const [Color(0xFF0EA5E9), Color(0xFF8B5CF6)],
-                            onTap: _openStudio,
-                            index: 1,
-                          ),
                         ];
-                        if (c.maxWidth < 520) {
-                          return Column(children: [cards[0], const SizedBox(height: 14), cards[1]]);
-                        }
-                        return Row(children: [
-                          Expanded(child: cards[0]),
-                          const SizedBox(width: 14),
-                          Expanded(child: cards[1]),
-                        ]);
+                        // ‏«استوديو الرسم» شاشةٌ مستقلّة بمربّعها، فلا يتكرّر هنا.
+                        return Center(
+                          child: ConstrainedBox(
+                            constraints: const BoxConstraints(maxWidth: 520),
+                            child: cards[0],
+                          ),
+                        );
                       },
                     ),
                   ),

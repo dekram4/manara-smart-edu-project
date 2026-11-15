@@ -133,7 +133,7 @@ void main() {
     KgVoiceQuestion colorQuestion(String id) => buildKgVoiceRound(KgVoiceGameKind.colors, math.Random(0), count: 40)
         .firstWhere((q) => q.answer.id == id);
     KgVoiceQuestion shapeQuestion(KgShape shape) =>
-        buildKgVoiceRound(KgVoiceGameKind.shapes, math.Random(0), count: 7).firstWhere((q) => q.shape == shape);
+        buildKgVoiceRound(KgVoiceGameKind.shapes, math.Random(0), count: KgShape.values.length).firstWhere((q) => q.shape == shape);
 
     test('الألوان بكل صيغها', () {
       final red = colorQuestion('red');
@@ -161,6 +161,9 @@ void main() {
       expect(shapeQuestion(KgShape.pyramid).judge('هرم'), isTrue);
       expect(shapeQuestion(KgShape.square).judge('مستطيل'), isFalse);
       expect(shapeQuestion(KgShape.rectangle).judge('مستطيل'), isTrue);
+      expect(shapeQuestion(KgShape.triangle).judge('مثلث'), isTrue);
+      expect(shapeQuestion(KgShape.star).judge('نجمة'), isTrue);
+      expect(shapeQuestion(KgShape.heart).judge('قلب'), isTrue);
     });
 
     test('العلامات والمسائل', () {

@@ -23,7 +23,21 @@ const double studioSize = 1000;
 
 /// الفرش: قلمُ حبرٍ يرقّ بالسرعة، وقلمُ رصاص، وقلمُ تحبيرٍ مدبّبُ الطرفين،
 /// وفرشاةٌ زيتية بشعيراتها، وألوانٌ مائية، وبخّاخ، وقلمُ تحديد، وممحاة.
-enum StudioBrush { inkPen, pencil, inking, sketch, oil, watercolor, airbrush, marker, eraser }
+enum StudioBrush { inkPen, pencil, inking, sketch, calligraphy, oil, watercolor, softBrush, airbrush, crayon, neon, marker, eraser }
+
+/// مزجُ الطبقة بما تحتها، كما في برامج الرسم: عادي، وضرب، وتفتيح، وتراكب،
+/// وإضافة، وتغميق، وتفتيحُ الأفتح.
+enum StudioBlend { normal, multiply, screen, overlay, add, darken, lighten }
+
+const studioBlendModes = <StudioBlend, BlendMode>{
+  StudioBlend.normal: BlendMode.srcOver,
+  StudioBlend.multiply: BlendMode.multiply,
+  StudioBlend.screen: BlendMode.screen,
+  StudioBlend.overlay: BlendMode.overlay,
+  StudioBlend.add: BlendMode.plus,
+  StudioBlend.darken: BlendMode.darken,
+  StudioBlend.lighten: BlendMode.lighten,
+};
 
 /// الأشكالُ الحرّة: تُسحب من زاويةٍ إلى زاوية.
 enum StudioShape { line, rectangle, ellipse, triangle, star, hexagon, arrow }
@@ -43,9 +57,13 @@ class StudioOp {
     this.shape = StudioShape.line,
     this.filled = false,
     this.radial = false,
+    this.mirror = false,
   });
 
   final StudioOpKind kind;
+
+  /// مسطرةُ التماثل: يُرسم مرّةً ثانيةً معكوساً حول منتصف اللوحة.
+  final bool mirror;
 
   /// الخطّ: نقاطُه. الشكلُ والتدرّج: نقطتان — البدايةُ والنهاية.
   final List<Offset> points;
@@ -71,6 +89,7 @@ class StudioOp {
         shape: shape,
         filled: filled,
         radial: radial,
+        mirror: mirror,
       );
 
   Map<String, Object?> toJson() => {
@@ -85,6 +104,7 @@ class StudioOp {
         if (kind == StudioOpKind.shape) 'g': shape.name,
         if (filled) 'f': 1,
         if (radial) 'r': 1,
+        if (mirror) 'm': 1,
       };
 
   static StudioOp? fromJson(Object? json) {
@@ -110,6 +130,7 @@ class StudioOp {
       shape: StudioShape.values.where((s) => s.name == json['g']).firstOrNull ?? StudioShape.line,
       filled: json['f'] == 1,
       radial: json['r'] == 1,
+      mirror: json['m'] == 1,
     );
   }
 }
@@ -123,6 +144,8 @@ class StudioLayer {
     this.opacity = 1,
     this.visible = true,
     this.ops = const [],
+    this.blend = StudioBlend.normal,
+    this.locked = false,
   });
 
   final int id;
@@ -130,13 +153,27 @@ class StudioLayer {
   final double opacity;
   final bool visible;
   final List<StudioOp> ops;
+  final StudioBlend blend;
 
-  StudioLayer copyWith({String? name, double? opacity, bool? visible, List<StudioOp>? ops}) => StudioLayer(
+  /// طبقةٌ مقفلة لا يُرسم عليها — تحفظ ما أُنجز من الخطأ.
+  final bool locked;
+
+  StudioLayer copyWith({
+    String? name,
+    double? opacity,
+    bool? visible,
+    List<StudioOp>? ops,
+    StudioBlend? blend,
+    bool? locked,
+  }) =>
+      StudioLayer(
         id: id,
         name: name ?? this.name,
         opacity: opacity ?? this.opacity,
         visible: visible ?? this.visible,
         ops: ops ?? this.ops,
+        blend: blend ?? this.blend,
+        locked: locked ?? this.locked,
       );
 
   Map<String, Object?> toJson() => {
@@ -144,6 +181,8 @@ class StudioLayer {
         'n': name,
         if (opacity < 1) 'o': double.parse(opacity.toStringAsFixed(2)),
         if (!visible) 'h': 1,
+        if (blend != StudioBlend.normal) 'b': blend.name,
+        if (locked) 'l': 1,
         'ops': [for (final op in ops) op.toJson()],
       };
 
@@ -155,6 +194,8 @@ class StudioLayer {
       name: json['n'] is String ? json['n'] as String : '',
       opacity: ((json['o'] as num?)?.toDouble() ?? 1).clamp(0.0, 1.0),
       visible: json['h'] != 1,
+      blend: StudioBlend.values.where((b) => b.name == json['b']).firstOrNull ?? StudioBlend.normal,
+      locked: json['l'] == 1,
       ops: List.unmodifiable([
         if (raw is List)
           for (final item in raw)
@@ -177,7 +218,15 @@ class StudioPen {
     this.gradient = false,
     this.radial = false,
     this.ruler = false,
+    this.stabilizer = 0,
+    this.mirror = false,
   });
+
+  /// مثبّتُ الخطّ: من صفر (بلا تنعيم) إلى ٠٫٩ (خطٌّ ناعمٌ جدّاً يتبع اليدَ بتأنٍّ).
+  final double stabilizer;
+
+  /// مسطرةُ التماثل العمودية.
+  final bool mirror;
 
   final StudioBrush brush;
   final Color color;
@@ -274,8 +323,10 @@ class StudioController extends ChangeNotifier {
       shape: pen.shape ?? StudioShape.line,
       filled: pen.filled,
       radial: pen.radial,
+      mirror: pen.mirror,
     );
     _ruler = pen.ruler;
+    _stabilizer = pen.stabilizer.clamp(0.0, 0.9);
     notifyListeners();
   }
 
@@ -302,8 +353,10 @@ class StudioController extends ChangeNotifier {
         points[1] = end;
       }
     } else {
-      if ((points.last - p).distance < 0.8) return;
-      points.add(p);
+      // ‏المثبّت: النقطةُ الجديدة بين ما سبق وموضعِ الإصبع، فتذوب رجفةُ اليد.
+      final target = _stabilizer > 0 ? Offset.lerp(p, points.last, _stabilizer)! : p;
+      if ((points.last - target).distance < 0.8) return;
+      points.add(target);
     }
     notifyListeners();
   }
@@ -315,10 +368,19 @@ class StudioController extends ChangeNotifier {
     notifyListeners();
   }
 
+  double _stabilizer = 0;
+
+  /// الطبقةُ النشطة مقفلة: لا يبدأ عليها رسم.
+  bool get activeLocked => activeLayer.locked;
+
   void end() {
     final live = _live;
     _live = null;
     if (live == null) return;
+    if (activeLayer.locked) {
+      notifyListeners();
+      return;
+    }
     final pointsNeeded = live.kind == StudioOpKind.stroke ? 1 : 2;
     if (live.points.length < pointsNeeded ||
         (live.kind != StudioOpKind.stroke && (live.points[1] - live.points[0]).distance < 2)) {
@@ -397,6 +459,34 @@ class StudioController extends ChangeNotifier {
     notifyListeners();
   }
 
+  void setBlend(int index, StudioBlend blend) {
+    if (_layers[index].blend == blend) return;
+    _remember();
+    _layers[index] = _layers[index].copyWith(blend: blend);
+    notifyListeners();
+  }
+
+  void toggleLocked(int index) {
+    _remember();
+    _layers[index] = _layers[index].copyWith(locked: !_layers[index].locked);
+    notifyListeners();
+  }
+
+  /// يدمج الطبقةَ النشطة في التي تحتها. تُدمج كما هي حين تكون عاديّةً تامّة
+  /// الظهور؛ وإلا فلا — كي لا يتغيّر شكلُ الرسمة بالدمج.
+  bool mergeDown() {
+    if (_active == 0) return false;
+    final top = activeLayer;
+    final below = _layers[_active - 1];
+    if (top.opacity < 1 || top.blend != StudioBlend.normal || !top.visible) return false;
+    _remember();
+    _layers[_active - 1] = below.copyWith(ops: List.unmodifiable([...below.ops, ...top.ops]));
+    _layers.removeAt(_active);
+    _active--;
+    notifyListeners();
+    return true;
+  }
+
   /// يبدأ تغييرُ الشفافية بالمنزلق: خطوةُ تراجعٍ واحدة له كلِّه.
   void beginOpacityChange() => _remember();
 
@@ -437,7 +527,12 @@ class StudioController extends ChangeNotifier {
     for (var i = 0; i < _layers.length; i++) {
       final layer = _layers[i];
       if (!layer.visible || layer.opacity <= 0) continue;
-      canvas.saveLayer(bounds, Paint()..color = Color.fromRGBO(0, 0, 0, layer.opacity));
+      canvas.saveLayer(
+        bounds,
+        Paint()
+          ..color = Color.fromRGBO(0, 0, 0, layer.opacity)
+          ..blendMode = studioBlendModes[layer.blend]!,
+      );
       canvas.drawPicture(pictureOf(layer));
       if (i == _active && _live != null) paintOp(canvas, _live!);
       canvas.restore();
@@ -480,6 +575,18 @@ class StudioController extends ChangeNotifier {
     ..color = c;
 
   static void paintOp(Canvas canvas, StudioOp op) {
+    _paintOnce(canvas, op);
+    if (op.mirror) {
+      canvas
+        ..save()
+        ..translate(studioSize, 0)
+        ..scale(-1, 1);
+      _paintOnce(canvas, op);
+      canvas.restore();
+    }
+  }
+
+  static void _paintOnce(Canvas canvas, StudioOp op) {
     switch (op.kind) {
       case StudioOpKind.stroke:
         _paintStroke(canvas, op);
@@ -570,6 +677,44 @@ class StudioController extends ChangeNotifier {
             _line(color.withValues(alpha: color.a * 0.45), math.max(0.8, w * 0.3)),
           );
         }
+      case StudioBrush.calligraphy:
+        // ‏ريشةٌ عريضةٌ مائلة: الخطُّ يغلظ ويرقّ باتجاهه.
+        final nib = Offset(math.cos(math.pi / 4), -math.sin(math.pi / 4)) * (w * 0.6);
+        final fill = Paint()
+          ..color = color
+          ..isAntiAlias = true;
+        if (points.length == 1) {
+          canvas.drawLine(points.first - nib, points.first + nib, _line(color, 1.5));
+          break;
+        }
+        for (var i = 1; i < points.length; i++) {
+          final a = points[i - 1], b = points[i];
+          canvas.drawPath(
+            Path()
+              ..moveTo((a - nib).dx, (a - nib).dy)
+              ..lineTo((a + nib).dx, (a + nib).dy)
+              ..lineTo((b + nib).dx, (b + nib).dy)
+              ..lineTo((b - nib).dx, (b - nib).dy)
+              ..close(),
+            fill,
+          );
+        }
+      case StudioBrush.softBrush:
+        // ‏فرشاةٌ ناعمة الحوافّ للتظليل والإضاءة.
+        canvas.drawPath(smoothPath(points), _line(color, w)..maskFilter = MaskFilter.blur(BlurStyle.normal, w * 0.35));
+      case StudioBrush.crayon:
+        // ‏خيوطٌ متجاورة متفاوتة: ملمسُ الطباشير الملوّنة.
+        final path = smoothPath(points);
+        for (var k = 0; k < 5; k++) {
+          final dx = (k - 2) * w * 0.16;
+          final dy = ((k * 37) % 5 - 2) * w * 0.12;
+          canvas.drawPath(path.shift(Offset(dx, dy)), _line(color.withValues(alpha: color.a * 0.4), w * 0.42));
+        }
+      case StudioBrush.neon:
+        final path = smoothPath(points);
+        canvas.drawPath(path, _line(color.withValues(alpha: 0.75), w * 1.5)..maskFilter = MaskFilter.blur(BlurStyle.normal, w * 0.7));
+        canvas.drawPath(path, _line(color, w * 0.7));
+        canvas.drawPath(path, _line(const Color(0xD9FFFFFF), w * 0.25));
       case StudioBrush.marker:
         canvas.drawPath(
           smoothPath(points),

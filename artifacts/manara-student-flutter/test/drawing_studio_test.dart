@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:math' as math;
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 
@@ -272,5 +273,75 @@ void main() {
     await tester.pump(const Duration(milliseconds: 600));
     // ‏مكمّلُ الأحمر: سماويّ.
     expect(HSVColor.fromColor(state.color).hue, closeTo(180, 1));
+  });
+
+  group('مستوى برامج الرسم الاحترافية', () {
+    test('مزجُ الطبقات وقفلُها ودمجُها، والتماثلُ والمثبّت', () {
+      final c = StudioController();
+      stroke(c, const StudioPen(mirror: true, size: 10), const [Offset(100, 100), Offset(200, 200)]);
+      expect(c.layers[0].ops.single.mirror, isTrue);
+      c.addLayer();
+      c.setBlend(1, StudioBlend.multiply);
+      expect(c.mergeDown(), isFalse, reason: 'ليست عادية');
+      c.setBlend(1, StudioBlend.normal);
+      stroke(c, const StudioPen(brush: StudioBrush.neon), const [Offset(10, 10), Offset(60, 60)]);
+      c.toggleLocked(1);
+      stroke(c, const StudioPen(), const [Offset(300, 300), Offset(320, 330)]);
+      expect(c.layers[1].ops, hasLength(1), reason: 'المقفلةُ لا يُرسم عليها');
+      c.toggleLocked(1);
+      expect(c.mergeDown(), isTrue);
+      expect(c.layers, hasLength(1));
+      expect(c.layers[0].ops, hasLength(2));
+      c.undo();
+      expect(c.layers, hasLength(2));
+
+      final back = StudioController.fromJson(jsonDecode(jsonEncode(c.toJson())))!;
+      expect(back.layers[0].ops.single.mirror, isTrue);
+      c.setBlend(1, StudioBlend.screen);
+      c.toggleLocked(1);
+      final again = StudioController.fromJson(jsonDecode(jsonEncode(c.toJson())))!;
+      expect(again.layers[1].blend, StudioBlend.screen);
+      expect(again.layers[1].locked, isTrue);
+
+      // ‏المثبّت: خطٌّ مرتجف يصير أنعم من نقاط اليد.
+      final shaky = [for (var i = 0; i < 40; i++) Offset(100 + i * 5.0, 500 + (i.isEven ? 12.0 : -12.0))];
+      final raw = StudioController()..begin(shaky.first, const StudioPen());
+      final calm = StudioController()..begin(shaky.first, const StudioPen(stabilizer: 0.8));
+      for (final p in shaky.skip(1)) {
+        raw.move(p);
+        calm.move(p);
+      }
+      double wobble(List<Offset> ps) => ps.skip(5).map((p) => (p.dy - 500).abs()).reduce(math.max);
+      expect(wobble(calm.liveOp!.points), lessThan(wobble(raw.liveOp!.points) * 0.5));
+      final recorder = ui.PictureRecorder();
+      StudioPainter(c).paint(Canvas(recorder), const Size(300, 300));
+      recorder.endRecording().dispose();
+    });
+
+    testWidgets('قرصةٌ بإصبعين تكبّر اللوحة، وزرٌّ يعيدها', (tester) async {
+      tester.view.physicalSize = const Size(1200, 800);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+      await tester.pumpWidget(const MaterialApp(home: DrawingStudioScreen()));
+      await tester.pump();
+      final state = tester.state<DrawingStudioScreenState>(find.byType(DrawingStudioScreen));
+      final center = tester.getCenter(find.byKey(const ValueKey('studio-board')));
+      final a = await tester.startGesture(center - const Offset(40, 0), pointer: 50);
+      final b = await tester.startGesture(center + const Offset(40, 0), pointer: 51);
+      for (var i = 1; i <= 6; i++) {
+        await a.moveTo(center - Offset(40.0 + i * 15, 0));
+        await b.moveTo(center + Offset(40.0 + i * 15, 0));
+        await tester.pump();
+      }
+      await a.up();
+      await b.up();
+      await tester.pump();
+      expect(state.zoom, greaterThan(1.8));
+      expect(state.controller.isEmpty, isTrue, reason: 'القرصةُ لا ترسم ولا تتراجع');
+      await tester.tap(find.byKey(const ValueKey('studio-reset-view')));
+      await tester.pump();
+      expect(state.zoom, 1);
+      await tester.pump(const Duration(seconds: 4));
+    });
   });
 }

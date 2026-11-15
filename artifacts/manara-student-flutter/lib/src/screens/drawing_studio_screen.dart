@@ -41,6 +41,22 @@ class DrawingStudioScreenState extends State<DrawingStudioScreen> {
   bool _filled = false;
   bool _radial = false;
   bool _ruler = false;
+  bool _mirror = false;
+
+  /// مثبّتُ الخطّ: ٠ بلا تنعيم.
+  double _stabilizer = 0.3;
+
+  // ── التكبير والتحريك بإصبعين ──
+  double _zoom = 1;
+  Offset _pan = Offset.zero;
+  final Map<int, Offset> _points = {};
+  double _pinchDist = 1;
+  double _pinchZoom = 1;
+  Offset _pinchPan = Offset.zero;
+  Offset _pinchFocal = Offset.zero;
+
+  @visibleForTesting
+  double get zoom => _zoom;
   double _size = 8;
   double _opacity = 1;
   Color _color = const Color(0xFF111827);
@@ -81,7 +97,11 @@ class DrawingStudioScreenState extends State<DrawingStudioScreen> {
     StudioBrush.inkPen: (Icons.edit_rounded, 'قلم حبر', 'Ink pen'),
     StudioBrush.pencil: (Icons.create_outlined, 'رصاص', 'Pencil'),
     StudioBrush.inking: (Icons.draw_rounded, 'تحبير', 'Inking'),
+    StudioBrush.calligraphy: (Icons.history_edu_rounded, 'خطّاط', 'Calligraphy'),
     StudioBrush.oil: (Icons.brush_rounded, 'زيتية', 'Oil'),
+    StudioBrush.softBrush: (Icons.lens_blur_rounded, 'ناعمة', 'Soft'),
+    StudioBrush.crayon: (Icons.texture_rounded, 'طباشير', 'Crayon'),
+    StudioBrush.neon: (Icons.flare_rounded, 'نيون', 'Neon'),
     StudioBrush.watercolor: (Icons.water_drop_rounded, 'مائية', 'Watercolor'),
     StudioBrush.airbrush: (Icons.blur_on_rounded, 'بخّاخ', 'Airbrush'),
     StudioBrush.sketch: (Icons.gesture_rounded, 'قلم تخطيط', 'Sketch'),
@@ -97,6 +117,16 @@ class DrawingStudioScreenState extends State<DrawingStudioScreen> {
     StudioShape.star: (Icons.star_outline_rounded, 'نجمة', 'Star'),
     StudioShape.hexagon: (Icons.hexagon_outlined, 'سداسي', 'Hexagon'),
     StudioShape.arrow: (Icons.arrow_forward_rounded, 'سهم', 'Arrow'),
+  };
+
+  static const _blendNames = <StudioBlend, (String, String)>{
+    StudioBlend.normal: ('عادي', 'Normal'),
+    StudioBlend.multiply: ('ضرب', 'Multiply'),
+    StudioBlend.screen: ('تفتيح', 'Screen'),
+    StudioBlend.overlay: ('تراكب', 'Overlay'),
+    StudioBlend.add: ('إضافة', 'Add'),
+    StudioBlend.darken: ('تغميق', 'Darken'),
+    StudioBlend.lighten: ('أفتح', 'Lighten'),
   };
 
   static const quickColors = <Color>[
@@ -133,6 +163,8 @@ class DrawingStudioScreenState extends State<DrawingStudioScreen> {
         gradient: _tool == StudioTool.gradient,
         radial: _radial,
         ruler: _ruler,
+        stabilizer: _stabilizer,
+        mirror: _mirror,
       );
 
   void _toast(String text) {
@@ -421,14 +453,49 @@ class DrawingStudioScreenState extends State<DrawingStudioScreen> {
                   onPointerMove: (e) => _move(e, side),
                   onPointerUp: (e) => _up(e, side),
                   onPointerCancel: (e) => _up(e, side),
-                  child: RepaintBoundary(
-                    child: CustomPaint(
-                      isComplex: true,
-                      willChange: true,
-                      size: Size.square(side),
-                      painter: StudioPainter(_controller),
+                  child: Stack(children: [
+                    Positioned.fill(
+                      child: ClipRect(
+                        child: Transform.translate(
+                          offset: _pan,
+                          child: Transform.scale(
+                            scale: _zoom,
+                            alignment: Alignment.topLeft,
+                            child: RepaintBoundary(
+                              child: CustomPaint(
+                                isComplex: true,
+                                willChange: true,
+                                size: Size.square(side),
+                                painter: StudioPainter(_controller),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
                     ),
-                  ),
+                    // ‏مسطرةُ التماثل: خطٌّ متقطّعٌ في منتصف اللوحة.
+                    if (_mirror)
+                      Positioned(
+                        left: _pan.dx + side * _zoom / 2 - 1,
+                        top: 0,
+                        bottom: 0,
+                        child: IgnorePointer(child: Container(width: 2, color: const Color(0x887C3AED))),
+                      ),
+                    if (_zoom > 1.01)
+                      PositionedDirectional(
+                        top: 8,
+                        end: 8,
+                        child: FilledButton.tonalIcon(
+                          key: const ValueKey('studio-reset-view'),
+                          onPressed: () => setState(() {
+                            _zoom = 1;
+                            _pan = Offset.zero;
+                          }),
+                          icon: const Icon(Icons.fit_screen_rounded, size: 18),
+                          label: Text('${(_zoom * 100).round()}%'),
+                        ),
+                      ),
+                  ]),
                 );
               }),
             ),
@@ -439,10 +506,20 @@ class DrawingStudioScreenState extends State<DrawingStudioScreen> {
   /// الضغطةُ المطوّلة دون حركة: قطّارةٌ في أيّ أداة.
   static const holdToPick = Duration(milliseconds: 550);
 
+  Offset _toDoc(Offset local, double side) => (local - _pan) / _zoom / side * studioSize;
+
+  /// المسافةُ بين أوّل إصبعين ومنتصفُهما.
+  (double, Offset) _pinch() {
+    final ps = _points.values.take(2).toList();
+    return ((ps[0] - ps[1]).distance, (ps[0] + ps[1]) / 2);
+  }
+
   void _down(PointerDownEvent e, double side) {
     _touches.add(e.pointer);
+    _points[e.pointer] = e.localPosition;
     if (_touches.length > 1) {
-      // ‏إصبعٌ ثانٍ: ليس رسماً بل إيماءة — يُلغى الخطُّ الذي بدأه الأوّل.
+      // ‏إصبعٌ ثانٍ: ليس رسماً بل إيماءة — يُلغى الخطُّ الذي بدأه الأوّل،
+      // ‏وتبدأ القرصةُ للتكبير والسحبُ للتحريك.
       _holdTimer?.cancel();
       if (_maxTouches == 1) {
         _controller.cancel();
@@ -451,6 +528,13 @@ class DrawingStudioScreenState extends State<DrawingStudioScreen> {
           ..start();
         _multiMoved = false;
       }
+      if (_points.length >= 2) {
+        final (dist, focal) = _pinch();
+        _pinchDist = math.max(1, dist);
+        _pinchFocal = focal;
+        _pinchZoom = _zoom;
+        _pinchPan = _pan;
+      }
       _maxTouches = math.max(_maxTouches, _touches.length);
       return;
     }
@@ -458,7 +542,11 @@ class DrawingStudioScreenState extends State<DrawingStudioScreen> {
     _held = false;
     _pointer = e.pointer;
     if (_tool == StudioTool.eyedropper) return;
-    _controller.begin(e.localPosition / side * studioSize, _pen);
+    if (_controller.activeLocked) {
+      _toast(_t('🔒 هذه الطبقة مقفلة — افتح القفل لترسم عليها', '🔒 This layer is locked — unlock it to draw'));
+      return;
+    }
+    _controller.begin(_toDoc(e.localPosition, side), _pen);
     _holdAt = e.localPosition;
     _holdTimer?.cancel();
     _holdTimer = Timer(holdToPick, () {
@@ -467,13 +555,26 @@ class DrawingStudioScreenState extends State<DrawingStudioScreen> {
       _held = true;
       _controller.cancel();
       HapticFeedback.mediumImpact();
-      unawaited(_sample(at / side * studioSize));
+      unawaited(_sample(_toDoc(at, side)));
     });
   }
 
   void _move(PointerMoveEvent e, double side) {
+    if (_points.containsKey(e.pointer)) _points[e.pointer] = e.localPosition;
     if (_maxTouches > 1) {
-      if (e.delta.distance > 3) _multiMoved = true;
+      if (_points.length < 2) return;
+      final (dist, focal) = _pinch();
+      if ((dist - _pinchDist).abs() > 12 || (focal - _pinchFocal).distance > 12) _multiMoved = true;
+      if (!_multiMoved) return;
+      final zoom = (_pinchZoom * dist / _pinchDist).clamp(1.0, 8.0);
+      // ‏النقطةُ التي تحت الأصابع تبقى تحتها.
+      var pan = focal - (_pinchFocal - _pinchPan) * (zoom / _pinchZoom);
+      final min = side - side * zoom;
+      pan = Offset(pan.dx.clamp(min, 0.0), pan.dy.clamp(min, 0.0));
+      setState(() {
+        _zoom = zoom;
+        _pan = pan;
+      });
       return;
     }
     if (e.pointer != _pointer || _tool == StudioTool.eyedropper || _held) return;
@@ -482,11 +583,12 @@ class DrawingStudioScreenState extends State<DrawingStudioScreen> {
       _holdTimer?.cancel();
       _holdAt = null;
     }
-    _controller.move(e.localPosition / side * studioSize);
+    _controller.move(_toDoc(e.localPosition, side));
   }
 
   void _up(PointerEvent e, double side) {
     _touches.remove(e.pointer);
+    _points.remove(e.pointer);
     if (_maxTouches > 1) {
       if (_touches.isEmpty) {
         final quick = _multiClock.elapsed < const Duration(milliseconds: 450);
@@ -502,6 +604,12 @@ class DrawingStudioScreenState extends State<DrawingStudioScreen> {
         _maxTouches = 0;
         _pointer = null;
         _multiClock.stop();
+      } else if (_points.length >= 2) {
+        final (dist, focal) = _pinch();
+        _pinchDist = math.max(1, dist);
+        _pinchFocal = focal;
+        _pinchZoom = _zoom;
+        _pinchPan = _pan;
       }
       return;
     }
@@ -515,7 +623,7 @@ class DrawingStudioScreenState extends State<DrawingStudioScreen> {
       return;
     }
     if (_tool == StudioTool.eyedropper) {
-      if (e is PointerUpEvent) unawaited(_sample(e.localPosition / side * studioSize));
+      if (e is PointerUpEvent) unawaited(_sample(_toDoc(e.localPosition, side)));
       return;
     }
     if (e is! PointerUpEvent) {
@@ -640,6 +748,13 @@ class DrawingStudioScreenState extends State<DrawingStudioScreen> {
                 selected: _ruler,
                 onTap: () => setState(() => _ruler = !_ruler),
               ),
+              _chip(
+                key: const ValueKey('studio-mirror'),
+                icon: Icons.flip_rounded,
+                label: _t('تماثل', 'Symmetry'),
+                selected: _mirror,
+                onTap: () => setState(() => _mirror = !_mirror),
+              ),
             ]),
           ),
           if (_tool == StudioTool.shape)
@@ -712,6 +827,18 @@ class DrawingStudioScreenState extends State<DrawingStudioScreen> {
               max: 1,
               value: _opacity,
               onChanged: (v) => setState(() => _opacity = v),
+            ),
+          ),
+          _section(
+            context,
+            '${_t('مثبّت الخطّ', 'Stabilizer')}: ${(_stabilizer * 10).round()}',
+            Slider(
+              key: const ValueKey('studio-stabilizer'),
+              min: 0,
+              max: 0.9,
+              divisions: 9,
+              value: _stabilizer,
+              onChanged: (v) => setState(() => _stabilizer = v),
             ),
           ),
           _section(
@@ -830,6 +957,18 @@ class DrawingStudioScreenState extends State<DrawingStudioScreen> {
                 icon: const Icon(Icons.cleaning_services_rounded),
               ),
               IconButton.filledTonal(
+                key: const ValueKey('studio-layer-merge'),
+                tooltip: _t('ادمج مع الطبقة التي تحتها', 'Merge down'),
+                onPressed: _controller.active > 0
+                    ? () {
+                        if (!_controller.mergeDown()) {
+                          _toast(_t('اجعل الطبقة عاديّة وبشفافية كاملة لتُدمج', 'Set the layer to Normal at 100% to merge'));
+                        }
+                      }
+                    : null,
+                icon: const Icon(Icons.merge_rounded),
+              ),
+              IconButton.filledTonal(
                 key: const ValueKey('studio-layer-delete'),
                 tooltip: _t('احذف الطبقة', 'Delete layer'),
                 onPressed: _controller.removeLayer,
@@ -857,6 +996,13 @@ class DrawingStudioScreenState extends State<DrawingStudioScreen> {
                     onPressed: () => _controller.toggleVisible(i),
                     icon: Icon(layers[i].visible ? Icons.visibility_rounded : Icons.visibility_off_rounded, size: 20),
                   ),
+                  IconButton(
+                    key: ValueKey('studio-layer-lock-$i'),
+                    tooltip: _t('قفل الطبقة', 'Lock layer'),
+                    onPressed: () => _controller.toggleLocked(i),
+                    icon: Icon(layers[i].locked ? Icons.lock_rounded : Icons.lock_open_rounded, size: 18,
+                        color: layers[i].locked ? const Color(0xFFB91C1C) : null),
+                  ),
                   GestureDetector(
                     key: ValueKey('studio-layer-select-$i'),
                     onTap: () => _controller.selectLayer(i),
@@ -873,8 +1019,28 @@ class DrawingStudioScreenState extends State<DrawingStudioScreen> {
                     child: GestureDetector(
                       onTap: () => _controller.selectLayer(i),
                       child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
-                        Text('${_t('طبقة', 'Layer')} ${layers[i].name} · ${(layers[i].opacity * 100).round()}%',
-                            style: TextStyle(fontSize: 12, fontWeight: FontWeight.w900, color: StudentSurface.ink(context))),
+                        Row(children: [
+                          Expanded(
+                            child: Text('${_t('طبقة', 'Layer')} ${layers[i].name} · ${(layers[i].opacity * 100).round()}%',
+                                maxLines: 1,
+                                overflow: TextOverflow.fade,
+                                style: TextStyle(fontSize: 12, fontWeight: FontWeight.w900, color: StudentSurface.ink(context))),
+                          ),
+                          DropdownButton<StudioBlend>(
+                            key: ValueKey('studio-layer-blend-$i'),
+                            value: layers[i].blend,
+                            isDense: true,
+                            underline: const SizedBox.shrink(),
+                            style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: StudentSurface.ink(context)),
+                            items: [
+                              for (final b in StudioBlend.values)
+                                DropdownMenuItem(value: b, child: Text(_blendNames[b]!.$1 == '' ? b.name : _t(_blendNames[b]!.$1, _blendNames[b]!.$2))),
+                            ],
+                            onChanged: (b) {
+                              if (b != null) _controller.setBlend(i, b);
+                            },
+                          ),
+                        ]),
                         SizedBox(
                           height: 28,
                           child: Slider(

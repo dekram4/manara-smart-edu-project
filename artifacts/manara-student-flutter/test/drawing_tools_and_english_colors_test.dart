@@ -226,4 +226,60 @@ void main() {
     }
     expect(File('assets/$kgChooseLanguageClip').existsSync(), isTrue);
   });
+
+  group('لعبةُ الأشكال بالإنجليزية', () {
+    test('السؤالُ بالعربية، والخياراتُ وما يُقبل بالإنجليزية — والأشكالُ الجديدة', () {
+      final round = buildKgVoiceRound(KgVoiceGameKind.shapes, math.Random(4),
+          count: KgShape.values.length, language: KgAnswerLanguage.english);
+      expect(round.map((q) => q.shape).toSet(), KgShape.values.toSet());
+      for (final q in round) {
+        expect(q.promptClip, kgQuestionShapeClip);
+        expect(q.answer.label, kgShapesEnglish[q.answer.id]!.$1);
+        expect(q.judge(q.answer.label), isTrue, reason: q.answer.label);
+        expect(q.distractors.every((d) => RegExp(r'^[a-z]+$').hasMatch(d.label)), isTrue);
+      }
+      final heart = round.firstWhere((q) => q.shape == KgShape.heart);
+      expect(heart.judge('heart'), isTrue);
+      expect(heart.judge('star'), isFalse);
+      expect(kgShapesEnglish.keys.toSet(), kgShapes.values.map((o) => o.id).toSet());
+      expect(kgAsksLanguage(KgVoiceGameKind.shapes), isTrue);
+      expect(kgAsksLanguage(KgVoiceGameKind.math), isFalse);
+    });
+
+    testWidgets('شاشةُ «اختار اللغة» في لعبة الأشكال، والإجابةُ بالإنجليزية لمساً', (tester) async {
+      await tester.binding.setSurfaceSize(const Size(1000, 700));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+      final clips = <String>[];
+      await tester.pumpWidget(MaterialApp(
+        home: KgVoiceGameScreen(
+          kind: KgVoiceGameKind.shapes,
+          random: math.Random(5),
+          playToEnd: (clip) async => clips.add(clip),
+          stopPrompt: () async {},
+          ensureMic: (_) async => true,
+          cheer: () async {},
+          speak: (text) async {},
+          stopListening: () async {},
+          listen: ({required onResult, onPartial}) async => false,
+        ),
+      ));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 100));
+      expect(clips, [kgChooseLanguageClip]);
+      expect(find.byKey(const ValueKey('kg-voice-choose-language')), findsOneWidget);
+      await tester.tap(find.byKey(const ValueKey('kg-voice-start-en')));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 500));
+      final state = tester.state<KgVoiceGameScreenState>(find.byType(KgVoiceGameScreen));
+      expect(state.language, KgAnswerLanguage.english);
+      final q = state.question!;
+      expect(RegExp(r'^[a-z]+$').hasMatch(q.answer.label), isTrue);
+      await tester.tap(find.byKey(ValueKey('kg-choice-${q.answer.id}')));
+      await tester.pump();
+      await tester.pump(const Duration(seconds: 2));
+      expect(state.score, 1);
+      await tester.pumpWidget(const SizedBox());
+      await tester.pump(const Duration(seconds: 2));
+    });
+  });
 }

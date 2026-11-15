@@ -2060,11 +2060,23 @@ class _LighthouseBackdrop extends StatelessWidget {
   /// و[full] ارتفاعُ الصفحة كلِّها: في الأفقيّ يأخذ الشريطُ والملخّصُ أكثرَ ما
   /// تحت الرأس، فكانت المنارةُ تُقاس بالباقي فتصغر. فتُقاس بالصفحة كلِّها،
   /// وقمّتُها تحت الرأس كما كانت، وما زاد يُقصّ من أسفلها.
-  static Rect towerSquare(Size area, {double full = 0}) {
+  ///
+  /// والجوّالُ أفقيّاً (صفحةٌ قصيرةٌ دون [shortPage]) لا يتّسع تحت رأسه لمنارةٍ
+  /// تُرى: فتبدأ من أعلى الصفحة ([top] هو ارتفاعُ الرأس فوق المساحة) على
+  /// جانب نهاية القراءة — بجوار شريط الترحيب لا خلفه — بارتفاع الصفحة ونصف.
+  /// صفحةٌ أقصرُ من هذا (جوّالٌ أفقيّاً) تُرسم فيها المنارةُ على جانبها.
+  static const double shortPage = 520;
+
+  static Rect towerSquare(Size area, {double full = 0, double top = 0, bool rtl = true}) {
     final w = area.width, h = area.height;
     if (w <= h) {
       final side = math.min(w, h);
       return Rect.fromLTWH((w - side) / 2, 0, side, side);
+    }
+    if (full > 0 && full < shortPage) {
+      final side = math.min(w * 0.55, full * 1.5);
+      final centerX = rtl ? w * 0.15 : w * 0.85;
+      return Rect.fromLTWH(centerX - side / 2, -top + 4 - side * 0.015, side, side);
     }
     final side = math.min(
       w * 0.7,
@@ -2113,7 +2125,12 @@ class _LighthouseBackdrop extends StatelessWidget {
             ),
             // الرسمُ والإضاءةُ في مربّعٍ واحد، أعلى المساحة تحت الرأس.
             child: LayoutBuilder(builder: (context, box) {
-              final square = towerSquare(box.biggest, full: page.maxHeight);
+              final square = towerSquare(
+                box.biggest,
+                full: page.maxHeight,
+                top: artTop.value,
+                rtl: Directionality.of(context) == TextDirection.rtl,
+              );
               return Stack(
                 fit: StackFit.expand,
                 clipBehavior: Clip.none,

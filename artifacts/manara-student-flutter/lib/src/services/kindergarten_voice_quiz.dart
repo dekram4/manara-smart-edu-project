@@ -156,7 +156,7 @@ KgVoiceOption kgColorOption(KgVoiceOption option, KgAnswerLanguage language) {
 
 // ── الأشكال ───────────────────────────────────────────────────────────
 
-enum KgShape { circle, rectangle, square, parallelogram, sphere, cube, pyramid }
+enum KgShape { circle, rectangle, square, parallelogram, sphere, cube, pyramid, triangle, star, heart }
 
 const kgShapes = <KgShape, KgVoiceOption>{
   KgShape.circle: KgVoiceOption('circle', 'دائرة', ['دايره', 'داير', 'دوايره', 'circle']),
@@ -170,7 +170,35 @@ const kgShapes = <KgShape, KgVoiceOption>{
   KgShape.sphere: KgVoiceOption('sphere', 'كرة', ['كره', 'كوره', 'كرا', 'ball', 'sphere']),
   KgShape.cube: KgVoiceOption('cube', 'مكعب', ['مكعب', 'مكعبه', 'cube']),
   KgShape.pyramid: KgVoiceOption('pyramid', 'هرم', ['هرم', 'هرمي', 'pyramid']),
+  KgShape.triangle: KgVoiceOption('triangle', 'مثلث', ['مثلث', 'مثلثه', 'مثلت', 'triangle']),
+  KgShape.star: KgVoiceOption('star', 'نجمة', ['نجمه', 'نجم', 'نجوم', 'star']),
+  KgShape.heart: KgVoiceOption('heart', 'قلب', ['قلب', 'قلوب', 'heart']),
 };
+
+/// أسماءُ الأشكال بالإنجليزية: ما يُرى على الزرّ، وما يُقبل إن قيل.
+const kgShapesEnglish = <String, (String, List<String>)>{
+  'circle': ('circle', ['circle', 'circles']),
+  'rectangle': ('rectangle', ['rectangle', 'rectangles']),
+  'square': ('square', ['square', 'squares']),
+  'parallelogram': ('parallelogram', ['parallelogram']),
+  'sphere': ('sphere', ['sphere', 'ball']),
+  'cube': ('cube', ['cube', 'cubes']),
+  'pyramid': ('pyramid', ['pyramid', 'pyramids']),
+  'triangle': ('triangle', ['triangle', 'triangles']),
+  'star': ('star', ['star', 'stars']),
+  'heart': ('heart', ['heart', 'hearts', 'hart']),
+};
+
+/// خيارُ الشكل [option] باللغة [language].
+KgVoiceOption kgShapeOption(KgVoiceOption option, KgAnswerLanguage language) {
+  if (language == KgAnswerLanguage.arabic) return option;
+  final english = kgShapesEnglish[option.id];
+  if (english == null) return option;
+  return KgVoiceOption(option.id, english.$1, english.$2, emoji: option.emoji);
+}
+
+/// ألعابٌ تبدأ بسؤال «اختار اللغة»: الألوانُ والأشكال.
+bool kgAsksLanguage(KgVoiceGameKind kind) => kind == KgVoiceGameKind.colors || kind == KgVoiceGameKind.shapes;
 
 // ── الحساب ────────────────────────────────────────────────────────────
 
@@ -337,7 +365,7 @@ List<KgVoiceQuestion> buildKgVoiceRound(
 }) {
   return switch (kind) {
     KgVoiceGameKind.colors => _colorRound(random, count, language),
-    KgVoiceGameKind.shapes => _shapeRound(random, count),
+    KgVoiceGameKind.shapes => _shapeRound(random, count, language),
     KgVoiceGameKind.math => _mathRound(random, count),
     KgVoiceGameKind.general => _generalRound(random, count),
   };
@@ -367,14 +395,14 @@ List<KgVoiceQuestion> _colorRound(math.Random random, int count, KgAnswerLanguag
         ),
     ];
 
-List<KgVoiceQuestion> _shapeRound(math.Random random, int count) => [
+List<KgVoiceQuestion> _shapeRound(math.Random random, int count, KgAnswerLanguage language) => [
       for (final shape in _deal(KgShape.values, count, random))
         KgVoiceQuestion._(
           kind: KgVoiceGameKind.shapes,
-          answer: kgShapes[shape]!,
+          answer: kgShapeOption(kgShapes[shape]!, language),
           distractors: [
             for (final entry in kgShapes.entries)
-              if (entry.key != shape) entry.value,
+              if (entry.key != shape) kgShapeOption(entry.value, language),
           ],
           promptClip: kgQuestionShapeClip,
           shape: shape,
