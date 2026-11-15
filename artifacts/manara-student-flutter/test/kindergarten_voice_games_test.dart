@@ -84,8 +84,12 @@ void main() {
   testWidgets('بدءُ اللعبة: السؤالُ يُسمع أوّلاً، والمايكُ بعده', (tester) async {
     final state = await boot(tester, KgVoiceGameKind.colors, (q) => q.answer.label);
     expect(find.byKey(const ValueKey('kg-voice-intro')), findsOneWidget);
+    // ‏لعبةُ الألوان تبدأ بسؤال اللغة: «اختار اللغة».
+    expect(events, ['clip:choose_language.mp3']);
     await start(tester);
-    expect(events.first, 'clip:question_color.mp3', reason: 'سؤالُ اللون المسجّل');
+    expect(events.where((e) => e.startsWith('clip:question')).first, 'clip:question_color.mp3',
+        reason: 'سؤالُ اللون المسجّل');
+    expect(events.indexOf('clip:question_color.mp3'), greaterThan(events.indexOf('clip:choose_language.mp3')));
     expect(state.turn, KgTurn.ready);
     expect(find.byKey(const ValueKey('kg-visual-color')), findsOneWidget);
     await tester.pump(const Duration(seconds: 3));

@@ -113,6 +113,11 @@ app.use("/api/gemini/generate-quiz", express.json({ limit: "1mb" }));
 app.use("/api/student/chat/voice", express.json({ limit: "320kb" }));
 // ‏ولوحةُ «لوحاتي»: ستّمئة كيلوبايت أقصى، وبـ base64 أكثرُ بالثلث. والسقفُ في `parseChatImage`.
 app.use("/api/student/chat/image", express.json({ limit: "900kb" }));
+// ‏الملفّ: حتى ١٫١ ميغابايت مخزَّناً، وBase64 يزيده الثلث.
+app.use("/api/student/chat/file", express.json({ limit: "1600kb" }));
+app.use("/api/teacher/chat/voice", express.json({ limit: "320kb" }));
+app.use("/api/teacher/chat/image", express.json({ limit: "900kb" }));
+app.use("/api/teacher/chat/file", express.json({ limit: "1600kb" }));
 // ‏«لوحاتي في السحابة»: صورةٌ بسقف ٣٠٠ كيلوبايت وخطواتٌ بسقف ٤٠٠ ألف حرف (`lib/artworks`).
 app.use("/api/student/artworks", express.json({ limit: "1mb" }));
 app.use(express.json());

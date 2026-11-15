@@ -151,19 +151,34 @@ void main() {
     expect(find.text(tr('chat.art.viewed')), findsOneWidget);
   });
 
-  testWidgets('الصورُ للطلاب وحدهم: إلى المعلّم لا تُرسل، وتُشرح السبب', (tester) async {
+  testWidgets('لوحةٌ إلى المعلّم من قائمة «معلّمي» المنفصلة', (tester) async {
     await pump(tester);
+    // ‏المعلّمُ ليس في قائمة الأصدقاء.
     await tester.tap(find.byType(DropdownButtonFormField<String>));
     await tester.pump(const Duration(milliseconds: 400));
-    await tester.tap(find.text('👩‍🏫 ${tr('chat.teacher')}').last);
+    expect(find.widgetWithText(DropdownMenuItem<String>, '👩‍🏫 ${tr('chat.teacher')}'), findsNothing);
+    expect(find.widgetWithText(DropdownMenuItem<String>, 'سارة'), findsWidgets);
+    await tester.tapAt(const Offset(5, 5));
     await tester.pump(const Duration(milliseconds: 400));
+
+    await tester.tap(find.byKey(const ValueKey('chat-tab-teacher')));
+    await tester.pump(const Duration(milliseconds: 400));
+    expect(find.byKey(const ValueKey('chat-teacher-teacher:t1')), findsOneWidget);
     await tester.tap(find.byKey(const ValueKey('chat-send-art')));
     for (var i = 0; i < 6; i++) {
       await tester.pump(const Duration(milliseconds: 100));
     }
-    expect(find.byKey(const ValueKey('chat-attach-art')), findsNothing);
-    expect(find.text(tr('chat.attach.studentsOnly')), findsOneWidget);
-    expect(requests.where((r) => r.url.path.endsWith('/chat/image')), isEmpty);
+    expect(find.byKey(const ValueKey('chat-attach-file')), findsOneWidget);
+    await tester.tap(find.byKey(const ValueKey('chat-attach-art')));
+    for (var i = 0; i < 6; i++) {
+      await tester.pump(const Duration(milliseconds: 100));
+    }
+    await tester.tap(find.byKey(const ValueKey('chat-art-0')));
+    for (var i = 0; i < 10; i++) {
+      await tester.pump(const Duration(milliseconds: 100));
+    }
+    final sent = requests.where((r) => r.url.path.endsWith('/chat/image') && r.method == 'POST').single;
+    expect((jsonDecode(sent.body) as Map)['to'], 'teacher:t1');
   });
 
   testWidgets('يُرسل لوحةً من «لوحاتي» إلى زميل', (tester) async {

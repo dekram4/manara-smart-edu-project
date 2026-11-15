@@ -27,6 +27,13 @@ const kgQuestionSignClip = 'audio/kg_games/question_sign.mp3';
 const kgQuestionResultClip = 'audio/kg_games/question_result.mp3';
 const kgWrongAnswerClip = 'audio/kg_games/wrong_answer.mp3';
 
+/// «اختار اللغة» — يُسمع على شاشة بداية لعبة الألوان: عربيٌّ أو إنجليزيّ.
+const kgChooseLanguageClip = 'audio/kg_games/choose_language.mp3';
+
+/// لغةُ الإجابة في لعبة الألوان: السؤالُ بالعربية دائماً، والخياراتُ وما يُقال
+/// بالعربية أو بالإنجليزية (black، white، blue…).
+enum KgAnswerLanguage { arabic, english }
+
 /// عددُ أسئلة الجولة.
 const kgVoiceRoundLength = 10;
 
@@ -123,6 +130,29 @@ const kgColors = <KgColor>[
     Color(0xFF9CA3AF),
   ),
 ];
+
+/// أسماءُ الألوان بالإنجليزية: ما يُرى على الزرّ، وما يُقبل إن قيل.
+const kgColorsEnglish = <String, (String, List<String>)>{
+  'white': ('white', ['white']),
+  'black': ('black', ['black']),
+  'red': ('red', ['red']),
+  'green': ('green', ['green']),
+  'blue': ('blue', ['blue', 'blew']),
+  'yellow': ('yellow', ['yellow']),
+  'purple': ('purple', ['purple', 'violet']),
+  'brown': ('brown', ['brown']),
+  'pink': ('pink', ['pink']),
+  'orange': ('orange', ['orange']),
+  'gray': ('grey', ['grey', 'gray']),
+};
+
+/// خيارُ اللون [option] باللغة [language].
+KgVoiceOption kgColorOption(KgVoiceOption option, KgAnswerLanguage language) {
+  if (language == KgAnswerLanguage.arabic) return option;
+  final english = kgColorsEnglish[option.id];
+  if (english == null) return option;
+  return KgVoiceOption(option.id, english.$1, english.$2, emoji: option.emoji);
+}
 
 // ── الأشكال ───────────────────────────────────────────────────────────
 
@@ -299,9 +329,14 @@ List<int> kgNumbersIn(String heard) {
 }
 
 /// عشرةُ أسئلةٍ عشوائية، بلا سؤالين متتاليين متطابقين.
-List<KgVoiceQuestion> buildKgVoiceRound(KgVoiceGameKind kind, math.Random random, {int count = kgVoiceRoundLength}) {
+List<KgVoiceQuestion> buildKgVoiceRound(
+  KgVoiceGameKind kind,
+  math.Random random, {
+  int count = kgVoiceRoundLength,
+  KgAnswerLanguage language = KgAnswerLanguage.arabic,
+}) {
   return switch (kind) {
-    KgVoiceGameKind.colors => _colorRound(random, count),
+    KgVoiceGameKind.colors => _colorRound(random, count, language),
     KgVoiceGameKind.shapes => _shapeRound(random, count),
     KgVoiceGameKind.math => _mathRound(random, count),
     KgVoiceGameKind.general => _generalRound(random, count),
@@ -321,12 +356,12 @@ List<T> _deal<T>(List<T> pool, int count, math.Random random) {
   return out.sublist(0, count);
 }
 
-List<KgVoiceQuestion> _colorRound(math.Random random, int count) => [
+List<KgVoiceQuestion> _colorRound(math.Random random, int count, KgAnswerLanguage language) => [
       for (final c in _deal(kgColors, count, random))
         KgVoiceQuestion._(
           kind: KgVoiceGameKind.colors,
-          answer: c.option,
-          distractors: [for (final other in kgColors) if (other != c) other.option],
+          answer: kgColorOption(c.option, language),
+          distractors: [for (final other in kgColors) if (other != c) kgColorOption(other.option, language)],
           promptClip: kgQuestionColorClip,
           color: c.color,
         ),

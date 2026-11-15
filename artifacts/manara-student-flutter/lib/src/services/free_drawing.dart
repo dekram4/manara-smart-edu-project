@@ -106,9 +106,24 @@ class FreeDrawingController extends ColoringArtwork {
   }
 
   @override
-  void beginStroke(Offset point, {required Color? color, required double width}) {
+  void beginStroke(
+    Offset point, {
+    required Color? color,
+    required double width,
+    BrushStyle brush = BrushStyle.pen,
+    ShapeKind? shape,
+    bool filled = false,
+  }) {
     if (_busy) return;
-    _active = ColoringStroke(region: -1, color: color, width: width, points: [point]);
+    _active = ColoringStroke(
+      region: -1,
+      color: color,
+      width: width,
+      points: [point],
+      brush: brush,
+      shape: shape,
+      filled: filled,
+    );
     notifyListeners();
   }
 
@@ -116,10 +131,13 @@ class FreeDrawingController extends ColoringArtwork {
   void extendStroke(Offset point) {
     final active = _active;
     if (active == null) return;
-    if ((active.points.last - point).distance < 1.2) return;
-    active.points.add(point);
+    active.extend(point);
     notifyListeners();
   }
+
+  /// ما أغلقته الخطوطُ تحت [point] يعود أبيضَ، والخطوطُ باقية.
+  @override
+  void eraseAt(Offset point) => fillAt(point, ColoringPainter.paper);
 
   @override
   void endStroke() {

@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:math' as math;
 import 'dart:ui' as ui;
 
 import 'package:flutter/foundation.dart';
@@ -23,9 +24,20 @@ abstract class ColoringArtwork extends ChangeNotifier {
 
   /// الدلو تحت [point] (بإحداثيّات اللوحة).
   void fillAt(Offset point, Color color);
-  void beginStroke(Offset point, {required Color? color, required double width});
+  void beginStroke(
+    Offset point, {
+    required Color? color,
+    required double width,
+    BrushStyle brush = BrushStyle.pen,
+    ShapeKind? shape,
+    bool filled = false,
+  });
   void extendStroke(Offset point);
   void endStroke();
+
+  /// الممحاةُ الذكية: تمحو لونَ ما تحت [point] كلَّه بلمسة — منطقةً في الرسمة
+  /// الجاهزة، أو ما أغلقته الخطوطُ في الرسم الحرّ — وتُبقي الخطوط.
+  void eraseAt(Offset point);
   void undo();
   void clear();
 
@@ -47,13 +59,50 @@ abstract class ColoringArtwork extends ChangeNotifier {
   }
 }
 
+/// أنواعُ الفرشاة: قلمٌ ناعم، وقلمُ تحديدٍ شفّاف، وطباشير، وبخّاخ، ونيون
+/// متوهّج، ونقاط، وخطُّ الريشة العريضة.
+enum BrushStyle { pen, marker, crayon, spray, neon, dotted, calligraphy }
+
+/// الأشكالُ الهندسية: تُسحب من نقطةٍ إلى نقطة.
+enum ShapeKind { line, rectangle, circle, triangle, star, heart }
+
 /// خطُّ فرشاةٍ واحد: لونُه (أو قوسُ قزحٍ إن كان `null`)، وعرضُه، ونقاطُه
 /// بإحداثيّات الرسمة، والمنطقةُ التي بدأ فيها — يُقصّ عليها فلا يخرج عنها.
 class ColoringStroke {
-  ColoringStroke({required this.region, required this.color, required this.width, List<Offset>? points})
-      : points = points ?? <Offset>[];
+  ColoringStroke({
+    required this.region,
+    required this.color,
+    required this.width,
+    List<Offset>? points,
+    this.brush = BrushStyle.pen,
+    this.shape,
+    this.filled = false,
+  }) : points = points ?? <Offset>[];
 
   final int region;
+
+  final BrushStyle brush;
+
+  /// شكلٌ هندسيّ: نقطتان فقط — البدايةُ وموضعُ الإصبع الآن.
+  final ShapeKind? shape;
+
+  /// الشكلُ مملوءٌ بلونه لا حدٌّ فقط.
+  final bool filled;
+
+  /// يمدّ الخطَّ إلى [point] — أو يحرّك زاويةَ الشكل إليها.
+  void extend(Offset point) {
+    if (shape != null) {
+      if (points.length < 2) {
+        points.add(point);
+      } else {
+        points[1] = point;
+      }
+      return;
+    }
+    // ‏نقاطٌ متلاصقة لا تزيد الخطَّ إلا ثقلاً.
+    if ((points.last - point).distance < 1.2) return;
+    points.add(point);
+  }
 
   /// `null`: فرشاةُ قوس قزح — يتبدّل لونُها على طول الخطّ.
   final Color? color;
@@ -66,6 +115,9 @@ class ColoringStroke {
         'w': width,
         // ‏أرباعُ الوحدة أعداداً صحيحة: دقّةٌ تكفي العين وتُصغّر المحفوظ.
         'p': [for (final p in points) ...[(p.dx * 4).round(), (p.dy * 4).round()]],
+        if (brush != BrushStyle.pen) 'b': brush.name,
+        if (shape != null) 'g': shape!.name,
+        if (filled) 'fl': 1,
       };
 
   static ColoringStroke? fromJson(Object? json) {
@@ -79,11 +131,16 @@ class ColoringStroke {
       if (x is num && y is num) points.add(Offset(x / 4, y / 4));
     }
     final c = json['c'];
+    final b = json['b'];
+    final g = json['g'];
     return ColoringStroke(
       region: (json['r'] as num?)?.toInt() ?? -1,
       color: c is int ? Color(c) : null,
       width: (json['w'] as num?)?.toDouble() ?? 10,
       points: points,
+      brush: BrushStyle.values.firstWhere((v) => v.name == b, orElse: () => BrushStyle.pen),
+      shape: g is String ? ShapeKind.values.where((v) => v.name == g).firstOrNull : null,
+      filled: json['fl'] == 1,
     );
   }
 }
@@ -148,8 +205,23 @@ class ColoringController extends ColoringArtwork {
 
   /// يبدأ خطَّ فرشاةٍ في المنطقة التي تحت [point].
   @override
-  void beginStroke(Offset point, {required Color? color, required double width}) {
-    _active = ColoringStroke(region: drawing.regionAt(point), color: color, width: width, points: [point]);
+  void beginStroke(
+    Offset point, {
+    required Color? color,
+    required double width,
+    BrushStyle brush = BrushStyle.pen,
+    ShapeKind? shape,
+    bool filled = false,
+  }) {
+    _active = ColoringStroke(
+      region: drawing.regionAt(point),
+      color: color,
+      width: width,
+      points: [point],
+      brush: brush,
+      shape: shape,
+      filled: filled,
+    );
     notifyListeners();
   }
 
@@ -157,9 +229,19 @@ class ColoringController extends ColoringArtwork {
   void extendStroke(Offset point) {
     final active = _active;
     if (active == null) return;
-    // ‏نقاطٌ متلاصقة لا تزيد الخطَّ إلا ثقلاً.
-    if ((active.points.last - point).distance < 1.2) return;
-    active.points.add(point);
+    active.extend(point);
+    notifyListeners();
+  }
+
+  /// يعيد المنطقةَ تحت [point] بيضاء: يمحو لونَها وخطوطَها.
+  @override
+  void eraseAt(Offset point) {
+    final region = drawing.regionAt(point);
+    final hasColor = _fills.containsKey(region) || _strokes.any((s) => s.region == region);
+    if (!hasColor) return;
+    _remember();
+    _fills.remove(region);
+    _strokes.removeWhere((s) => s.region == region);
     notifyListeners();
   }
 
@@ -293,8 +375,17 @@ class ColoringPainter extends CustomPainter {
     canvas.restore();
   }
 
-  /// خطُّ فرشاةٍ واحد: لونٌ واحد بانحناءٍ ناعم، أو قوسُ قزحٍ قطعةً قطعة.
+  /// خطُّ فرشاةٍ واحد بنوعه: شكلٌ هندسيّ، أو فرشاةٌ بتأثيرها، أو قلمٌ ناعم.
   static void paintStroke(Canvas canvas, ColoringStroke s) {
+    if (s.points.isEmpty) return;
+    if (s.shape != null) {
+      paintShape(canvas, s);
+      return;
+    }
+    if (s.color != null && s.brush != BrushStyle.pen) {
+      paintBrush(canvas, s, s.color!);
+      return;
+    }
     final paint = Paint()
       ..style = PaintingStyle.stroke
       ..strokeWidth = s.width
@@ -323,6 +414,191 @@ class ColoringPainter extends CustomPainter {
     }
     path.lineTo(points.last.dx, points.last.dy);
     canvas.drawPath(path, paint..color = color);
+  }
+
+  static Path _smooth(List<Offset> points) {
+    final path = Path()..moveTo(points.first.dx, points.first.dy);
+    if (points.length == 1) {
+      path.lineTo(points.first.dx + 0.01, points.first.dy);
+      return path;
+    }
+    for (var i = 1; i < points.length - 1; i++) {
+      final mid = Offset.lerp(points[i], points[i + 1], 0.5)!;
+      path.quadraticBezierTo(points[i].dx, points[i].dy, mid.dx, mid.dy);
+    }
+    path.lineTo(points.last.dx, points.last.dy);
+    return path;
+  }
+
+  /// نقاطٌ على طول الخطّ كلَّ [gap] — للنقاط والبخّاخ.
+  static Iterable<Offset> _along(List<Offset> points, double gap) sync* {
+    yield points.first;
+    var carry = 0.0;
+    for (var i = 1; i < points.length; i++) {
+      final a = points[i - 1];
+      final b = points[i];
+      final length = (b - a).distance;
+      var t = gap - carry;
+      while (t <= length) {
+        yield Offset.lerp(a, b, t / length)!;
+        t += gap;
+      }
+      carry = length - (t - gap);
+    }
+  }
+
+  /// الفرشُ ذواتُ التأثير.
+  static void paintBrush(Canvas canvas, ColoringStroke s, Color color) {
+    final w = s.width;
+    final points = s.points;
+    Paint line(Color c, double width) => Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = width
+      ..strokeCap = StrokeCap.round
+      ..strokeJoin = StrokeJoin.round
+      ..isAntiAlias = true
+      ..color = c;
+    switch (s.brush) {
+      case BrushStyle.pen:
+        canvas.drawPath(_smooth(points), line(color, w));
+      case BrushStyle.marker:
+        // ‏شفّافٌ ولا يتراكب على نفسه: مسارٌ واحد يُرسم مرّةً واحدة.
+        canvas.drawPath(
+          _smooth(points),
+          line(color.withValues(alpha: 0.42), w * 1.6)..strokeCap = StrokeCap.square,
+        );
+      case BrushStyle.crayon:
+        // ‏خيوطٌ متجاورة متفاوتة: ملمسُ الطباشير الملوّنة.
+        final path = _smooth(points);
+        for (var k = 0; k < 5; k++) {
+          final dx = (k - 2) * w * 0.16;
+          final dy = ((k * 37) % 5 - 2) * w * 0.12;
+          canvas.drawPath(path.shift(Offset(dx, dy)), line(color.withValues(alpha: 0.38), w * 0.45));
+        }
+      case BrushStyle.spray:
+        // ‏رذاذٌ ثابتٌ لكل خطّ: يُعاد كما هو عند فتح اللوحة.
+        final dots = Paint()..color = color.withValues(alpha: 0.85);
+        var seed = points.length * 7919 + (points.first.dx * 13).round();
+        double next() {
+          seed = (seed * 1103515245 + 12345) & 0x7fffffff;
+          return seed / 0x7fffffff;
+        }
+        for (final p in _along(points, math.max(1.5, w * 0.35))) {
+          for (var k = 0; k < 7; k++) {
+            final angle = next() * math.pi * 2;
+            final r = math.sqrt(next()) * w;
+            canvas.drawCircle(p + Offset(math.cos(angle) * r, math.sin(angle) * r), math.max(0.5, w * 0.06), dots);
+          }
+        }
+      case BrushStyle.neon:
+        final path = _smooth(points);
+        canvas.drawPath(
+          path,
+          line(color.withValues(alpha: 0.75), w * 1.5)..maskFilter = MaskFilter.blur(BlurStyle.normal, w * 0.7),
+        );
+        canvas.drawPath(path, line(color, w * 0.7));
+        canvas.drawPath(path, line(const Color(0xFFFFFFFF).withValues(alpha: 0.85), w * 0.25));
+      case BrushStyle.dotted:
+        final dot = Paint()..color = color;
+        for (final p in _along(points, w * 1.9)) {
+          canvas.drawCircle(p, w / 2, dot);
+        }
+      case BrushStyle.calligraphy:
+        // ‏ريشةٌ عريضةٌ مائلة: الخطُّ يغلظ ويرقّ باتجاهه.
+        final nib = Offset(math.cos(math.pi / 4), -math.sin(math.pi / 4)) * (w * 0.75);
+        final fill = Paint()
+          ..color = color
+          ..isAntiAlias = true;
+        if (points.length == 1) {
+          canvas.drawLine(points.first - nib, points.first + nib, line(color, 1.5));
+          return;
+        }
+        for (var i = 1; i < points.length; i++) {
+          final a = points[i - 1];
+          final b = points[i];
+          canvas.drawPath(
+            Path()
+              ..moveTo((a - nib).dx, (a - nib).dy)
+              ..lineTo((a + nib).dx, (a + nib).dy)
+              ..lineTo((b + nib).dx, (b + nib).dy)
+              ..lineTo((b - nib).dx, (b - nib).dy)
+              ..close(),
+            fill,
+          );
+        }
+    }
+  }
+
+  /// مسارُ الشكل بين نقطتين.
+  static Path shapePath(ShapeKind shape, Offset a, Offset b) {
+    final rect = Rect.fromPoints(a, b);
+    switch (shape) {
+      case ShapeKind.line:
+        return Path()
+          ..moveTo(a.dx, a.dy)
+          ..lineTo(b.dx, b.dy);
+      case ShapeKind.rectangle:
+        return Path()..addRect(rect);
+      case ShapeKind.circle:
+        return Path()..addOval(rect);
+      case ShapeKind.triangle:
+        return Path()
+          ..moveTo(rect.center.dx, rect.top)
+          ..lineTo(rect.right, rect.bottom)
+          ..lineTo(rect.left, rect.bottom)
+          ..close();
+      case ShapeKind.star:
+        final path = Path();
+        final c = rect.center;
+        for (var i = 0; i < 10; i++) {
+          final r = i.isEven ? 1.0 : 0.45;
+          final angle = -math.pi / 2 + i * math.pi / 5;
+          final p = Offset(c.dx + math.cos(angle) * rect.width / 2 * r, c.dy + math.sin(angle) * rect.height / 2 * r);
+          i == 0 ? path.moveTo(p.dx, p.dy) : path.lineTo(p.dx, p.dy);
+        }
+        return path..close();
+      case ShapeKind.heart:
+        final w = rect.width;
+        final h = rect.height;
+        final l = rect.left;
+        final t = rect.top;
+        return Path()
+          ..moveTo(l + w / 2, t + h * 0.3)
+          ..cubicTo(l + w * 0.15, t - h * 0.1, l - w * 0.25, t + h * 0.45, l + w / 2, t + h)
+          ..moveTo(l + w / 2, t + h * 0.3)
+          ..cubicTo(l + w * 0.85, t - h * 0.1, l + w * 1.25, t + h * 0.45, l + w / 2, t + h);
+    }
+  }
+
+  static void paintShape(Canvas canvas, ColoringStroke s) {
+    final a = s.points.first;
+    final b = s.points.length > 1 ? s.points[1] : a;
+    if ((b - a).distance < 0.5) return;
+    final path = shapePath(s.shape!, a, b);
+    final color = s.color ?? const Color(0xFFEC4899);
+    final paint = Paint()
+      ..isAntiAlias = true
+      ..color = color
+      ..strokeWidth = s.width
+      ..strokeCap = StrokeCap.round
+      ..strokeJoin = StrokeJoin.round
+      ..style = s.filled && s.shape != ShapeKind.line ? PaintingStyle.fill : PaintingStyle.stroke;
+    if (s.shape == ShapeKind.heart && s.filled) {
+      // ‏القلبُ نصفان: يُملأ كلٌّ منهما.
+      canvas.drawPath(path..fillType = PathFillType.nonZero, paint);
+      final rect = Rect.fromPoints(a, b);
+      canvas.drawPath(
+        Path()
+          ..moveTo(rect.left + rect.width / 2, rect.top + rect.height * 0.3)
+          ..lineTo(rect.left + rect.width * 0.12, rect.top + rect.height * 0.42)
+          ..lineTo(rect.left + rect.width / 2, rect.bottom)
+          ..lineTo(rect.right - rect.width * 0.12, rect.top + rect.height * 0.42)
+          ..close(),
+        paint,
+      );
+      return;
+    }
+    canvas.drawPath(path, paint);
   }
 
   @override

@@ -66,7 +66,7 @@ class MagicColoringScreen extends StatefulWidget {
   State<MagicColoringScreen> createState() => MagicColoringScreenState();
 }
 
-enum ColoringTool { fill, brush, rainbow, eraser }
+enum ColoringTool { fill, brush, rainbow, shapes, eraser, smartEraser }
 
 /// أين حُفظت اللوحة: على الجهاز، أو في السحابة، أو في استوديو الجهاز.
 enum ColoringSaveTarget { device, cloud, photos }
@@ -97,8 +97,39 @@ class MagicColoringScreenState extends State<MagicColoringScreen> {
     Color(0xFF111827),
   ];
 
-  /// عرضُ الفرشاة بوحدات الرسمة: صغيرة، ووسط، وكبيرة.
-  static const brushSizes = [6.0, 12.0, 20.0];
+  /// عرضُ الفرشاة بوحدات الرسمة: من خطٍّ رفيعٍ جدّاً إلى فرشاةٍ عريضة.
+  static const brushSizes = [3.0, 6.0, 12.0, 20.0, 32.0];
+
+  /// لوحةُ الألوان الموسّعة: اثنا عشر لوناً بستّ درجاتٍ لكلٍّ منها، ثم الرماديات.
+  static final extendedPalette = <Color>[
+    for (var hue = 0; hue < 12; hue++)
+      for (final (s, v) in const [(0.25, 1.0), (0.5, 1.0), (0.8, 1.0), (1.0, 0.9), (1.0, 0.65), (1.0, 0.4)])
+        HSVColor.fromAHSV(1, hue * 30.0, s, v).toColor(),
+    for (var i = 0; i <= 7; i++) Color.lerp(const Color(0xFFFFFFFF), const Color(0xFF000000), i / 7)!,
+    const Color(0xFFFFE0BD),
+    const Color(0xFFF1C27D),
+    const Color(0xFFC68642),
+    const Color(0xFF8D5524),
+  ];
+
+  static const brushIcons = <BrushStyle, (IconData, String)>{
+    BrushStyle.pen: (Icons.edit_rounded, 'coloring.brush.pen'),
+    BrushStyle.marker: (Icons.border_color_rounded, 'coloring.brush.marker'),
+    BrushStyle.crayon: (Icons.draw_rounded, 'coloring.brush.crayon'),
+    BrushStyle.spray: (Icons.blur_on_rounded, 'coloring.brush.spray'),
+    BrushStyle.neon: (Icons.flare_rounded, 'coloring.brush.neon'),
+    BrushStyle.dotted: (Icons.more_horiz_rounded, 'coloring.brush.dotted'),
+    BrushStyle.calligraphy: (Icons.gesture_rounded, 'coloring.brush.calligraphy'),
+  };
+
+  static const shapeIcons = <ShapeKind, (IconData, String)>{
+    ShapeKind.line: (Icons.horizontal_rule_rounded, 'coloring.shape.line'),
+    ShapeKind.rectangle: (Icons.crop_square_rounded, 'coloring.shape.rectangle'),
+    ShapeKind.circle: (Icons.circle_outlined, 'coloring.shape.circle'),
+    ShapeKind.triangle: (Icons.change_history_rounded, 'coloring.shape.triangle'),
+    ShapeKind.star: (Icons.star_outline_rounded, 'coloring.shape.star'),
+    ShapeKind.heart: (Icons.favorite_border_rounded, 'coloring.shape.heart'),
+  };
 
   late final math.Random _random = widget.random ?? math.Random();
   late final ConfettiController _confetti = ConfettiController(duration: const Duration(milliseconds: 900));
@@ -132,7 +163,15 @@ class MagicColoringScreenState extends State<MagicColoringScreen> {
 
   ColoringTool _tool = ColoringTool.fill;
   Color _color = palette.first;
-  int _size = 1;
+  int _size = 2;
+  BrushStyle _brush = BrushStyle.pen;
+  ShapeKind _shape = ShapeKind.rectangle;
+  bool _shapeFilled = false;
+
+  @visibleForTesting
+  ColoringTool get tool => _tool;
+  @visibleForTesting
+  Color get color => _color;
   bool _celebrating = false;
   bool _saving = false;
 
@@ -381,7 +420,8 @@ class MagicColoringScreenState extends State<MagicColoringScreen> {
       _mode = ColoringMode.free;
       _tool = ColoringTool.brush;
       _color = palette.last;
-      _size = 0;
+      _size = 1;
+      _brush = BrushStyle.pen;
     });
     _replaceController(FreeDrawingController(), galleryIndex: null);
   }
@@ -1089,6 +1129,9 @@ class MagicColoringScreenState extends State<MagicColoringScreen> {
                 tool: _tool,
                 color: _color,
                 width: brushSizes[_size],
+                brush: _brush,
+                shape: _shape,
+                shapeFilled: _shapeFilled,
               ),
             ),
           );
@@ -1182,26 +1225,87 @@ class MagicColoringScreenState extends State<MagicColoringScreen> {
                 _toolChip(ColoringTool.fill, Icons.format_color_fill_rounded, 'coloring.fill'),
                 _toolChip(ColoringTool.brush, Icons.brush_rounded, 'coloring.brush'),
                 _toolChip(ColoringTool.rainbow, Icons.gradient_rounded, 'coloring.rainbow'),
+                _toolChip(ColoringTool.shapes, Icons.category_rounded, 'coloring.shapes'),
                 _toolChip(ColoringTool.eraser, Icons.cleaning_services_rounded, 'coloring.eraser'),
+                _toolChip(ColoringTool.smartEraser, Icons.auto_fix_high_rounded, 'coloring.smartEraser'),
               ],
             ),
             AnimatedSize(
               duration: const Duration(milliseconds: 200),
-              child: _tool == ColoringTool.fill
+              child: switch (_tool) {
+                ColoringTool.brush => Padding(
+                    padding: const EdgeInsets.only(top: 8),
+                    child: Wrap(
+                      alignment: WrapAlignment.center,
+                      spacing: 6,
+                      runSpacing: 6,
+                      children: [
+                        for (final e in brushIcons.entries)
+                          _optionChip(
+                            key: ValueKey('coloring-brush-${e.key.name}'),
+                            icon: e.value.$1,
+                            label: tr(e.value.$2),
+                            selected: _brush == e.key,
+                            onTap: () => setState(() => _brush = e.key),
+                          ),
+                      ],
+                    ),
+                  ),
+                ColoringTool.shapes => Padding(
+                    padding: const EdgeInsets.only(top: 8),
+                    child: Wrap(
+                      alignment: WrapAlignment.center,
+                      spacing: 6,
+                      runSpacing: 6,
+                      children: [
+                        for (final e in shapeIcons.entries)
+                          _optionChip(
+                            key: ValueKey('coloring-shape-${e.key.name}'),
+                            icon: e.value.$1,
+                            label: tr(e.value.$2),
+                            selected: _shape == e.key,
+                            onTap: () => setState(() => _shape = e.key),
+                          ),
+                        _optionChip(
+                          key: const ValueKey('coloring-shape-filled'),
+                          icon: _shapeFilled ? Icons.square_rounded : Icons.check_box_outline_blank_rounded,
+                          label: tr('coloring.shape.filled'),
+                          selected: _shapeFilled,
+                          onTap: () => setState(() => _shapeFilled = !_shapeFilled),
+                        ),
+                      ],
+                    ),
+                  ),
+                ColoringTool.smartEraser => Padding(
+                    padding: const EdgeInsets.only(top: 8),
+                    child: Text(
+                      tr('coloring.smartEraser.hint'),
+                      key: const ValueKey('coloring-smart-eraser-hint'),
+                      textAlign: TextAlign.center,
+                      style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: StudentSurface.mutedInk(context)),
+                    ),
+                  ),
+                _ => const SizedBox(width: double.infinity),
+              },
+            ),
+            AnimatedSize(
+              duration: const Duration(milliseconds: 200),
+              child: _tool == ColoringTool.fill || _tool == ColoringTool.smartEraser
                   ? const SizedBox(width: double.infinity)
                   : Padding(
                       padding: const EdgeInsets.only(top: 8),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
+                      child: Wrap(
+                        alignment: WrapAlignment.center,
+                        runSpacing: 6,
                         children: [
                           for (var i = 0; i < brushSizes.length; i++)
                             GestureDetector(
                               key: ValueKey('coloring-size-$i'),
                               onTap: () => setState(() => _size = i),
                               child: Container(
-                                width: 44,
-                                height: 44,
-                                margin: const EdgeInsets.symmetric(horizontal: 6),
+                                width: 42,
+                                height: 42,
+                                margin: const EdgeInsets.symmetric(horizontal: 4),
                                 decoration: BoxDecoration(
                                   shape: BoxShape.circle,
                                   color: _size == i ? const Color(0xFFFCE7F3) : Colors.transparent,
@@ -1212,8 +1316,8 @@ class MagicColoringScreenState extends State<MagicColoringScreen> {
                                 ),
                                 alignment: Alignment.center,
                                 child: Container(
-                                  width: 8.0 + i * 8,
-                                  height: 8.0 + i * 8,
+                                  width: 5.0 + i * 7,
+                                  height: 5.0 + i * 7,
                                   decoration: BoxDecoration(
                                     shape: BoxShape.circle,
                                     color: _tool == ColoringTool.eraser ? const Color(0xFF9CA3AF) : _color,
@@ -1232,11 +1336,155 @@ class MagicColoringScreenState extends State<MagicColoringScreen> {
               runSpacing: 7,
               children: [
                 for (var i = 0; i < palette.length; i++) _swatch(i),
+                // ‏لونٌ اختير من اللوحة الموسّعة: يبقى ظاهراً هنا.
+                if (!palette.contains(_color)) _colorDot(_color, key: const ValueKey('coloring-color-custom')),
+                GestureDetector(
+                  key: const ValueKey('coloring-more-colors'),
+                  onTap: _moreColors,
+                  child: Container(
+                    width: 34,
+                    height: 34,
+                    decoration: const BoxDecoration(
+                      shape: BoxShape.circle,
+                      gradient: SweepGradient(colors: [
+                        Color(0xFFEF4444),
+                        Color(0xFFFACC15),
+                        Color(0xFF22C55E),
+                        Color(0xFF38BDF8),
+                        Color(0xFF8B5CF6),
+                        Color(0xFFEC4899),
+                        Color(0xFFEF4444),
+                      ]),
+                    ),
+                    child: const Icon(Icons.add_rounded, color: Colors.white, size: 22),
+                  ),
+                ),
               ],
             ),
           ],
         ),
       );
+
+  Widget _optionChip({
+    required Key key,
+    required IconData icon,
+    required String label,
+    required bool selected,
+    required VoidCallback onTap,
+  }) =>
+      GestureDetector(
+        key: key,
+        onTap: () {
+          HapticFeedback.selectionClick();
+          onTap();
+        },
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 160),
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+          decoration: BoxDecoration(
+            color: selected ? const Color(0xFFFCE7F3) : StudentSurface.card(context),
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(
+              color: selected ? const Color(0xFFDB2777) : StudentSurface.outline(context),
+              width: selected ? 2 : 1,
+            ),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(icon, size: 18, color: selected ? const Color(0xFFDB2777) : StudentSurface.ink(context)),
+              const SizedBox(width: 4),
+              Text(label, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: StudentSurface.ink(context))),
+            ],
+          ),
+        ),
+      );
+
+  /// اختيارُ لونٍ من أيّ مكان: الممحاةُ أو قوسُ قزح بيده فيريد أن يلوّن به.
+  void _pickColor(Color color) {
+    HapticFeedback.selectionClick();
+    setState(() {
+      _color = color;
+      if (_tool == ColoringTool.eraser || _tool == ColoringTool.rainbow || _tool == ColoringTool.smartEraser) {
+        _tool = ColoringTool.brush;
+      }
+    });
+  }
+
+  bool get _usesColor => _tool == ColoringTool.fill || _tool == ColoringTool.brush || _tool == ColoringTool.shapes;
+
+  Widget _colorDot(Color color, {required Key key, double size = 34, VoidCallback? onTap}) {
+    final selected = _color == color && _usesColor;
+    return GestureDetector(
+      key: key,
+      onTap: onTap ?? () => _pickColor(color),
+      child: AnimatedScale(
+        scale: selected ? 1.18 : 1,
+        duration: const Duration(milliseconds: 160),
+        child: Container(
+          width: size,
+          height: size,
+          decoration: BoxDecoration(
+            color: color,
+            shape: BoxShape.circle,
+            border: Border.all(color: selected ? Colors.white : const Color(0x33000000), width: selected ? 3 : 1),
+            boxShadow: selected ? [BoxShadow(color: color.withValues(alpha: 0.6), blurRadius: 10, spreadRadius: 1)] : null,
+          ),
+          child: selected
+              ? Icon(Icons.check_rounded, size: 18, color: color.computeLuminance() > 0.6 ? Colors.black87 : Colors.white)
+              : null,
+        ),
+      ),
+    );
+  }
+
+  /// لوحةُ الألوان الموسّعة: ثمانون لوناً ودرجة.
+  Future<void> _moreColors() async {
+    HapticFeedback.selectionClick();
+    final picked = await showModalBottomSheet<Color>(
+      context: context,
+      showDragHandle: true,
+      isScrollControlled: true,
+      builder: (context) => SafeArea(
+        child: SingleChildScrollView(
+          key: const ValueKey('coloring-palette-sheet'),
+          padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(tr('coloring.moreColors'), style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900)),
+              const SizedBox(height: 12),
+              Wrap(
+                alignment: WrapAlignment.center,
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  for (final (i, color) in extendedPalette.indexed)
+                    GestureDetector(
+                      key: ValueKey('coloring-extended-$i'),
+                      onTap: () => Navigator.of(context).pop(color),
+                      child: Container(
+                        width: 36,
+                        height: 36,
+                        decoration: BoxDecoration(
+                          color: color,
+                          shape: BoxShape.circle,
+                          border: Border.all(
+                            color: color == _color ? const Color(0xFFDB2777) : const Color(0x33000000),
+                            width: color == _color ? 3 : 1,
+                          ),
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+    if (picked != null && mounted) _pickColor(picked);
+  }
 
   Widget _toolChip(ColoringTool tool, IconData icon, String label) {
     final selected = _tool == tool;
@@ -1276,38 +1524,7 @@ class MagicColoringScreenState extends State<MagicColoringScreen> {
     );
   }
 
-  Widget _swatch(int i) {
-    final color = palette[i];
-    final selected = _color == color && _tool != ColoringTool.eraser && _tool != ColoringTool.rainbow;
-    return GestureDetector(
-      key: ValueKey('coloring-color-$i'),
-      onTap: () {
-        HapticFeedback.selectionClick();
-        setState(() {
-          _color = color;
-          // ‏لونٌ اختير والممحاةُ أو قوسُ قزح بيده: يريد أن يلوّن به.
-          if (_tool == ColoringTool.eraser || _tool == ColoringTool.rainbow) _tool = ColoringTool.brush;
-        });
-      },
-      child: AnimatedScale(
-        scale: selected ? 1.18 : 1,
-        duration: const Duration(milliseconds: 160),
-        child: Container(
-          width: 34,
-          height: 34,
-          decoration: BoxDecoration(
-            color: color,
-            shape: BoxShape.circle,
-            border: Border.all(color: selected ? Colors.white : const Color(0x33000000), width: selected ? 3 : 1),
-            boxShadow: selected
-                ? [BoxShadow(color: color.withValues(alpha: 0.6), blurRadius: 10, spreadRadius: 1)]
-                : null,
-          ),
-          child: selected ? const Icon(Icons.check_rounded, size: 18, color: Colors.white) : null,
-        ),
-      ),
-    );
-  }
+  Widget _swatch(int i) => _colorDot(palette[i], key: ValueKey('coloring-color-$i'));
 
   // ── الاحتفال ──
 
@@ -1420,6 +1637,9 @@ class _ColoringBoard extends StatefulWidget {
     required this.tool,
     required this.color,
     required this.width,
+    this.brush = BrushStyle.pen,
+    this.shape = ShapeKind.rectangle,
+    this.shapeFilled = false,
     super.key,
   });
 
@@ -1427,6 +1647,12 @@ class _ColoringBoard extends StatefulWidget {
   final ColoringTool tool;
   final Color color;
   final double width;
+  final BrushStyle brush;
+  final ShapeKind shape;
+  final bool shapeFilled;
+
+  /// أداةٌ تعمل باللمس لا بالسحب.
+  bool get taps => tool == ColoringTool.fill || tool == ColoringTool.smartEraser;
 
   @override
   State<_ColoringBoard> createState() => _ColoringBoardState();
@@ -1448,9 +1674,18 @@ class _ColoringBoardState extends State<_ColoringBoard> {
     final p = _toDrawing(e.localPosition);
     switch (widget.tool) {
       case ColoringTool.fill:
+      case ColoringTool.smartEraser:
         break;
       case ColoringTool.brush:
-        widget.controller.beginStroke(p, color: widget.color, width: widget.width);
+        widget.controller.beginStroke(p, color: widget.color, width: widget.width, brush: widget.brush);
+      case ColoringTool.shapes:
+        widget.controller.beginStroke(
+          p,
+          color: widget.color,
+          width: widget.width,
+          shape: widget.shape,
+          filled: widget.shapeFilled,
+        );
       case ColoringTool.rainbow:
         widget.controller.beginStroke(p, color: null, width: widget.width);
       case ColoringTool.eraser:
@@ -1459,20 +1694,26 @@ class _ColoringBoardState extends State<_ColoringBoard> {
   }
 
   void _move(PointerMoveEvent e) {
-    if (e.pointer != _pointer || widget.tool == ColoringTool.fill) return;
+    if (e.pointer != _pointer || widget.taps) return;
     widget.controller.extendStroke(_toDrawing(e.localPosition));
   }
 
   void _up(PointerEvent e) {
     if (e.pointer != _pointer) return;
     _pointer = null;
-    if (widget.tool == ColoringTool.fill) {
+    if (widget.taps) {
       final start = _downAt;
       // ‏لمسةٌ لا سحب: سحبٌ طويلٌ بالدلو ليس قصدَ تعبئة.
       if (start != null && (e.localPosition - start).distance < 24 && e is PointerUpEvent) {
-        widget.controller.fillAt(_toDrawing(e.localPosition), widget.color);
-        HapticFeedback.lightImpact();
-        _ripple(e.localPosition, widget.color);
+        if (widget.tool == ColoringTool.smartEraser) {
+          widget.controller.eraseAt(_toDrawing(e.localPosition));
+          HapticFeedback.lightImpact();
+          _ripple(e.localPosition, ColoringPainter.paper);
+        } else {
+          widget.controller.fillAt(_toDrawing(e.localPosition), widget.color);
+          HapticFeedback.lightImpact();
+          _ripple(e.localPosition, widget.color);
+        }
       }
     } else {
       widget.controller.endStroke();

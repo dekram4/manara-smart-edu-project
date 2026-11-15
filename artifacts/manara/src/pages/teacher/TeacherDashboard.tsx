@@ -305,7 +305,7 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onLogout }) => {
         userRole={currentTeacher.subject ? `معلم ${currentTeacher.subject}` : 'معلم'}
         nav={nav}
         secondaryNav={[
-          { id: 'student-inbox', label: 'رسائل طلابي', icon: Palette, onSelect: () => setShowInbox(true) },
+          { id: 'student-inbox', label: 'دردشة طلابي', icon: Palette, onSelect: () => setShowInbox(true) },
           { id: 'chat', label: 'الدردشة والدعم', icon: MessageSquareText, onSelect: () => setShowChat(true) },
         ]}
         onLogout={handleLogout}

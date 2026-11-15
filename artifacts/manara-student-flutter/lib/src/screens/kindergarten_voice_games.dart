@@ -103,6 +103,25 @@ class KgVoiceGameScreenState extends State<KgVoiceGameScreen> {
   late final ConfettiController _confetti = ConfettiController(duration: const Duration(milliseconds: 700));
 
   _Stage _stage = _Stage.intro;
+
+  /// لغةُ الإجابة — يختارها الطفلُ في بداية لعبة الألوان.
+  KgAnswerLanguage _language = KgAnswerLanguage.arabic;
+
+  @visibleForTesting
+  KgAnswerLanguage get language => _language;
+
+  bool get _english => _language == KgAnswerLanguage.english;
+
+  @override
+  void initState() {
+    super.initState();
+    // ‏«اختار اللغة»: لعبةُ الألوان تبدأ بسؤال اللغة.
+    if (widget.kind == KgVoiceGameKind.colors) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted && _stage == _Stage.intro) unawaited(_play(kgChooseLanguageClip));
+      });
+    }
+  }
   List<KgVoiceQuestion> _round = const [];
   int _index = 0;
   int _score = 0;
@@ -190,7 +209,8 @@ class KgVoiceGameScreenState extends State<KgVoiceGameScreen> {
 
   Future<void> _say(String text) async {
     try {
-      await (widget.speak ?? (text) => StudentVoiceService.instance.speakIn(text, lang: 'ar'))(text);
+      await (widget.speak ??
+          (text) => StudentVoiceService.instance.speakIn(text, lang: _english ? 'en' : 'ar'))(text);
     } catch (error) {
       debugPrint('[kg-voice] speak failed: $error');
     }
@@ -211,7 +231,7 @@ class KgVoiceGameScreenState extends State<KgVoiceGameScreen> {
               StudentVoiceService.instance.listenForChild(
                 onResult: onResult,
                 onPartial: onPartial,
-                locale: 'ar_SA',
+                locale: _english ? 'en_US' : 'ar_SA',
                 window: const Duration(seconds: 12),
                 firstPause: const Duration(seconds: 6),
               );
@@ -224,10 +244,12 @@ class KgVoiceGameScreenState extends State<KgVoiceGameScreen> {
 
   // ── الجولة ──────────────────────────────────────────────────────
 
-  void _start() {
+  void _start([KgAnswerLanguage? language]) {
     StudentSoundService.instance.playTap();
+    if (language != null) unawaited(_stopPrompt());
     setState(() {
-      _round = buildKgVoiceRound(widget.kind, _random);
+      if (language != null) _language = language;
+      _round = buildKgVoiceRound(widget.kind, _random, language: _language);
       _index = 0;
       _score = 0;
       _stage = _Stage.playing;
@@ -374,7 +396,10 @@ class KgVoiceGameScreenState extends State<KgVoiceGameScreen> {
       setState(() => _turn = KgTurn.revealed);
       await _play(kgWrongAnswerClip);
       if (!mounted || token != _token) return;
-      await _say(trf('kg.voice.answerWas', {'answer': _round[_index].answer.label}));
+      // ‏بالإنجليزية: الكلمةُ وحدها بنطقها الإنجليزي.
+      await _say(_english
+          ? _round[_index].answer.label
+          : trf('kg.voice.answerWas', {'answer': _round[_index].answer.label}));
       await Future<void>.delayed(celebrateFor);
       if (!mounted || token != _token) return;
       _next();
@@ -534,13 +559,51 @@ class KgVoiceGameScreenState extends State<KgVoiceGameScreen> {
                 style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: StudentSurface.mutedInk(context)),
               ),
               const SizedBox(height: 18),
-              _BigButton(
-                key: const ValueKey('kg-voice-start'),
-                label: tr('kg.voice.start'),
-                icon: Icons.play_arrow_rounded,
-                color: _accent,
-                onPressed: _start,
-              ),
+              if (widget.kind == KgVoiceGameKind.colors) ...[
+                // ‏«اختار اللغة»: العربيةُ أو الإنجليزية، والسؤالُ بالعربية.
+                Text(
+                  tr('kg.voice.chooseLanguage'),
+                  key: const ValueKey('kg-voice-choose-language'),
+                  textAlign: TextAlign.center,
+                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.w900, color: StudentSurface.ink(context)),
+                ),
+                const SizedBox(height: 12),
+                Wrap(
+                  alignment: WrapAlignment.center,
+                  spacing: 12,
+                  runSpacing: 12,
+                  children: [
+                    _BigButton(
+                      key: const ValueKey('kg-voice-start'),
+                      label: 'العربية',
+                      icon: Icons.translate_rounded,
+                      color: _accent,
+                      onPressed: () => _start(KgAnswerLanguage.arabic),
+                    ),
+                    _BigButton(
+                      key: const ValueKey('kg-voice-start-en'),
+                      label: 'English',
+                      icon: Icons.abc_rounded,
+                      color: const Color(0xFF2563EB),
+                      onPressed: () => _start(KgAnswerLanguage.english),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                IconButton(
+                  key: const ValueKey('kg-voice-language-replay'),
+                  tooltip: tr('kg.voice.chooseLanguage'),
+                  onPressed: () => unawaited(_play(kgChooseLanguageClip)),
+                  icon: const Icon(Icons.volume_up_rounded),
+                ),
+              ] else
+                _BigButton(
+                  key: const ValueKey('kg-voice-start'),
+                  label: tr('kg.voice.start'),
+                  icon: Icons.play_arrow_rounded,
+                  color: _accent,
+                  onPressed: _start,
+                ),
             ],
           ),
         ),

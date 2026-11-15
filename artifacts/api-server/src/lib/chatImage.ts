@@ -61,10 +61,3 @@ export function teacherRecipient(teacherId: string): string {
   return teacherId ? `teacher:${teacherId}` : "";
 }
 
-/**
- * الصورُ واللوحاتُ بين الطلاب وحدهم: الصفُّ كلُّه أو زميلٌ بعينه — لا المعلّم.
- * والنصُّ والصوتُ يصلانه كما كانا.
- */
-export function imageRecipientAllowed(recipient: string): boolean {
-  return Boolean(recipient) && !recipient.startsWith("teacher:");
-}
