@@ -39,11 +39,13 @@ void main() {
   late List<Map<String, dynamic>> messages;
   late List<http.Request> requests;
   late bool locked;
+  late bool oldServer;
   final doc = Uint8List.fromList(utf8.encode('واجب العلوم: اقرأ الدرس الثالث\n' * 60));
 
   setUp(() {
     requests = [];
     locked = false;
+    oldServer = false;
     messages = [
       {
         'id': 'chat_1_teacherr',
@@ -87,12 +89,17 @@ void main() {
         requests.add(request);
         final path = request.url.path;
         if (path.endsWith('/chat/messages') && request.method == 'GET') {
-          return json({'messages': messages, 'ephemeral': true, 'visit': '2026-11-15T10:05:00.000Z', 'locked': locked});
+          return json({
+            'messages': messages,
+            'ephemeral': true,
+            'visit': '2026-11-15T10:05:00.000Z',
+            if (!oldServer) 'locked': locked,
+          });
         }
         if (path.endsWith('/chat/peers')) {
           return json({
             'peers': [
-              {'id': 'teacher:t1', 'name': 'معلّمي', 'teacher': true},
+              if (!oldServer) {'id': 'teacher:t1', 'name': 'معلّمي', 'teacher': true},
               {'id': 'sara', 'name': 'سارة'},
             ],
           });
@@ -233,6 +240,17 @@ void main() {
     await settle(tester);
     expect(find.text('المعلم قام بقفل الدردشة حالياً'), findsWidgets);
     expect(find.byKey(const ValueKey('chat-locked-banner')), findsOneWidget);
+    await tester.pump(const Duration(seconds: 5));
+  });
+
+  testWidgets('خادمٌ أقدمُ بلا محادثة المعلّم: يُقال ذلك، لا «لا معلّمَ لصفّك»', (tester) async {
+    oldServer = true;
+    messages.removeWhere((m) => m['from'] == 'teacher:t1');
+    await pump(tester);
+    await tester.tap(find.byKey(const ValueKey('chat-tab-teacher')));
+    await settle(tester, 3);
+    expect(find.text(tr('chat.teacher.serverOld')), findsOneWidget);
+    expect(find.text(tr('chat.teacher.none')), findsNothing);
     await tester.pump(const Duration(seconds: 5));
   });
 }

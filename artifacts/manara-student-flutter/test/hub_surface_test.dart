@@ -86,13 +86,21 @@ void main() {
     await tester.pumpWidget(const SizedBox());
   });
 
-  testWidgets('no welcome line after login: the hub opens on its cards', (tester) async {
+  testWidgets('شريطُ الترحيب: اسمُ الطالب فوق البطاقات، بلا ترحيب التطبيق القديم', (tester) async {
     await pumpHub(tester, Brightness.dark);
     expect(
       find.byWidgetPredicate((w) => w.runtimeType.toString() == '_WelcomeCard'),
       findsNothing,
     );
     expect(find.text('أهلًا بك في منارة المعرفة'), findsNothing);
+    expect(find.byKey(const ValueKey('home-welcome-banner')), findsOneWidget);
+    final line = tester.widget<Text>(find.byKey(const ValueKey('home-welcome-name'))).data!;
+    expect(line, contains('طالب'));
+    // ‏الشريطُ فوق البطاقات.
+    expect(
+      tester.getTopLeft(find.byKey(const ValueKey('home-welcome-banner'))).dy,
+      lessThan(tester.getTopLeft(find.byKey(const ValueKey('portal-card-surface')).first).dy),
+    );
     await tester.pumpWidget(const SizedBox());
   });
 }

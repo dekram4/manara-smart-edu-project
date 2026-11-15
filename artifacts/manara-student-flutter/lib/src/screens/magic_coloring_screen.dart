@@ -66,7 +66,7 @@ class MagicColoringScreen extends StatefulWidget {
   State<MagicColoringScreen> createState() => MagicColoringScreenState();
 }
 
-enum ColoringTool { fill, brush, rainbow, shapes, eraser, smartEraser }
+enum ColoringTool { fill, brush, rainbow, shapes, stamps, eraser, smartEraser }
 
 /// أين حُفظت اللوحة: على الجهاز، أو في السحابة، أو في استوديو الجهاز.
 enum ColoringSaveTarget { device, cloud, photos }
@@ -120,7 +120,22 @@ class MagicColoringScreenState extends State<MagicColoringScreen> {
     BrushStyle.neon: (Icons.flare_rounded, 'coloring.brush.neon'),
     BrushStyle.dotted: (Icons.more_horiz_rounded, 'coloring.brush.dotted'),
     BrushStyle.calligraphy: (Icons.gesture_rounded, 'coloring.brush.calligraphy'),
+    BrushStyle.glitter: (Icons.auto_awesome_rounded, 'coloring.brush.glitter'),
   };
+
+  /// الأختام: تُطبع بلمسة، وحجمُها من حجم الفرشاة.
+  static const stampIcons = <ShapeKind, String>{
+    ShapeKind.star: '⭐',
+    ShapeKind.heart: '❤️',
+    ShapeKind.flower: '🌸',
+    ShapeKind.sparkle: '✨',
+    ShapeKind.moon: '🌙',
+    ShapeKind.cloud: '☁️',
+    ShapeKind.circle: '🔵',
+  };
+
+  /// نصفُ قطر الختم بوحدات الرسمة، لكل حجمٍ من [brushSizes].
+  static const stampRadii = [10.0, 16.0, 24.0, 34.0, 46.0];
 
   static const shapeIcons = <ShapeKind, (IconData, String)>{
     ShapeKind.line: (Icons.horizontal_rule_rounded, 'coloring.shape.line'),
@@ -167,6 +182,13 @@ class MagicColoringScreenState extends State<MagicColoringScreen> {
   BrushStyle _brush = BrushStyle.pen;
   ShapeKind _shape = ShapeKind.rectangle;
   bool _shapeFilled = false;
+  ShapeKind _stamp = ShapeKind.star;
+
+  /// تدرّجٌ سحريٌّ مختار بدل اللون، أو `null`.
+  int? _magic;
+
+  @visibleForTesting
+  int? get magic => _magic;
 
   @visibleForTesting
   ColoringTool get tool => _tool;
@@ -1132,6 +1154,9 @@ class MagicColoringScreenState extends State<MagicColoringScreen> {
                 brush: _brush,
                 shape: _shape,
                 shapeFilled: _shapeFilled,
+                stamp: _stamp,
+                stampRadius: stampRadii[_size],
+                magic: _magic,
               ),
             ),
           );
@@ -1147,6 +1172,16 @@ class MagicColoringScreenState extends State<MagicColoringScreen> {
                   tooltip: tr('coloring.undo'),
                   onPressed: controller.canUndo ? controller.undo : null,
                   icon: const Icon(Icons.undo_rounded),
+                  color: StudentSurface.ink(context),
+                ),
+              ),
+              ListenableBuilder(
+                listenable: controller,
+                builder: (context, _) => IconButton(
+                  key: const ValueKey('coloring-redo'),
+                  tooltip: tr('coloring.redo'),
+                  onPressed: controller.canRedo ? controller.redo : null,
+                  icon: const Icon(Icons.redo_rounded),
                   color: StudentSurface.ink(context),
                 ),
               ),
@@ -1226,6 +1261,7 @@ class MagicColoringScreenState extends State<MagicColoringScreen> {
                 _toolChip(ColoringTool.brush, Icons.brush_rounded, 'coloring.brush'),
                 _toolChip(ColoringTool.rainbow, Icons.gradient_rounded, 'coloring.rainbow'),
                 _toolChip(ColoringTool.shapes, Icons.category_rounded, 'coloring.shapes'),
+                _toolChip(ColoringTool.stamps, Icons.emoji_emotions_rounded, 'coloring.stamps'),
                 _toolChip(ColoringTool.eraser, Icons.cleaning_services_rounded, 'coloring.eraser'),
                 _toolChip(ColoringTool.smartEraser, Icons.auto_fix_high_rounded, 'coloring.smartEraser'),
               ],
@@ -1273,6 +1309,39 @@ class MagicColoringScreenState extends State<MagicColoringScreen> {
                           selected: _shapeFilled,
                           onTap: () => setState(() => _shapeFilled = !_shapeFilled),
                         ),
+                      ],
+                    ),
+                  ),
+                ColoringTool.stamps => Padding(
+                    padding: const EdgeInsets.only(top: 8),
+                    child: Wrap(
+                      alignment: WrapAlignment.center,
+                      spacing: 6,
+                      runSpacing: 6,
+                      children: [
+                        for (final e in stampIcons.entries)
+                          GestureDetector(
+                            key: ValueKey('coloring-stamp-${e.key.name}'),
+                            onTap: () {
+                              HapticFeedback.selectionClick();
+                              setState(() => _stamp = e.key);
+                            },
+                            child: AnimatedContainer(
+                              duration: const Duration(milliseconds: 160),
+                              width: 44,
+                              height: 44,
+                              alignment: Alignment.center,
+                              decoration: BoxDecoration(
+                                color: _stamp == e.key ? const Color(0xFFFCE7F3) : StudentSurface.card(context),
+                                borderRadius: BorderRadius.circular(14),
+                                border: Border.all(
+                                  color: _stamp == e.key ? const Color(0xFFDB2777) : StudentSurface.outline(context),
+                                  width: _stamp == e.key ? 2 : 1,
+                                ),
+                              ),
+                              child: Text(e.value, style: const TextStyle(fontSize: 22)),
+                            ),
+                          ),
                       ],
                     ),
                   ),
@@ -1330,6 +1399,39 @@ class MagicColoringScreenState extends State<MagicColoringScreen> {
                     ),
             ),
             const SizedBox(height: 10),
+            Text(
+              tr('coloring.magic'),
+              style: TextStyle(fontSize: 12, fontWeight: FontWeight.w900, color: StudentSurface.mutedInk(context)),
+            ),
+            const SizedBox(height: 5),
+            Wrap(
+              alignment: WrapAlignment.center,
+              spacing: 7,
+              runSpacing: 7,
+              children: [
+                for (final (i, (_, colors)) in magicGradients.indexed)
+                  GestureDetector(
+                    key: ValueKey('coloring-magic-$i'),
+                    onTap: () => _pickMagic(i),
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 160),
+                      width: _magic == i ? 40 : 34,
+                      height: _magic == i ? 40 : 34,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        gradient: LinearGradient(colors: colors, begin: Alignment.topLeft, end: Alignment.bottomRight),
+                        border: Border.all(
+                          color: _magic == i ? const Color(0xFFDB2777) : Colors.white,
+                          width: _magic == i ? 3 : 2,
+                        ),
+                        boxShadow: const [BoxShadow(color: Color(0x22000000), blurRadius: 4, offset: Offset(0, 2))],
+                      ),
+                      child: _magic == i ? const Icon(Icons.auto_awesome, color: Colors.white, size: 16) : null,
+                    ),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 8),
             Wrap(
               alignment: WrapAlignment.center,
               spacing: 7,
@@ -1405,13 +1507,28 @@ class MagicColoringScreenState extends State<MagicColoringScreen> {
     HapticFeedback.selectionClick();
     setState(() {
       _color = color;
+      _magic = null;
       if (_tool == ColoringTool.eraser || _tool == ColoringTool.rainbow || _tool == ColoringTool.smartEraser) {
         _tool = ColoringTool.brush;
       }
     });
   }
 
-  bool get _usesColor => _tool == ColoringTool.fill || _tool == ColoringTool.brush || _tool == ColoringTool.shapes;
+  /// تدرّجٌ سحريّ: للفرشاة والأشكال والأختام — الدلوُ والممحاةُ يصيران فرشاة.
+  void _pickMagic(int index) {
+    HapticFeedback.selectionClick();
+    setState(() {
+      _magic = index;
+      if (_tool != ColoringTool.brush && _tool != ColoringTool.shapes && _tool != ColoringTool.stamps) {
+        _tool = ColoringTool.brush;
+      }
+    });
+  }
+
+  bool get _usesColor =>
+      _magic == null &&
+      (_tool == ColoringTool.fill || _tool == ColoringTool.brush || _tool == ColoringTool.shapes ||
+          _tool == ColoringTool.stamps);
 
   Widget _colorDot(Color color, {required Key key, double size = 34, VoidCallback? onTap}) {
     final selected = _color == color && _usesColor;
@@ -1640,6 +1757,9 @@ class _ColoringBoard extends StatefulWidget {
     this.brush = BrushStyle.pen,
     this.shape = ShapeKind.rectangle,
     this.shapeFilled = false,
+    this.stamp = ShapeKind.star,
+    this.stampRadius = 24,
+    this.magic,
     super.key,
   });
 
@@ -1650,9 +1770,15 @@ class _ColoringBoard extends StatefulWidget {
   final BrushStyle brush;
   final ShapeKind shape;
   final bool shapeFilled;
+  final ShapeKind stamp;
+  final double stampRadius;
+  final int? magic;
+
+  /// التدرّجُ السحريّ لا يكون للدلو: يُملأ باللون.
+  int? get _magicForStroke => tool == ColoringTool.fill ? null : magic;
 
   /// أداةٌ تعمل باللمس لا بالسحب.
-  bool get taps => tool == ColoringTool.fill || tool == ColoringTool.smartEraser;
+  bool get taps => tool == ColoringTool.fill || tool == ColoringTool.smartEraser || tool == ColoringTool.stamps;
 
   @override
   State<_ColoringBoard> createState() => _ColoringBoardState();
@@ -1675,9 +1801,11 @@ class _ColoringBoardState extends State<_ColoringBoard> {
     switch (widget.tool) {
       case ColoringTool.fill:
       case ColoringTool.smartEraser:
+      case ColoringTool.stamps:
         break;
       case ColoringTool.brush:
-        widget.controller.beginStroke(p, color: widget.color, width: widget.width, brush: widget.brush);
+        widget.controller.beginStroke(p,
+            color: widget.color, width: widget.width, brush: widget.brush, magic: widget._magicForStroke);
       case ColoringTool.shapes:
         widget.controller.beginStroke(
           p,
@@ -1685,6 +1813,7 @@ class _ColoringBoardState extends State<_ColoringBoard> {
           width: widget.width,
           shape: widget.shape,
           filled: widget.shapeFilled,
+          magic: widget._magicForStroke,
         );
       case ColoringTool.rainbow:
         widget.controller.beginStroke(p, color: null, width: widget.width);
@@ -1709,6 +1838,17 @@ class _ColoringBoardState extends State<_ColoringBoard> {
           widget.controller.eraseAt(_toDrawing(e.localPosition));
           HapticFeedback.lightImpact();
           _ripple(e.localPosition, ColoringPainter.paper);
+        } else if (widget.tool == ColoringTool.stamps) {
+          // ‏الختمُ شكلٌ مملوءٌ مربّعُه حول اللمسة.
+          final at = _toDrawing(e.localPosition);
+          final r = Offset(widget.stampRadius, widget.stampRadius);
+          widget.controller
+            ..beginStroke(at - r,
+                color: widget.color, width: 4, shape: widget.stamp, filled: true, magic: widget.magic)
+            ..extendStroke(at + r)
+            ..endStroke();
+          HapticFeedback.lightImpact();
+          _ripple(e.localPosition, widget.color);
         } else {
           widget.controller.fillAt(_toDrawing(e.localPosition), widget.color);
           HapticFeedback.lightImpact();

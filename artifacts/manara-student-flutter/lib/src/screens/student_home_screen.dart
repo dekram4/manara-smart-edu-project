@@ -43,6 +43,7 @@ import '../l10n/student_strings.dart';
 import '../theme/student_theme.dart';
 import '../utils/student_route_observer.dart';
 import '../widgets/bouncy_text.dart';
+import '../widgets/student_welcome_banner.dart';
 import 'login_screen.dart';
 import 'student_cinema_screen.dart';
 import 'student_chat_screen.dart';
@@ -1087,8 +1088,16 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> with RouteAware {
                       key: _headerKey,
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        // ‏بلا عبارة ترحيب: الواجهةُ تبدأ بالمسار ثم البطاقات،
-                        // ‏وشخصيةُ الطالب في الشريط العلويّ.
+                        // ‏شريطُ الترحيب: اسمُ الطالب وصفُّه، ثم المسارُ ثم البطاقات.
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(14, 4, 14, 12),
+                          child: StudentWelcomeBanner(
+                            name: widget.profile.name,
+                            grade: (_academicContext?.grade.trim().isNotEmpty ?? false)
+                                ? _academicContext!.grade
+                                : widget.profile.grade,
+                          ),
+                        ),
                         if (_academicContext != null) ...[
                           Padding(
                             padding: const EdgeInsets.symmetric(horizontal: 18),

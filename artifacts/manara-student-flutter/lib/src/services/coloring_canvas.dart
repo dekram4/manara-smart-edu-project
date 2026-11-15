@@ -22,6 +22,9 @@ abstract class ColoringArtwork extends ChangeNotifier {
   bool get isEmpty;
   bool get canUndo;
 
+  /// خطوةٌ تراجع عنها الطفلُ تُعاد بـ[redo] — حتى يرسم شيئاً جديداً.
+  bool get canRedo;
+
   /// الدلو تحت [point] (بإحداثيّات اللوحة).
   void fillAt(Offset point, Color color);
   void beginStroke(
@@ -31,6 +34,7 @@ abstract class ColoringArtwork extends ChangeNotifier {
     BrushStyle brush = BrushStyle.pen,
     ShapeKind? shape,
     bool filled = false,
+    int? magic,
   });
   void extendStroke(Offset point);
   void endStroke();
@@ -39,6 +43,7 @@ abstract class ColoringArtwork extends ChangeNotifier {
   /// الجاهزة، أو ما أغلقته الخطوطُ في الرسم الحرّ — وتُبقي الخطوط.
   void eraseAt(Offset point);
   void undo();
+  void redo();
   void clear();
 
   Map<String, Object?> toJson();
@@ -60,11 +65,42 @@ abstract class ColoringArtwork extends ChangeNotifier {
 }
 
 /// أنواعُ الفرشاة: قلمٌ ناعم، وقلمُ تحديدٍ شفّاف، وطباشير، وبخّاخ، ونيون
-/// متوهّج، ونقاط، وخطُّ الريشة العريضة.
-enum BrushStyle { pen, marker, crayon, spray, neon, dotted, calligraphy }
+/// متوهّج، ونقاط، وخطُّ الريشة العريضة، ولمعانٌ تتلألأ فيه النجوم.
+enum BrushStyle { pen, marker, crayon, spray, neon, dotted, calligraphy, glitter }
 
-/// الأشكالُ الهندسية: تُسحب من نقطةٍ إلى نقطة.
-enum ShapeKind { line, rectangle, circle, triangle, star, heart }
+/// الأشكالُ الهندسية: تُسحب من نقطةٍ إلى نقطة. وآخرُها أختامٌ تُطبع بلمسة
+/// (والنجمةُ والقلبُ والدائرةُ أختامٌ أيضاً).
+enum ShapeKind { line, rectangle, circle, triangle, star, heart, flower, sparkle, moon, cloud }
+
+/// التدرّجاتُ السحرية: ألوانٌ تتبدّل على طول الخطّ، أو تملأ الشكلَ تدرّجاً.
+/// تُحفظ برقمها، فلا يُغيَّر ترتيبُها — يُضاف في آخرها.
+const magicGradients = <(String, List<Color>)>[
+  ('sunset', [Color(0xFFFF5F6D), Color(0xFFFFC371), Color(0xFFFF8A00)]),
+  ('ocean', [Color(0xFF00C6FF), Color(0xFF0072FF), Color(0xFF7CF7FF)]),
+  ('candy', [Color(0xFFFF6FD8), Color(0xFFB980F0), Color(0xFF6EE7F9)]),
+  ('forest', [Color(0xFF16A34A), Color(0xFFA3E635), Color(0xFF065F46)]),
+  ('galaxy', [Color(0xFF6D28D9), Color(0xFFDB2777), Color(0xFF1E3A8A)]),
+  ('fire', [Color(0xFFDC2626), Color(0xFFF97316), Color(0xFFFACC15)]),
+  ('gold', [Color(0xFFB45309), Color(0xFFFDE68A), Color(0xFFD97706)]),
+  ('unicorn', [Color(0xFFF9A8D4), Color(0xFFA5F3FC), Color(0xFFFDE68A), Color(0xFFC4B5FD)]),
+];
+
+/// لونُ الخطّ عند الموضع [t] (من صفرٍ إلى واحد، أو أكثر فيلتفّ): لونُه إن
+/// كان له لون، وإلا تدرّجُه السحريّ ذهاباً وإياباً، وإلا قوسُ قزح.
+Color strokeColorAt(ColoringStroke s, double t, {int index = 0}) {
+  final color = s.color;
+  if (color != null) return color;
+  final magic = s.magic;
+  if (magic != null && magic >= 0 && magic < magicGradients.length) {
+    final colors = magicGradients[magic].$2;
+    final phase = t % 2;
+    final wave = phase <= 1 ? phase : 2 - phase;
+    final scaled = wave * (colors.length - 1);
+    final i = scaled.floor().clamp(0, colors.length - 2);
+    return Color.lerp(colors[i], colors[i + 1], scaled - i)!;
+  }
+  return HSVColor.fromAHSV(1, (index * 7.0) % 360, 0.75, 1).toColor();
+}
 
 /// خطُّ فرشاةٍ واحد: لونُه (أو قوسُ قزحٍ إن كان `null`)، وعرضُه، ونقاطُه
 /// بإحداثيّات الرسمة، والمنطقةُ التي بدأ فيها — يُقصّ عليها فلا يخرج عنها.
@@ -77,9 +113,13 @@ class ColoringStroke {
     this.brush = BrushStyle.pen,
     this.shape,
     this.filled = false,
+    this.magic,
   }) : points = points ?? <Offset>[];
 
   final int region;
+
+  /// تدرّجٌ سحريّ من [magicGradients] بدل اللون — ويكون [color] حينها `null`.
+  final int? magic;
 
   final BrushStyle brush;
 
@@ -118,6 +158,7 @@ class ColoringStroke {
         if (brush != BrushStyle.pen) 'b': brush.name,
         if (shape != null) 'g': shape!.name,
         if (filled) 'fl': 1,
+        if (magic != null) 'm': magic,
       };
 
   static ColoringStroke? fromJson(Object? json) {
@@ -141,6 +182,7 @@ class ColoringStroke {
       brush: BrushStyle.values.firstWhere((v) => v.name == b, orElse: () => BrushStyle.pen),
       shape: g is String ? ShapeKind.values.where((v) => v.name == g).firstOrNull : null,
       filled: json['fl'] == 1,
+      magic: (json['m'] as num?)?.toInt(),
     );
   }
 }
@@ -169,6 +211,7 @@ class ColoringController extends ColoringArtwork {
   final List<ColoringStroke> _strokes = [];
   ColoringStroke? _active;
   final List<(Map<int, Color>, List<ColoringStroke>)> _history = [];
+  final List<(Map<int, Color>, List<ColoringStroke>)> _future = [];
 
   /// أقصى خطواتِ التراجع المحفوظة.
   static const maxUndo = 40;
@@ -180,13 +223,30 @@ class ColoringController extends ColoringArtwork {
   @override
   bool get canUndo => _history.isNotEmpty;
 
+  @override
+  bool get canRedo => _future.isNotEmpty;
+
   /// هل لوّن الطفلُ شيئاً بعد؟
   @override
   bool get isEmpty => _fills.isEmpty && _strokes.isEmpty;
 
-  void _remember() {
+  void _remember({bool keepFuture = false}) {
     _history.add((Map.of(_fills), List.of(_strokes)));
     if (_history.length > maxUndo) _history.removeAt(0);
+    // ‏خطوةٌ جديدة تمحو ما يُعاد: لا يُعاد ما بُني عليه غيرُه.
+    if (!keepFuture) _future.clear();
+  }
+
+  void _restore((Map<int, Color>, List<ColoringStroke>) state) {
+    final (fills, strokes) = state;
+    _fills
+      ..clear()
+      ..addAll(fills);
+    _strokes
+      ..clear()
+      ..addAll(strokes);
+    _active = null;
+    notifyListeners();
   }
 
   /// يملأ المنطقةَ تحت [point] بـ[color]، ويمحو خطوطَ الفرشاة فيها — دلوٌ
@@ -212,15 +272,17 @@ class ColoringController extends ColoringArtwork {
     BrushStyle brush = BrushStyle.pen,
     ShapeKind? shape,
     bool filled = false,
+    int? magic,
   }) {
     _active = ColoringStroke(
       region: drawing.regionAt(point),
-      color: color,
+      color: magic != null ? null : color,
       width: width,
       points: [point],
       brush: brush,
       shape: shape,
       filled: filled,
+      magic: magic,
     );
     notifyListeners();
   }
@@ -258,15 +320,16 @@ class ColoringController extends ColoringArtwork {
   @override
   void undo() {
     if (_history.isEmpty) return;
-    final (fills, strokes) = _history.removeLast();
-    _fills
-      ..clear()
-      ..addAll(fills);
-    _strokes
-      ..clear()
-      ..addAll(strokes);
-    _active = null;
-    notifyListeners();
+    _future.add((Map.of(_fills), List.of(_strokes)));
+    _restore(_history.removeLast());
+  }
+
+  @override
+  void redo() {
+    if (_future.isEmpty) return;
+    final next = _future.removeLast();
+    _remember(keepFuture: true);
+    _restore(next);
   }
 
   @override
@@ -386,6 +449,10 @@ class ColoringPainter extends CustomPainter {
       paintBrush(canvas, s, s.color!);
       return;
     }
+    if (s.color == null && s.brush != BrushStyle.pen) {
+      paintColorfulBrush(canvas, s);
+      return;
+    }
     final paint = Paint()
       ..style = PaintingStyle.stroke
       ..strokeWidth = s.width
@@ -394,15 +461,14 @@ class ColoringPainter extends CustomPainter {
       ..isAntiAlias = true;
     final points = s.points;
     if (points.length == 1) {
-      canvas.drawCircle(points.first, s.width / 2,
-          Paint()..color = s.color ?? HSVColor.fromAHSV(1, 0, 0.75, 1).toColor());
+      canvas.drawCircle(points.first, s.width / 2, Paint()..color = strokeColorAt(s, 0));
       return;
     }
     final color = s.color;
     if (color == null) {
-      // ‏قوسُ قزح: كلُّ قطعةٍ بلونٍ يلي ما قبله.
+      // ‏قوسُ قزح أو تدرّجٌ سحريّ: كلُّ قطعةٍ بلونٍ يلي ما قبله.
       for (var i = 1; i < points.length; i++) {
-        paint.color = HSVColor.fromAHSV(1, (i * 7.0) % 360, 0.75, 1).toColor();
+        paint.color = strokeColorAt(s, i / 40, index: i);
         canvas.drawLine(points[i - 1], points[i], paint);
       }
       return;
@@ -446,6 +512,34 @@ class ColoringPainter extends CustomPainter {
       carry = length - (t - gap);
     }
   }
+
+  /// فرشاةٌ بتأثيرها وألوانُها تتبدّل (قوسُ قزح أو تدرّجٌ سحريّ): كلُّ قطعةٍ
+  /// خطٌّ قصيرٌ بلونها، والتأثيرُ عليها — النيونُ يتوهّج، واللمعانُ يتلألأ.
+  static void paintColorfulBrush(Canvas canvas, ColoringStroke s) {
+    final points = s.points;
+    final segments = <List<Offset>>[];
+    const every = 6;
+    for (var i = 0; i < points.length; i += every) {
+      segments.add(points.sublist(i, math.min(points.length, i + every + 1)));
+    }
+    for (final (k, part) in segments.indexed) {
+      final c = strokeColorAt(s, k * every / 40, index: k * every);
+      paintBrush(
+        canvas,
+        ColoringStroke(region: s.region, color: c, width: s.width, points: part, brush: s.brush),
+        c,
+      );
+    }
+  }
+
+  /// نجمةٌ لامعةٌ بأربعة رؤوس في [c] بنصف قطر [r].
+  static Path sparklePath(Offset c, double r) => Path()
+    ..moveTo(c.dx, c.dy - r)
+    ..quadraticBezierTo(c.dx, c.dy, c.dx + r, c.dy)
+    ..quadraticBezierTo(c.dx, c.dy, c.dx, c.dy + r)
+    ..quadraticBezierTo(c.dx, c.dy, c.dx - r, c.dy)
+    ..quadraticBezierTo(c.dx, c.dy, c.dx, c.dy - r)
+    ..close();
 
   /// الفرشُ ذواتُ التأثير.
   static void paintBrush(Canvas canvas, ColoringStroke s, Color color) {
@@ -498,6 +592,29 @@ class ColoringPainter extends CustomPainter {
         );
         canvas.drawPath(path, line(color, w * 0.7));
         canvas.drawPath(path, line(const Color(0xFFFFFFFF).withValues(alpha: 0.85), w * 0.25));
+      case BrushStyle.glitter:
+        // ‏خطٌّ لامعٌ تنثر عليه نجومٌ بيضاءُ وذهبية — ثابتةُ المواضع لكل خطّ.
+        final path = _smooth(points);
+        canvas.drawPath(
+          path,
+          line(color.withValues(alpha: 0.5), w * 1.3)..maskFilter = MaskFilter.blur(BlurStyle.normal, w * 0.35),
+        );
+        canvas.drawPath(path, line(color, w * 0.8));
+        var seed = points.length * 4099 + (points.first.dy * 11).round();
+        double next() {
+          seed = (seed * 1103515245 + 12345) & 0x7fffffff;
+          return seed / 0x7fffffff;
+        }
+        final star = Paint()..isAntiAlias = true;
+        for (final p in _along(points, math.max(4, w * 1.1))) {
+          final angle = next() * math.pi * 2;
+          final r = next() * w * 0.9;
+          star.color = next() > 0.5 ? const Color(0xFFFFFFFF) : const Color(0xFFFDE68A);
+          canvas.drawPath(
+            sparklePath(p + Offset(math.cos(angle) * r, math.sin(angle) * r), math.max(1.5, w * (0.25 + next() * 0.35))),
+            star,
+          );
+        }
       case BrushStyle.dotted:
         final dot = Paint()..color = color;
         for (final p in _along(points, w * 1.9)) {
@@ -567,6 +684,55 @@ class ColoringPainter extends CustomPainter {
           ..cubicTo(l + w * 0.15, t - h * 0.1, l - w * 0.25, t + h * 0.45, l + w / 2, t + h)
           ..moveTo(l + w / 2, t + h * 0.3)
           ..cubicTo(l + w * 0.85, t - h * 0.1, l + w * 1.25, t + h * 0.45, l + w / 2, t + h);
+      case ShapeKind.flower:
+        // ‏خمسُ بتلاتٍ حول قلبٍ مستدير.
+        final c = rect.center;
+        final rx = rect.width / 2;
+        final ry = rect.height / 2;
+        var flower = Path();
+        for (var i = 0; i < 5; i++) {
+          final angle = -math.pi / 2 + i * 2 * math.pi / 5;
+          final petal = Offset(c.dx + math.cos(angle) * rx * 0.55, c.dy + math.sin(angle) * ry * 0.55);
+          flower = Path.combine(
+            PathOperation.union,
+            flower,
+            Path()..addOval(Rect.fromCenter(center: petal, width: rx * 0.95, height: ry * 0.95)),
+          );
+        }
+        return Path.combine(
+          PathOperation.union,
+          flower,
+          Path()..addOval(Rect.fromCenter(center: c, width: rx * 0.8, height: ry * 0.8)),
+        );
+      case ShapeKind.sparkle:
+        final c = rect.center;
+        final r = rect.shortestSide / 2;
+        return Path.combine(
+          PathOperation.union,
+          sparklePath(c, r),
+          sparklePath(c + Offset(r * 0.75, -r * 0.7), r * 0.32),
+        );
+      case ShapeKind.moon:
+        // ‏هلال: دائرةٌ ينقص منها مثلُها مزاحةً.
+        final full = Path()..addOval(rect);
+        final bite = Path()..addOval(rect.shift(Offset(rect.width * 0.32, -rect.height * 0.12)));
+        return Path.combine(PathOperation.difference, full, bite);
+      case ShapeKind.cloud:
+        final w = rect.width;
+        final h = rect.height;
+        final l = rect.left;
+        final t = rect.top;
+        var cloud = Path()
+          ..addRRect(RRect.fromRectAndRadius(
+              Rect.fromLTWH(l + w * 0.08, t + h * 0.45, w * 0.84, h * 0.45), Radius.circular(h * 0.22)));
+        for (final (cx, cy, r) in const [(0.3, 0.5, 0.22), (0.52, 0.38, 0.3), (0.74, 0.52, 0.2)]) {
+          cloud = Path.combine(
+            PathOperation.union,
+            cloud,
+            Path()..addOval(Rect.fromCircle(center: Offset(l + w * cx, t + h * cy), radius: math.min(w, h * 1.6) * r)),
+          );
+        }
+        return cloud;
     }
   }
 
@@ -576,9 +742,20 @@ class ColoringPainter extends CustomPainter {
     if ((b - a).distance < 0.5) return;
     final path = shapePath(s.shape!, a, b);
     final color = s.color ?? const Color(0xFFEC4899);
+    final rect = Rect.fromPoints(a, b);
+    final magic = s.magic;
     final paint = Paint()
       ..isAntiAlias = true
       ..color = color
+      // ‏تدرّجٌ سحريّ يملأ الشكل، أو قوسُ قزحٍ يدور فيه.
+      ..shader = s.color != null
+          ? null
+          : magic != null && magic >= 0 && magic < magicGradients.length
+              ? ui.Gradient.linear(rect.topLeft, rect.bottomRight, magicGradients[magic].$2,
+                  [for (var i = 0; i < magicGradients[magic].$2.length; i++) i / (magicGradients[magic].$2.length - 1)])
+              : ui.Gradient.sweep(rect.center, [
+                  for (var h = 0; h <= 6; h++) HSVColor.fromAHSV(1, (h * 60.0) % 360, 0.75, 1).toColor(),
+                ], [for (var h = 0; h <= 6; h++) h / 6])
       ..strokeWidth = s.width
       ..strokeCap = StrokeCap.round
       ..strokeJoin = StrokeJoin.round

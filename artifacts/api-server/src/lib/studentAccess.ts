@@ -17,6 +17,9 @@ export type StudentActor = {
   /** المواد المسندة إليه. فارغة = كل مواد معلّمه. */
   assignedSubjects: string[];
   canAccessChat: boolean;
+  /** من أنشأ السجلّ — معلّمُه في السجلّات الأقدم التي لا `teacherId` فيها. */
+  createdBy?: string;
+  parentId?: string;
 };
 
 export type StudentSupabaseConfig = { url: string; key: string };
@@ -107,6 +110,8 @@ function fromRow(row: { id?: unknown; data?: unknown }): StudentActor | null {
     unit: text(data.unit),
     assignedSubjects: nameList(data.assignedSubjects),
     canAccessChat: data.canAccessChat !== false && data.can_access_chat !== false,
+    createdBy: text(data.createdBy) || text(data.created_by),
+    parentId: text(data.parentId) || text(data.parent_id),
   };
 }
 

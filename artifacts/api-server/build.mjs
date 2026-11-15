@@ -48,6 +48,7 @@ async function buildAll() {
       path.resolve(artifactDir, "src/lib/artworks.ts"),
       path.resolve(artifactDir, "src/lib/chatFile.ts"),
       path.resolve(artifactDir, "src/lib/chatLock.ts"),
+      path.resolve(artifactDir, "src/lib/chatTeacher.ts"),
       path.resolve(artifactDir, "src/lib/chatLifecycle.ts"),
       path.resolve(artifactDir, "src/lib/gameEmbed.ts"),
       path.resolve(artifactDir, "src/lib/safePath.ts"),

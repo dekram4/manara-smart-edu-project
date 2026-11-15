@@ -42,6 +42,10 @@ class FreeDrawingController extends ColoringArtwork {
   late ui.Image _raster;
   ColoringStroke? _active;
   final List<(ui.Image, List<_FreeOp>)> _history = [];
+
+  /// ما تراجع عنه الطفلُ: صورتُه وخطواتُه — أو خطواتُه وحدها إن رُجع إليه
+  /// بإعادة الرسم، فيُعاد رسماً.
+  final List<(ui.Image?, List<_FreeOp>)> _future = [];
   bool _busy = false;
   bool _disposed = false;
   Completer<void>? _replaying;
@@ -66,6 +70,16 @@ class FreeDrawingController extends ColoringArtwork {
   bool get canUndo => _history.isNotEmpty || _ops.isNotEmpty;
 
   @override
+  bool get canRedo => _future.isNotEmpty;
+
+  void _forgetFuture() {
+    for (final (image, _) in _future) {
+      image?.dispose();
+    }
+    _future.clear();
+  }
+
+  @override
   CustomPainter painter({double outline = 3.2}) => FreeDrawingPainter(this);
 
   ui.Image _blank() {
@@ -80,7 +94,8 @@ class FreeDrawingController extends ColoringArtwork {
     return image;
   }
 
-  void _remember() {
+  void _remember({bool keepFuture = false}) {
+    if (!keepFuture) _forgetFuture();
     _history.add((_raster.clone(), List.of(_ops)));
     while (_history.length > maxUndo) {
       _history.removeAt(0).$1.dispose();
@@ -113,16 +128,18 @@ class FreeDrawingController extends ColoringArtwork {
     BrushStyle brush = BrushStyle.pen,
     ShapeKind? shape,
     bool filled = false,
+    int? magic,
   }) {
     if (_busy) return;
     _active = ColoringStroke(
       region: -1,
-      color: color,
+      color: magic != null ? null : color,
       width: width,
       points: [point],
       brush: brush,
       shape: shape,
       filled: filled,
+      magic: magic,
     );
     notifyListeners();
   }
@@ -200,6 +217,7 @@ class FreeDrawingController extends ColoringArtwork {
   void undo() {
     if (_busy) return;
     if (_history.isNotEmpty) {
+      _future.add((_raster.clone(), List.of(_ops)));
       final (image, ops) = _history.removeLast();
       _replaceRaster(image);
       _ops
@@ -211,8 +229,26 @@ class FreeDrawingController extends ColoringArtwork {
     }
     // ‏لوحةٌ أُعيدت من «لوحاتي» بلا صورٍ للتراجع: تُعاد رسماً بلا آخر خطوة.
     if (_ops.isEmpty) return;
+    _future.add((null, List.of(_ops)));
     final keep = _ops.sublist(0, _ops.length - 1);
     unawaited(_replay(keep));
+  }
+
+  @override
+  void redo() {
+    if (_busy || _future.isEmpty) return;
+    final (image, ops) = _future.removeLast();
+    if (image == null) {
+      unawaited(_replay(ops));
+      return;
+    }
+    _remember(keepFuture: true);
+    _replaceRaster(image);
+    _ops
+      ..clear()
+      ..addAll(ops);
+    _active = null;
+    notifyListeners();
   }
 
   @override
@@ -310,6 +346,7 @@ class FreeDrawingController extends ColoringArtwork {
       image.dispose();
     }
     _history.clear();
+    _forgetFuture();
     _raster.dispose();
     super.dispose();
   }

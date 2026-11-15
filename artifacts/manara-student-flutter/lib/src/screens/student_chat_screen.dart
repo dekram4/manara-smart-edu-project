@@ -173,6 +173,10 @@ class _StudentChatScreenState extends State<StudentChatScreen>
   /// المعلّمُ قفل الدردشة: الإرسالُ متوقّف، والقراءةُ باقية.
   bool _locked = false;
 
+  /// خادمٌ يعرف محادثةَ المعلّم: ردُّه على الرسائل فيه حالةُ القفل. وخادمٌ
+  /// أقدمُ لا يذكرها، فلا يُقال للطالب «لا معلّمَ لصفّك» والعلّةُ في الخادم.
+  bool _teacherChatDeployed = true;
+
   /// قائمةُ «معلّمي» مفتوحة — منفصلةً عن الأصدقاء: محادثتُه وحدها.
   bool _teacherMode = false;
 
@@ -353,6 +357,7 @@ class _StudentChatScreenState extends State<StudentChatScreen>
       if (!mounted) return;
       _ephemeral = messageData['ephemeral'] == true;
       _locked = messageData['locked'] == true;
+      _teacherChatDeployed = messageData.containsKey('locked');
       if (_imagesDeployed == null) unawaited(_probeImages());
       _visit ??= messageData['visit'] is String
           ? messageData['visit'] as String
@@ -1765,7 +1770,7 @@ class _StudentChatScreenState extends State<StudentChatScreen>
         tab('chat-tab-teacher', '👩‍🏫 ${tr('chat.tab.teacher')}', _teacherMode, () {
           StudentSoundService.instance.playTap();
           if (teachers.isEmpty) {
-            _toast(tr('chat.teacher.none'));
+            _toast(tr(_teacherChatDeployed ? 'chat.teacher.none' : 'chat.teacher.serverOld'));
             return;
           }
           setState(() {

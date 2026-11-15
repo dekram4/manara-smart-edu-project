@@ -1,13 +1,21 @@
-import { Router } from "express";
+import { Router, type RequestHandler } from "express";
 import crypto from "node:crypto";
 import {
   apiSupabaseConfig,
-  findStudentsInScope,
   listStudents,
   normalizeScopeId,
   type StudentActor,
 } from "../lib/studentAccess";
 import { requireStudentSession } from "../middleware/studentAuth";
+import {
+  buildTeacherDirectory,
+  chatTeacherByKey,
+  studentTeacherKey,
+  teacherKeyOf,
+  type TeacherDirectory,
+} from "../lib/chatTeacher";
+import { HIERARCHY_KEY } from "../lib/teacherScope";
+import { readKv, rest as storeRest, storeConfig } from "../lib/supabaseStore";
 import { readCookie, TEACHER_SESSION_COOKIE, verifyTeacherSession } from "../middleware/adminAuth";
 import { isChatImageId, parseChatImage, teacherRecipient } from "../lib/chatImage";
 import { CHAT_FILE_MAX_BYTES, isChatFileId, parseChatFile, storedFileBytes } from "../lib/chatFile";
@@ -68,6 +76,58 @@ function normalized(value: unknown): string {
 
 function activeStudent(res: any): StudentActor {
   return res.locals.student as StudentActor;
+}
+
+// ── معلّمُ الصفّ: مفتاحٌ واحد من كل صوره ─────────────────────────────────
+//
+// انظر `lib/chatTeacher.ts`. يُقرأ جدولُ المعلمين وأولياءِ الأمور والشجرةُ
+// الأكاديمية مرّةً كل دقيقة، لا مع كل رسالة.
+
+const DIRECTORY_TTL_MS = 60_000;
+let directoryCache: { at: number; directory: TeacherDirectory } | null = null;
+
+async function teacherDirectory(): Promise<TeacherDirectory> {
+  if (directoryCache && Date.now() - directoryCache.at < DIRECTORY_TTL_MS) return directoryCache.directory;
+  const config = storeConfig();
+  if (!config) return buildTeacherDirectory([]);
+  const rows = (value: unknown) => (Array.isArray(value) ? value : []) as Array<{ id?: unknown; data?: unknown }>;
+  const [teachers, parents, hierarchy] = await Promise.all([
+    storeRest(config, "teachers?select=id,data&limit=2000").then(rows).catch(() => []),
+    storeRest(config, "parents?select=id,data&limit=2000").then(rows).catch(() => []),
+    readKv(config, HIERARCHY_KEY).catch(() => []),
+  ]);
+  const directory = buildTeacherDirectory(teachers, hierarchy, parents);
+  // ‏جدولُ المعلمين غير مقروء: لا يُحفظ الفراغ، فيُعاد في الطلب التالي.
+  if (teachers.length) directoryCache = { at: Date.now(), directory };
+  return directory;
+}
+
+/** الطالبُ بمفتاح معلّمه المحسوب، لا بما كُتب في سجلّه حرفياً. */
+function withTeacherKey(directory: TeacherDirectory, student: StudentActor): StudentActor {
+  return { ...student, teacherId: studentTeacherKey(directory, student) };
+}
+
+/** بعد جلسة الطالب: يُستبدل معلّمُه بمفتاحه، فكلُّ ما بعده يقارن مفتاحاً واحداً. */
+const resolveChatTeacher: RequestHandler = async (_req, res, next) => {
+  try {
+    const directory = await teacherDirectory();
+    res.locals.student = withTeacherKey(directory, activeStudent(res));
+  } catch (error) {
+    logger.warn({ err: error }, "[chat] teacher directory unavailable");
+  }
+  next();
+};
+
+
+/** زملاءُ الصفّ: الصفُّ نفسه ومفتاحُ المعلّم نفسه، كلٌّ بمعلّمه المحسوب. */
+async function findStudentsInScope(grade: string, teacherKey: string): Promise<StudentActor[]> {
+  const [directory, students] = await Promise.all([teacherDirectory(), listStudents()]);
+  const wantedGrade = normalizeScopeId(grade);
+  const wantedTeacher = normalizeScopeId(teacherKey);
+  return students
+    .map((student) => withTeacherKey(directory, student))
+    .filter((student) => student.canAccessChat && normalizeScopeId(student.grade) === wantedGrade &&
+      student.teacherId === wantedTeacher);
 }
 
 function canUseChat(student: StudentActor): boolean {
@@ -421,7 +481,7 @@ function publicMessage(row: Record<string, unknown>): Record<string, unknown> {
   };
 }
 
-router.get("/student/chat/peers", requireStudentSession, async (_req, res) => {
+router.get("/student/chat/peers", requireStudentSession, resolveChatTeacher, async (_req, res) => {
   const student = activeStudent(res);
   if (!canUseChat(student)) {
     return res.status(403).json({ error: "الدردشة غير مفعلة لحسابك" });
@@ -429,10 +489,12 @@ router.get("/student/chat/peers", requireStudentSession, async (_req, res) => {
   try {
     const peers = await findStudentsInScope(student.grade, student.teacherId);
     const teacher = teacherRecipient(student.teacherId);
+    const known = chatTeacherByKey(await teacherDirectory(), student.teacherId);
+    const teacherName = known ? `معلّمي: ${known.name}` : "معلّمي";
     return res.json({
       peers: [
         // ‏معلّمُ الصفّ أوّلاً: تصله الرسائلُ في «رسائل طلابي» في بوابته.
-        ...(teacher ? [{ id: teacher, name: "معلّمي", teacher: true }] : []),
+        ...(teacher ? [{ id: teacher, name: teacherName, teacher: true }] : []),
         ...peers.filter((peer) => peer.id !== student.id).map((peer) => ({
           id: peer.id,
           name: peer.name,
@@ -452,7 +514,7 @@ router.get("/student/chat/peers", requireStudentSession, async (_req, res) => {
  * ما استهلكه قبل بدء الزيارة لا يُعرض، وما استهلكه أثناءها يبقى حتى يخرج. ومع كل
  * رسالةٍ أرسلها: من رآها من المستلمين بأسمائهم، وهل رآها الجميع.
  */
-router.get("/student/chat/messages", requireStudentSession, async (req, res) => {
+router.get("/student/chat/messages", requireStudentSession, resolveChatTeacher, async (req, res) => {
   const student = activeStudent(res);
   if (!canUseChat(student)) {
     return res.status(403).json({ error: "الدردشة غير مفعلة لحسابك" });
@@ -518,7 +580,7 @@ router.get("/student/chat/messages", requireStudentSession, async (req, res) => 
   }
 });
 
-router.post("/student/chat/messages", chatRateLimit, requireStudentSession, async (req, res) => {
+router.post("/student/chat/messages", chatRateLimit, requireStudentSession, resolveChatTeacher, async (req, res) => {
   const student = activeStudent(res);
   if (!canUseChat(student)) {
     return res.status(403).json({ error: "الدردشة غير مفعلة لحسابك" });
@@ -571,7 +633,7 @@ router.post("/student/chat/messages", chatRateLimit, requireStudentSession, asyn
  *
  * لا تعود لي بعدها إلا ما حفظتُه. وما قرأه كلُّ من أُرسل إليه يُحذف نهائياً الآن.
  */
-router.post("/student/chat/seen", requireStudentSession, receiptLimit, async (req, res) => {
+router.post("/student/chat/seen", requireStudentSession, resolveChatTeacher, receiptLimit, async (req, res) => {
   const student = activeStudent(res);
   if (!canUseChat(student)) {
     return res.status(403).json({ error: "الدردشة غير مفعلة لحسابك" });
@@ -608,7 +670,7 @@ router.post("/student/chat/seen", requireStudentSession, receiptLimit, async (re
  *
  * الحفظُ لي وحدي: تبقى في سجلّي وإن قرأتُها وغادرت، حتى ينتهي حفظُها أو ألغيه.
  */
-router.post("/student/chat/save", requireStudentSession, receiptLimit, async (req, res) => {
+router.post("/student/chat/save", requireStudentSession, resolveChatTeacher, receiptLimit, async (req, res) => {
   const student = activeStudent(res);
   if (!canUseChat(student)) {
     return res.status(403).json({ error: "الدردشة غير مفعلة لحسابك" });
@@ -642,7 +704,7 @@ router.post("/student/chat/save", requireStudentSession, receiptLimit, async (re
  * ويُكتب المقطعُ أوّلاً: رسالةٌ تشير إلى مقطعٍ لم يُكتب تُظهر للصفّ زرَّ تشغيلٍ لا
  * يعمل. والعكسُ — مقطعٌ بلا رسالة — لا يراه أحد.
  */
-router.post("/student/chat/voice", requireStudentSession, voiceSendLimit, async (req, res) => {
+router.post("/student/chat/voice", requireStudentSession, resolveChatTeacher, voiceSendLimit, async (req, res) => {
   const student = activeStudent(res);
   if (!canUseChat(student)) {
     return res.status(403).json({ error: "الدردشة غير مفعلة لحسابك" });
@@ -727,7 +789,7 @@ router.post("/student/chat/voice", requireStudentSession, voiceSendLimit, async 
  * يُرجع المقطعَ لمن يرى رسالتَه وحده: صفُّه ومعلّمُه، والمرسلُ والمستلم.
  * ومقطعٌ لا يحقّ له يُردّ عليه بـ404 لا 403 — فلا يُعرف أنه موجود.
  */
-router.get("/student/chat/voice/:id", requireStudentSession, voiceFetchLimit, async (req, res) => {
+router.get("/student/chat/voice/:id", requireStudentSession, resolveChatTeacher, voiceFetchLimit, async (req, res) => {
   const student = activeStudent(res);
   if (!canUseChat(student)) {
     return res.status(403).json({ error: "الدردشة غير مفعلة لحسابك" });
@@ -796,7 +858,7 @@ function sendImage(res: any, data: Record<string, unknown>) {
  * لوحةٌ من «لوحاتي»: الصورةُ في صفٍّ، والرسالةُ التي تشير إليها في صفٍّ آخر —
  * كالرسالة الصوتية. وتُكتب الصورةُ أوّلاً: رسالةٌ بلا صورتها زرٌّ لا يعمل.
  */
-router.post("/student/chat/image", requireStudentSession, imageSendLimit, async (req, res) => {
+router.post("/student/chat/image", requireStudentSession, resolveChatTeacher, imageSendLimit, async (req, res) => {
   const student = activeStudent(res);
   if (!canUseChat(student)) {
     return res.status(403).json({ error: "الدردشة غير مفعلة لحسابك" });
@@ -844,7 +906,7 @@ router.post("/student/chat/image", requireStudentSession, imageSendLimit, async 
 });
 
 /** اللوحةُ لمن يرى رسالتَها وحده. ولا يحقّ له: 404 لا 403 — فلا يُعرف أنها موجودة. */
-router.get("/student/chat/image/:id", requireStudentSession, imageFetchLimit, async (req, res) => {
+router.get("/student/chat/image/:id", requireStudentSession, resolveChatTeacher, imageFetchLimit, async (req, res) => {
   const student = activeStudent(res);
   if (!canUseChat(student)) {
     return res.status(403).json({ error: "الدردشة غير مفعلة لحسابك" });
@@ -909,7 +971,7 @@ async function writeFileMessage(
 }
 
 /** ملفٌّ أو مستند: إلى الصفّ، أو زميل، أو المعلّم. */
-router.post("/student/chat/file", requireStudentSession, fileSendLimit, async (req, res) => {
+router.post("/student/chat/file", requireStudentSession, resolveChatTeacher, fileSendLimit, async (req, res) => {
   const student = activeStudent(res);
   if (!canUseChat(student)) {
     return res.status(403).json({ error: "الدردشة غير مفعلة لحسابك" });
@@ -937,7 +999,7 @@ router.post("/student/chat/file", requireStudentSession, fileSendLimit, async (r
   }
 });
 
-router.get("/student/chat/file/:id", requireStudentSession, fileFetchLimit, async (req, res) => {
+router.get("/student/chat/file/:id", requireStudentSession, resolveChatTeacher, fileFetchLimit, async (req, res) => {
   const student = activeStudent(res);
   if (!canUseChat(student)) {
     return res.status(403).json({ error: "الدردشة غير مفعلة لحسابك" });
@@ -963,10 +1025,11 @@ router.get("/student/chat/file/:id", requireStudentSession, fileFetchLimit, asyn
 // الرسالةَ ويغادر فتختفي عنده، ويرى الطالبُ أنها قُرئت، ثم تُحذف نهائياً.
 
 /** المعلّمُ من جلسته — بمعرّفه كما يُقارن في نطاق الطلاب. */
-function teacherReader(req: any): { key: string; recipient: string } | null {
+async function teacherReader(req: any): Promise<{ key: string; recipient: string } | null> {
   const actor = verifyTeacherSession(readCookie(req, TEACHER_SESSION_COOKIE));
   if (!actor || actor.role !== "teacher") return null;
-  const key = normalizeScopeId(actor.teacherId);
+  // ‏بمفتاحه في الدليل، كما يُحسب لطلابه — لا بالمعرّف الذي دخل به حرفياً.
+  const key = teacherKeyOf(await teacherDirectory().catch(() => buildTeacherDirectory([])), actor.teacherId);
   return key ? { key, recipient: teacherRecipient(key) } : null;
 }
 
@@ -987,7 +1050,10 @@ function teacherThread(data: Record<string, unknown>, teacher: { key: string; re
 
 /** طلابُ هذا المعلّم كلُّهم، بكل صفوفه. */
 async function studentsOfTeacher(teacherKey: string): Promise<StudentActor[]> {
-  return (await listStudents()).filter((student) => normalizeScopeId(student.teacherId) === teacherKey);
+  const [directory, students] = await Promise.all([teacherDirectory(), listStudents()]);
+  return students
+    .map((student) => withTeacherKey(directory, student))
+    .filter((student) => student.teacherId === teacherKey);
 }
 
 /** طالبٌ من طلاب هذا المعلّم بمعرّفه، وإلا `null`. */
@@ -1004,7 +1070,7 @@ function teacherScope(teacher: { recipient: string }, student: StudentActor) {
 const TEACHER_NAME = "المعلّم";
 
 router.get("/teacher/chat/messages", teacherChatLimit, async (req, res) => {
-  const teacher = teacherReader(req);
+  const teacher = await teacherReader(req);
   if (!teacher) return res.status(401).json({ error: "سجّل الدخول كمعلّم أولاً" });
   try {
     const now = new Date();
@@ -1051,7 +1117,7 @@ router.get("/teacher/chat/messages", teacherChatLimit, async (req, res) => {
 
 /** شاهد المعلّمُ هذه الرسائل: لا تعود له بعد مغادرته، ويرى الطالبُ أنها قُرئت. */
 router.post("/teacher/chat/seen", teacherChatLimit, async (req, res) => {
-  const teacher = teacherReader(req);
+  const teacher = await teacherReader(req);
   if (!teacher) return res.status(401).json({ error: "سجّل الدخول كمعلّم أولاً" });
   const asked = Array.isArray(req.body?.ids) ? req.body.ids : [];
   const ids = [...new Set(asked.filter(isChatMessageId))].slice(0, 300) as string[];
@@ -1086,7 +1152,7 @@ router.post("/teacher/chat/seen", teacherChatLimit, async (req, res) => {
 
 /** مقطعٌ أو صورةٌ أو ملفٌّ في محادثة هذا المعلّم وحدها: إليه أو منه. */
 async function teacherMedia(req: any, res: any, kind: "voice" | "image" | "file") {
-  const teacher = teacherReader(req);
+  const teacher = await teacherReader(req);
   if (!teacher) return res.status(401).json({ error: "سجّل الدخول كمعلّم أولاً" });
   const id = String(req.params.id ?? "");
   const valid = kind === "voice" ? isChatVoiceId(id) : kind === "image" ? isChatImageId(id) : isChatFileId(id);
@@ -1120,7 +1186,7 @@ router.get("/teacher/chat/file/:id", teacherChatLimit, (req, res) => teacherMedi
 
 /** قائمةُ طلاب المعلّم للدردشة، ومن منهم مقفولٌ عليه. */
 router.get("/teacher/chat/students", teacherChatLimit, async (req, res) => {
-  const teacher = teacherReader(req);
+  const teacher = await teacherReader(req);
   if (!teacher) return res.status(401).json({ error: "سجّل الدخول كمعلّم أولاً" });
   try {
     const [students, lock] = await Promise.all([studentsOfTeacher(teacher.key), lockOf(teacher.key)]);
@@ -1144,7 +1210,7 @@ router.get("/teacher/chat/students", teacherChatLimit, async (req, res) => {
 
 /** يحلّ الطالبَ المستلم أو يردّ بالخطأ. */
 async function teacherTarget(req: any, res: any) {
-  const teacher = teacherReader(req);
+  const teacher = await teacherReader(req);
   if (!teacher) {
     res.status(401).json({ error: "سجّل الدخول كمعلّم أولاً" });
     return null;
@@ -1242,7 +1308,7 @@ router.post("/teacher/chat/file", teacherChatLimit, async (req, res) => {
 
 /** قفلُ الدردشة الحاليّ. */
 router.get("/teacher/chat/lock", teacherChatLimit, async (req, res) => {
-  const teacher = teacherReader(req);
+  const teacher = await teacherReader(req);
   if (!teacher) return res.status(401).json({ error: "سجّل الدخول كمعلّم أولاً" });
   lockCache.delete(teacher.key);
   const lock = await lockOf(teacher.key);
@@ -1251,7 +1317,7 @@ router.get("/teacher/chat/lock", teacherChatLimit, async (req, res) => {
 
 /** يقفل أو يفتح: `{ all }` للجميع، أو `{ studentId, locked }` لطالب. */
 router.post("/teacher/chat/lock", teacherChatLimit, async (req, res) => {
-  const teacher = teacherReader(req);
+  const teacher = await teacherReader(req);
   if (!teacher) return res.status(401).json({ error: "سجّل الدخول كمعلّم أولاً" });
   try {
     lockCache.delete(teacher.key);

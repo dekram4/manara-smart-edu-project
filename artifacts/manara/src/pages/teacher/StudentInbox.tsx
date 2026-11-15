@@ -118,6 +118,7 @@ const sizeLabel = (bytes = 0) =>
 const StudentInbox: React.FC<StudentInboxProps> = ({ onClose }) => {
   const [students, setStudents] = useState<ChatStudent[]>([]);
   const [lockAll, setLockAll] = useState(false);
+  const [notice, setNotice] = useState('');
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [selected, setSelected] = useState('');
   const [query, setQuery] = useState('');
@@ -341,6 +342,12 @@ const StudentInbox: React.FC<StudentInboxProps> = ({ onClose }) => {
       setLockAll(lock.all === true);
       const locked = new Set<string>(Array.isArray(lock.students) ? lock.students : []);
       setStudents((prev) => prev.map((s) => ({ ...s, locked: lock.all === true || locked.has(s.id) })));
+      const who = 'all' in change ? 'لجميع الطلاب' : `للطالب ${students.find((s) => s.id === change.studentId)?.name ?? ''}`;
+      const on = 'all' in change ? change.all : change.locked;
+      setNotice(on
+        ? `🔒 قُفلت الدردشة ${who}. سيرى: «المعلم قام بقفل الدردشة حالياً».`
+        : `🔓 فُتحت الدردشة ${who}.`);
+      setError('');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'تعذر تغيير القفل');
     }
@@ -387,6 +394,7 @@ const StudentInbox: React.FC<StudentInboxProps> = ({ onClose }) => {
         </div>
 
         {error && <div style={styles.error}>{error}</div>}
+        {notice && !error && <div style={styles.notice} data-testid="lock-notice">{notice}</div>}
 
         <div style={styles.body}>
           <aside style={styles.side}>
@@ -399,7 +407,9 @@ const StudentInbox: React.FC<StudentInboxProps> = ({ onClose }) => {
             {loading ? (
               <div style={styles.empty}>جارٍ التحميل…</div>
             ) : shown.length === 0 ? (
-              <div style={styles.empty}>لا يوجد طلاب.</div>
+              <div style={styles.empty}>
+                لا يوجد طلاب مربوطون بك بعد. اربط الطالب بك من «إدارة الطلاب وأولياء الأمور» ليظهر هنا.
+              </div>
             ) : (
               shown.map((student) => {
                 const count = unread(student.id);
@@ -416,11 +426,19 @@ const StudentInbox: React.FC<StudentInboxProps> = ({ onClose }) => {
                     <button
                       type="button"
                       title={student.locked ? 'فتح الدردشة لهذا الطالب' : 'قفل الدردشة لهذا الطالب'}
+                      data-testid={`lock-${student.id}`}
                       onClick={() => void setLock({ studentId: student.id, locked: !student.locked })}
                       disabled={lockAll}
-                      style={{ ...styles.lockOne, color: student.locked ? '#b91c1c' : '#047857' }}
+                      style={{
+                        ...styles.lockOne,
+                        color: student.locked ? '#b91c1c' : '#047857',
+                        borderColor: student.locked ? '#fecaca' : '#a7f3d0',
+                        background: student.locked ? '#fef2f2' : '#ecfdf5',
+                        opacity: lockAll ? 0.5 : 1,
+                      }}
                     >
-                      {student.locked ? <IconLock size={16} /> : <IconUnlock size={16} />}
+                      {student.locked ? <IconLock size={14} /> : <IconUnlock size={14} />}
+                      <span>{student.locked ? 'مقفلة' : 'مفتوحة'}</span>
                     </button>
                   </div>
                 );
@@ -437,6 +455,17 @@ const StudentInbox: React.FC<StudentInboxProps> = ({ onClose }) => {
                   <strong>{current.name}</strong>
                   <span style={styles.meta}>{current.grade}</span>
                   {current.locked && <span style={styles.lockedTag}>🔒 الدردشة مقفلة لهذا الطالب</span>}
+                  <button
+                    type="button"
+                    data-testid="lock-current"
+                    disabled={lockAll}
+                    onClick={() => void setLock({ studentId: current.id, locked: !current.locked })}
+                    style={{ ...styles.lockAll, marginInlineStart: 'auto', padding: '6px 12px',
+                      background: current.locked ? '#047857' : '#b91c1c', opacity: lockAll ? 0.5 : 1 }}
+                  >
+                    {current.locked ? <IconUnlock size={14} /> : <IconLock size={14} />}
+                    {current.locked ? 'فتح الدردشة لهذا الطالب' : 'قفل الدردشة لهذا الطالب'}
+                  </button>
                 </div>
                 <div style={styles.list}>
                   {thread.length === 0 && <div style={styles.empty}>لا رسائل بعد. اكتب أول رسالة.</div>}
@@ -563,7 +592,8 @@ const styles: Record<string, React.CSSProperties> = {
     background: 'transparent', cursor: 'pointer', padding: '6px 8px', textAlign: 'right', fontSize: 14,
   },
   badge: { background: '#db2777', color: 'white', borderRadius: 999, minWidth: 22, height: 22, fontSize: 12, fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center' },
-  lockOne: { border: '2px solid #e5e7eb', background: 'white', borderRadius: 10, width: 34, height: 34, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' },
+  lockOne: { border: '2px solid #e5e7eb', background: 'white', borderRadius: 10, minWidth: 34, height: 34, padding: '0 8px', gap: 4, fontSize: 11, fontWeight: 800, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' },
+  notice: { margin: '0 16px 8px', padding: '8px 12px', borderRadius: 10, background: '#ecfdf5', color: '#065f46', fontWeight: 700, fontSize: 13 },
   thread: { flex: 1, minWidth: 280, display: 'flex', flexDirection: 'column', minHeight: 0, maxHeight: '100%' },
   threadHead: { display: 'flex', gap: 10, alignItems: 'center', padding: '12px 16px', borderBottom: '2px solid #f1f5f9', flexWrap: 'wrap' },
   lockedTag: { background: '#fef3c7', color: '#92400e', borderRadius: 999, padding: '3px 10px', fontSize: 12, fontWeight: 800 },
