@@ -926,3 +926,191 @@ List<String> pickColoringSet(math.Random random, {List<String> recent = const []
     ..add('garden:${random.nextInt(1 << 30)}');
   return picked;
 }
+
+// ── قوالبُ «استوديو الرسم» ───────────────────────────────────────────
+//
+// رسوماتٌ بخطوطٍ تُفتح في الاستوديو للتلوين والتعديل (انظر `drawing_studio.dart`).
+// بالمربّع نفسه وأدوات الرسم نفسها، ومناطقُها المغلقة تجعل دلوَ الاستوديو يملأ
+// الشعرَ أو الفستانَ وحده دون أن يتسرّب.
+
+ColoringDrawing _girl() => ColoringDrawing(
+      id: 'girl',
+      titleAr: 'البنت الأنيقة',
+      titleEn: 'Sweet Girl',
+      category: ColoringCategory.characters,
+      regions: [
+        _union([_oval(150, 132, 80, 86), _rect(72, 132, 156, 96, 34)]),
+        _rotOval(72, 206, 15, 36, 0.25),
+        _rotOval(228, 206, 15, 36, -0.25),
+        _poly([92, 300, 118, 212, 182, 212, 208, 300]),
+        _heart(150, 258, 12),
+        _rect(140, 192, 20, 24, 6),
+        _oval(150, 142, 58, 62),
+        _union([_circle(116, 96, 30), _circle(150, 86, 32), _circle(184, 96, 30)]),
+        _oval(128, 150, 13, 16),
+        _oval(172, 150, 13, 16),
+        _circle(132, 145, 4.5),
+        _circle(176, 145, 4.5),
+        _oval(110, 172, 9, 6),
+        _oval(190, 172, 9, 6),
+        Path()
+          ..moveTo(140, 178)
+          ..arcTo(Rect.fromCenter(center: const Offset(150, 178), width: 20, height: 16), 0, math.pi, false)
+          ..close(),
+        _poly([150, 58, 118, 42, 120, 74]),
+        _poly([150, 58, 182, 42, 180, 74]),
+        _circle(150, 58, 9),
+      ],
+      details: [
+        _curve(114, 134, 126, 128, 140, 134),
+        _curve(160, 134, 174, 128, 186, 134),
+        _curve(147, 163, 150, 166, 153, 163),
+      ],
+    );
+
+ColoringDrawing _boy() => ColoringDrawing(
+      id: 'boy',
+      titleAr: 'الولد البطل',
+      titleEn: 'Cool Boy',
+      category: ColoringCategory.characters,
+      regions: [
+        _rect(90, 210, 120, 92, 28),
+        _star(150, 256, 20, 9, 5),
+        _rect(138, 188, 24, 28, 6),
+        _circle(92, 146, 13),
+        _circle(208, 146, 13),
+        _oval(150, 142, 58, 60),
+        _poly([88, 132, 90, 92, 104, 70, 114, 92, 124, 60, 138, 86, 150, 54, 162, 86, 176, 60, 186, 92, 196, 70,
+          210, 92, 212, 132, 196, 106, 150, 98, 104, 106]),
+        _oval(130, 150, 10, 13),
+        _oval(170, 150, 10, 13),
+        _circle(133, 146, 3.5),
+        _circle(173, 146, 3.5),
+        _oval(112, 170, 8, 5),
+        _oval(188, 170, 8, 5),
+        Path()
+          ..moveTo(134, 174)
+          ..arcTo(Rect.fromCenter(center: const Offset(150, 174), width: 32, height: 24), 0, math.pi, false)
+          ..close(),
+      ],
+      details: [
+        _curve(118, 132, 130, 126, 142, 132),
+        _curve(158, 132, 170, 126, 182, 132),
+        _curve(147, 162, 150, 165, 153, 162),
+      ],
+    );
+
+ColoringDrawing _lion() => ColoringDrawing(
+      id: 'lion',
+      titleAr: 'الأسد الصغير',
+      titleEn: 'Lion Cub',
+      category: ColoringCategory.animals,
+      regions: [
+        _rotOval(226, 246, 8, 32, 0.8),
+        _circle(246, 222, 11),
+        _oval(150, 248, 62, 46),
+        _oval(116, 286, 17, 10),
+        _oval(184, 286, 17, 10),
+        _star(150, 138, 94, 74, 14),
+        _circle(100, 82, 17),
+        _circle(200, 82, 17),
+        _circle(150, 142, 56),
+        _oval(150, 168, 27, 18),
+        _oval(130, 130, 8, 10),
+        _oval(170, 130, 8, 10),
+        _circle(132, 126, 3),
+        _circle(172, 126, 3),
+        _poly([140, 154, 160, 154, 150, 164]),
+      ],
+      details: [
+        _curve(150, 164, 144, 176, 134, 172),
+        _curve(150, 164, 156, 176, 166, 172),
+        _line([124, 166, 98, 160]),
+        _line([176, 166, 202, 160]),
+      ],
+    );
+
+ColoringDrawing _dinosaur() => ColoringDrawing(
+      id: 'dinosaur',
+      titleAr: 'الديناصور اللطيف',
+      titleEn: 'Friendly Dino',
+      category: ColoringCategory.animals,
+      regions: [
+        _poly([96, 196, 14, 262, 104, 248]),
+        for (var x = 92.0; x <= 176; x += 21) _poly([x, 178, x + 11, 150, x + 22, 178]),
+        _rect(108, 246, 28, 46, 10),
+        _rect(168, 246, 28, 46, 10),
+        _oval(150, 216, 76, 50),
+        _oval(150, 232, 46, 26),
+        _rect(190, 128, 34, 78, 15),
+        _oval(218, 118, 44, 32),
+        _circle(230, 110, 8),
+        _circle(232, 109, 3.5),
+        _oval(206, 132, 7, 5),
+      ],
+      details: [
+        _curve(222, 132, 238, 142, 254, 128),
+        _curve(132, 214, 140, 220, 148, 214),
+      ],
+    );
+
+ColoringDrawing _castle() => ColoringDrawing(
+      id: 'castle',
+      titleAr: 'القلعة السحرية',
+      titleEn: 'Magic Castle',
+      category: ColoringCategory.objects,
+      regions: [
+        _rect(70, 150, 160, 142),
+        for (final x in [84.0, 112.0, 160.0, 188.0]) _rect(x, 136, 16, 16),
+        _rect(38, 112, 52, 180),
+        _rect(210, 112, 52, 180),
+        _poly([32, 114, 64, 46, 96, 114]),
+        _poly([204, 114, 236, 46, 268, 114]),
+        _rect(120, 92, 60, 72),
+        _poly([114, 94, 150, 30, 186, 94]),
+        _poly([150, 8, 174, 15, 150, 22]),
+        _union([_rect(130, 236, 40, 56), _circle(150, 236, 20)]),
+        _rect(56, 150, 16, 24, 8),
+        _rect(228, 150, 16, 24, 8),
+        _rect(142, 112, 16, 26, 8),
+      ],
+      details: [
+        _line([150, 30, 150, 8]),
+        _line([150, 236, 150, 292]),
+      ],
+    );
+
+ColoringDrawing _bouquet() => ColoringDrawing(
+      id: 'bouquet',
+      titleAr: 'باقة الزهور',
+      titleEn: 'Flower Bouquet',
+      category: ColoringCategory.nature,
+      regions: [
+        _rotOval(116, 194, 11, 26, -0.6),
+        _rotOval(184, 194, 11, 26, 0.6),
+        for (final (cx, cy) in const [(96.0, 116.0), (150.0, 84.0), (204.0, 116.0)]) ...[
+          _union([
+            for (var i = 0; i < 5; i++)
+              _circle(cx + 20 * math.cos(i * 2 * math.pi / 5 - math.pi / 2), cy + 20 * math.sin(i * 2 * math.pi / 5 - math.pi / 2), 17),
+          ]),
+          _circle(cx, cy, 11),
+        ],
+        _poly([108, 220, 192, 220, 172, 294, 128, 294]),
+        _heart(150, 248, 11),
+      ],
+      details: [
+        _curve(96, 136, 110, 180, 140, 220),
+        _line([150, 104, 150, 220]),
+        _curve(204, 136, 190, 180, 160, 220),
+      ],
+    );
+
+/// رسوماتُ القوالب الجديدة — تُضاف إلى [handDrawnDrawings] في مكتبة الاستوديو.
+final Map<String, ColoringDrawing Function()> studioTemplateDrawings = {
+  'girl': _girl,
+  'boy': _boy,
+  'lion': _lion,
+  'dinosaur': _dinosaur,
+  'castle': _castle,
+  'bouquet': _bouquet,
+};

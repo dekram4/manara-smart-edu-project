@@ -29,7 +29,7 @@ class DrawingStudioScreen extends StatefulWidget {
   State<DrawingStudioScreen> createState() => DrawingStudioScreenState();
 }
 
-enum StudioTool { brush, shape, gradient, eyedropper }
+enum StudioTool { brush, fill, shape, gradient, eyedropper }
 
 String _t(String ar, String en) => StudentSettings.isArabic ? ar : en;
 
@@ -211,7 +211,7 @@ class DrawingStudioScreenState extends State<DrawingStudioScreen> {
           ListTile(
             key: const ValueKey('studio-save-project'),
             leading: const Icon(Icons.folder_rounded),
-            title: Text(_t('احفظ في «مشاريعي» بطبقاتها', 'Save to My projects (keeps layers)')),
+            title: Text(_t('احفظ في «لوحاتي» بطبقاتها', 'Save to My drawings (keeps layers)')),
             onTap: () => Navigator.pop(context, 'project'),
           ),
           ListTile(
@@ -228,7 +228,7 @@ class DrawingStudioScreenState extends State<DrawingStudioScreen> {
     try {
       if (target == 'project') {
         await StudioProjects.save(_owner, _controller);
-        _toast(_t('حُفظ المشروع ✓', 'Project saved ✓'));
+        _toast(_t('حُفظت في «لوحاتي» ✓', 'Saved to My drawings ✓'));
       } else {
         final png = await _controller.toPng();
         final saver = widget.saveToPhotos ??
@@ -246,51 +246,247 @@ class DrawingStudioScreenState extends State<DrawingStudioScreen> {
     }
   }
 
+  /// الدلو: يملأ منطقةَ القالب تحت اللمسة.
+  void _fill(Offset at) {
+    if (_controller.activeLocked) {
+      _toast(_t('🔒 هذه الطبقة مقفلة — افتح القفل لتلوّن عليها', '🔒 This layer is locked — unlock it to paint'));
+      return;
+    }
+    if (!_controller.fillAt(at, _color, opacity: _opacity)) {
+      _toast(_t('الدلو يلوّن رسومات «قوالب جاهزة» — افتح قالباً أولاً', 'The fill bucket colours Templates — open one first'));
+      return;
+    }
+    HapticFeedback.lightImpact();
+    _remember(_color);
+  }
+
+  // ── «لوحاتي»: فتحٌ وحذف ──
+
+  Future<bool> _confirmDelete() async =>
+      await showDialog<bool>(
+        context: context,
+        builder: (context) => Directionality(
+          textDirection: StudentSettings.direction,
+          child: AlertDialog(
+            key: const ValueKey('studio-delete-dialog'),
+            title: Text(_t('هل تريد حذف هذه الرسمة؟', 'Delete this drawing?')),
+            content: Text(_t('ستُحذف من «لوحاتي» نهائياً.', 'It will be removed from My drawings for good.')),
+            actions: [
+              TextButton(
+                key: const ValueKey('studio-delete-cancel'),
+                onPressed: () => Navigator.pop(context, false),
+                child: Text(_t('إلغاء', 'Cancel')),
+              ),
+              FilledButton.icon(
+                key: const ValueKey('studio-delete-confirm'),
+                style: FilledButton.styleFrom(backgroundColor: const Color(0xFFDC2626)),
+                onPressed: () => Navigator.pop(context, true),
+                icon: const Icon(Icons.delete_rounded, size: 18),
+                label: Text(_t('حذف', 'Delete')),
+              ),
+            ],
+          ),
+        ),
+      ) ??
+      false;
+
   Future<void> _openProjects() async {
-    final projects = await StudioProjects.load(_owner);
+    var projects = await StudioProjects.load(_owner);
     if (!mounted) return;
     final picked = await showModalBottomSheet<StudioController>(
       context: context,
       showDragHandle: true,
       isScrollControlled: true,
-      builder: (context) => SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-          child: projects.isEmpty
-              ? Padding(
-                  padding: const EdgeInsets.all(24),
-                  child: Text(_t('لا مشاريع محفوظة بعد', 'No saved projects yet'), textAlign: TextAlign.center),
-                )
-              : Wrap(
-                  key: const ValueKey('studio-projects-list'),
-                  spacing: 12,
-                  runSpacing: 12,
-                  children: [
-                    _newProjectTile(context),
-                    for (final (i, p) in projects.indexed)
-                      GestureDetector(
-                        key: ValueKey('studio-project-$i'),
-                        onTap: () => Navigator.pop(context, p),
-                        child: Container(
-                          width: 110,
-                          height: 110,
-                          clipBehavior: Clip.antiAlias,
-                          decoration: BoxDecoration(
-                            borderRadius: BorderRadius.circular(16),
-                            border: Border.all(color: const Color(0xFF8B5CF6), width: 2),
-                          ),
-                          child: CustomPaint(painter: StudioPainter(p)),
+      builder: (context) => StatefulBuilder(
+        builder: (context, setSheet) => SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+            child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+              Text('🖼️ ${_t('لوحاتي', 'My drawings')}',
+                  style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900)),
+              const SizedBox(height: 10),
+              Flexible(
+                child: SingleChildScrollView(
+                  child: Wrap(
+                    key: const ValueKey('studio-projects-list'),
+                    spacing: 12,
+                    runSpacing: 12,
+                    children: [
+                      _newProjectTile(context),
+                      for (final (i, p) in projects.indexed)
+                        SizedBox(
+                          width: 118,
+                          height: 118,
+                          child: Stack(clipBehavior: Clip.none, children: [
+                            Positioned(
+                              left: 4,
+                              top: 4,
+                              child: GestureDetector(
+                                key: ValueKey('studio-project-$i'),
+                                onTap: () => Navigator.pop(context, p),
+                                child: Container(
+                                  width: 110,
+                                  height: 110,
+                                  clipBehavior: Clip.antiAlias,
+                                  decoration: BoxDecoration(
+                                    borderRadius: BorderRadius.circular(16),
+                                    border: Border.all(color: const Color(0xFF8B5CF6), width: 2),
+                                  ),
+                                  child: CustomPaint(painter: StudioPainter(p)),
+                                ),
+                              ),
+                            ),
+                            // ‏سلّةُ المهملات على كل رسمة، بتأكيدٍ قبل الحذف.
+                            PositionedDirectional(
+                              top: -6,
+                              end: -6,
+                              child: Material(
+                                color: const Color(0xFFDC2626),
+                                shape: const CircleBorder(),
+                                elevation: 2,
+                                child: IconButton(
+                                  key: ValueKey('studio-project-delete-$i'),
+                                  tooltip: _t('حذف', 'Delete'),
+                                  visualDensity: VisualDensity.compact,
+                                  iconSize: 18,
+                                  color: Colors.white,
+                                  onPressed: () async {
+                                    if (!await _confirmDelete()) return;
+                                    await StudioProjects.remove(_owner, p.id);
+                                    final fresh = await StudioProjects.load(_owner);
+                                    setSheet(() => projects = fresh);
+                                    if (mounted) _toast(_t('حُذفت الرسمة', 'Drawing deleted'));
+                                  },
+                                  icon: const Icon(Icons.delete_rounded),
+                                ),
+                              ),
+                            ),
+                          ]),
                         ),
-                      ),
-                  ],
+                    ],
+                  ),
                 ),
+              ),
+              if (projects.isEmpty)
+                Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Text(_t('لا رسومات محفوظة بعد', 'No saved drawings yet'), textAlign: TextAlign.center),
+                ),
+            ]),
+          ),
         ),
       ),
     );
     if (picked == null || !mounted) return;
+    _replaceController(picked);
+  }
+
+  void _replaceController(StudioController next) {
     final old = _controller;
-    setState(() => _controller = picked);
+    setState(() {
+      _controller = next;
+      _zoom = 1;
+      _pan = Offset.zero;
+    });
     if (old != widget.initial) old.dispose();
+  }
+
+  // ── «قوالب جاهزة» ──
+
+  static const _sections = <String, (String, String)>{
+    'characters': ('👧👦 شخصيات', '👧👦 Characters'),
+    'animals': ('🐱 حيوانات', '🐱 Animals'),
+    'things': ('🏰 أشياء ومشاهد', '🏰 Things & places'),
+  };
+
+  Future<void> _openTemplates() async {
+    final id = await showModalBottomSheet<String>(
+      context: context,
+      showDragHandle: true,
+      isScrollControlled: true,
+      builder: (context) => SafeArea(
+        child: DraggableScrollableSheet(
+          expand: false,
+          initialChildSize: 0.8,
+          maxChildSize: 0.95,
+          builder: (context, scroll) => ListView(
+            key: const ValueKey('studio-templates-sheet'),
+            controller: scroll,
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+            children: [
+              Text('✨ ${_t('قوالب جاهزة للتلوين والتعديل', 'Templates to colour and change')}',
+                  style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900)),
+              for (final section in _sections.entries) ...[
+                const SizedBox(height: 14),
+                Text(_t(section.value.$1, section.value.$2), style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w900)),
+                const SizedBox(height: 8),
+                Wrap(spacing: 10, runSpacing: 10, children: [
+                  for (final template in studioTemplates.where((t) => t.section == section.key))
+                    if (studioTemplateDrawing(template.id) case final drawing?)
+                      GestureDetector(
+                        key: ValueKey('studio-template-${template.id}'),
+                        onTap: () => Navigator.pop(context, template.id),
+                        child: SizedBox(
+                          width: 104,
+                          child: Column(children: [
+                            Container(
+                              width: 104,
+                              height: 104,
+                              clipBehavior: Clip.antiAlias,
+                              decoration: BoxDecoration(
+                                color: Colors.white,
+                                borderRadius: BorderRadius.circular(16),
+                                border: Border.all(color: const Color(0xFFC4B5FD), width: 2),
+                              ),
+                              child: CustomPaint(painter: _TemplateThumb(template.id)),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              StudentSettings.isArabic ? drawing.titleAr : drawing.titleEn,
+                              maxLines: 2,
+                              textAlign: TextAlign.center,
+                              style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w800),
+                            ),
+                          ]),
+                        ),
+                      ),
+                ]),
+              ],
+            ],
+          ),
+        ),
+      ),
+    );
+    if (id == null || !mounted) return;
+    if (!_controller.isEmpty) {
+      final go = await showDialog<bool>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: Text(_t('افتح القالب في لوحة جديدة؟', 'Open the template on a new canvas?')),
+          content: Text(_t('رسمتك الحالية تُغلق — احفظها أولاً في «لوحاتي» إن أردتها.',
+              'Your current drawing will close — save it to My drawings first if you want it.')),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(context, false), child: Text(_t('إلغاء', 'Cancel'))),
+            FilledButton(
+              key: const ValueKey('studio-template-open'),
+              onPressed: () => Navigator.pop(context, true),
+              child: Text(_t('افتح', 'Open')),
+            ),
+          ],
+        ),
+      );
+      if (go != true || !mounted) return;
+    }
+    final next = StudioController.fromTemplate(
+      id,
+      colorLayer: _t('تلوين', 'Colour'),
+      lineLayer: _t('خطوط القالب', 'Line art'),
+    );
+    if (next == null) return;
+    _replaceController(next);
+    setState(() => _tool = StudioTool.fill);
+    _toast(_t('🎨 اختر لوناً واضغط على أي جزء لتلوينه — وكل الأدوات تعمل عليه',
+        '🎨 Pick a colour and tap any part to fill it — every tool works on it'));
   }
 
   Widget _newProjectTile(BuildContext context) => GestureDetector(
@@ -418,8 +614,14 @@ class DrawingStudioScreenState extends State<DrawingStudioScreen> {
             ]),
           ),
           IconButton(
+            key: const ValueKey('studio-templates'),
+            tooltip: _t('قوالب جاهزة', 'Templates'),
+            onPressed: _openTemplates,
+            icon: const Icon(Icons.auto_awesome_mosaic_rounded),
+          ),
+          IconButton(
             key: const ValueKey('studio-projects'),
-            tooltip: _t('مشاريعي', 'My projects'),
+            tooltip: _t('لوحاتي', 'My drawings'),
             onPressed: _openProjects,
             icon: const Icon(Icons.folder_open_rounded),
           ),
@@ -541,7 +743,7 @@ class DrawingStudioScreenState extends State<DrawingStudioScreen> {
     _maxTouches = 1;
     _held = false;
     _pointer = e.pointer;
-    if (_tool == StudioTool.eyedropper) return;
+    if (_tool == StudioTool.eyedropper || _tool == StudioTool.fill) return;
     if (_controller.activeLocked) {
       _toast(_t('🔒 هذه الطبقة مقفلة — افتح القفل لترسم عليها', '🔒 This layer is locked — unlock it to draw'));
       return;
@@ -577,7 +779,7 @@ class DrawingStudioScreenState extends State<DrawingStudioScreen> {
       });
       return;
     }
-    if (e.pointer != _pointer || _tool == StudioTool.eyedropper || _held) return;
+    if (e.pointer != _pointer || _tool == StudioTool.eyedropper || _tool == StudioTool.fill || _held) return;
     final hold = _holdAt;
     if (hold != null && (e.localPosition - hold).distance > 8) {
       _holdTimer?.cancel();
@@ -624,6 +826,10 @@ class DrawingStudioScreenState extends State<DrawingStudioScreen> {
     }
     if (_tool == StudioTool.eyedropper) {
       if (e is PointerUpEvent) unawaited(_sample(_toDoc(e.localPosition, side)));
+      return;
+    }
+    if (_tool == StudioTool.fill) {
+      if (e is PointerUpEvent) _fill(_toDoc(e.localPosition, side));
       return;
     }
     if (e is! PointerUpEvent) {
@@ -720,6 +926,13 @@ class DrawingStudioScreenState extends State<DrawingStudioScreen> {
             context,
             _t('أدوات', 'Tools'),
             Wrap(spacing: 6, runSpacing: 6, children: [
+              _chip(
+                key: const ValueKey('studio-tool-fill'),
+                icon: Icons.format_color_fill_rounded,
+                label: _t('دلو', 'Fill'),
+                selected: _tool == StudioTool.fill,
+                onTap: () => setState(() => _tool = StudioTool.fill),
+              ),
               _chip(
                 key: const ValueKey('studio-tool-shape'),
                 icon: Icons.category_rounded,
@@ -1308,4 +1521,26 @@ class _ColorPickerSheetState extends State<_ColorPickerSheet> {
       ),
     );
   }
+}
+
+/// صورةٌ مصغّرةٌ لقالبٍ في المكتبة: خطوطُه على ورقٍ أبيض.
+class _TemplateThumb extends CustomPainter {
+  _TemplateThumb(this.id);
+
+  final String id;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    canvas
+      ..save()
+      ..scale(size.shortestSide / studioSize);
+    StudioController.paintOp(
+      canvas,
+      StudioOp(kind: StudioOpKind.template, points: const [Offset.zero], color: const Color(0xFF2B2B3A), template: id),
+    );
+    canvas.restore();
+  }
+
+  @override
+  bool shouldRepaint(_TemplateThumb old) => old.id != id;
 }

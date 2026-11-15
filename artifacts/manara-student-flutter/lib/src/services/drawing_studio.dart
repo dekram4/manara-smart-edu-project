@@ -6,6 +6,8 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/rendering.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'coloring_drawings.dart';
+
 /// «استوديو الرسم»: رسمٌ حرٌّ بطبقات — منفصلٌ عن ألعاب التلوين.
 ///
 /// ── كيف يُحفظ الرسم ──
@@ -42,7 +44,73 @@ const studioBlendModes = <StudioBlend, BlendMode>{
 /// الأشكالُ الحرّة: تُسحب من زاويةٍ إلى زاوية.
 enum StudioShape { line, rectangle, ellipse, triangle, star, hexagon, arrow }
 
-enum StudioOpKind { stroke, shape, gradient }
+/// [template]: خطوطُ قالبٍ جاهز من المكتبة. [fill]: دلوٌ يملأ منطقةً من قالب.
+enum StudioOpKind { stroke, shape, gradient, template, fill }
+
+// ── مكتبةُ القوالب ─────────────────────────────────────────────────────
+
+/// قالبٌ في المكتبة: معرّفُ رسمته وقسمُه.
+class StudioTemplate {
+  const StudioTemplate(this.id, this.section);
+
+  final String id;
+
+  /// `characters` أو `animals` أو `things`.
+  final String section;
+}
+
+/// المكتبة بأقسامها: شخصيات، وحيوانات، وأشياءُ ومشاهد.
+const studioTemplates = <StudioTemplate>[
+  StudioTemplate('girl', 'characters'),
+  StudioTemplate('boy', 'characters'),
+  StudioTemplate('hero', 'characters'),
+  StudioTemplate('robot', 'characters'),
+  StudioTemplate('snowman', 'characters'),
+  StudioTemplate('cat', 'animals'),
+  StudioTemplate('bunny', 'animals'),
+  StudioTemplate('lion', 'animals'),
+  StudioTemplate('dinosaur', 'animals'),
+  StudioTemplate('butterfly', 'animals'),
+  StudioTemplate('owl', 'animals'),
+  StudioTemplate('turtle', 'animals'),
+  StudioTemplate('fish', 'animals'),
+  StudioTemplate('castle', 'things'),
+  StudioTemplate('car', 'things'),
+  StudioTemplate('rocket', 'things'),
+  StudioTemplate('bouquet', 'things'),
+  StudioTemplate('flower', 'things'),
+  StudioTemplate('house', 'things'),
+  StudioTemplate('icecream', 'things'),
+  StudioTemplate('boat', 'things'),
+  StudioTemplate('balloons', 'things'),
+];
+
+final Map<String, ColoringDrawing?> _templateCache = {};
+
+/// رسمةُ القالب [id] — من المكتبة الجديدة أو من رسومات التلوين. ثابتةٌ في
+/// الشيفرة، فما يرسمه الطالبُ فوقها لا يمسّها.
+ColoringDrawing? studioTemplateDrawing(String? id) {
+  if (id == null) return null;
+  return _templateCache.putIfAbsent(id, () => (studioTemplateDrawings[id] ?? handDrawnDrawings[id])?.call());
+}
+
+/// القالبُ بوحدات الاستوديو: مربّعُ الرسمة (٣٠٠) يملأ اللوحة (١٠٠٠).
+const double studioTemplateScale = studioSize / coloringCanvasSize;
+
+final Map<String, Path> _visibleRegions = {};
+
+/// ما يُرى من المنطقة [index] في القالب: هي ناقصاً ما فوقها من مناطق — فالدلو
+/// يملأ ما تراه العينُ وحده. و`-1` الخلفيةُ: اللوحةُ ناقصاً كلَّ المناطق.
+Path studioVisibleRegion(ColoringDrawing drawing, int index) =>
+    _visibleRegions.putIfAbsent('${drawing.id}:$index', () {
+      final above = index < 0 ? drawing.regions : drawing.regions.sublist(index + 1);
+      final base = index < 0
+          ? (Path()..addRect(const Rect.fromLTWH(0, 0, coloringCanvasSize, coloringCanvasSize)))
+          : drawing.regions[index];
+      if (above.isEmpty) return base;
+      final cover = above.skip(1).fold(above.first, (a, b) => Path.combine(PathOperation.union, a, b));
+      return Path.combine(PathOperation.difference, base, cover);
+    });
 
 /// عمليّةٌ واحدة على طبقة.
 class StudioOp {
@@ -58,9 +126,17 @@ class StudioOp {
     this.filled = false,
     this.radial = false,
     this.mirror = false,
+    this.template,
+    this.region = -1,
   });
 
   final StudioOpKind kind;
+
+  /// القالبُ: لعمليّة [StudioOpKind.template] و[StudioOpKind.fill].
+  final String? template;
+
+  /// منطقةُ القالب التي يملؤها الدلو (`-1` الخلفية).
+  final int region;
 
   /// مسطرةُ التماثل: يُرسم مرّةً ثانيةً معكوساً حول منتصف اللوحة.
   final bool mirror;
@@ -90,6 +166,8 @@ class StudioOp {
         filled: filled,
         radial: radial,
         mirror: mirror,
+        template: template,
+        region: region,
       );
 
   Map<String, Object?> toJson() => {
@@ -105,6 +183,8 @@ class StudioOp {
         if (filled) 'f': 1,
         if (radial) 'r': 1,
         if (mirror) 'm': 1,
+        if (template != null) 't': template,
+        if (kind == StudioOpKind.fill) 'ri': region,
       };
 
   static StudioOp? fromJson(Object? json) {
@@ -131,6 +211,8 @@ class StudioOp {
       filled: json['f'] == 1,
       radial: json['r'] == 1,
       mirror: json['m'] == 1,
+      template: json['t'] is String ? json['t'] as String : null,
+      region: (json['ri'] as num?)?.toInt() ?? -1,
     );
   }
 }
@@ -387,13 +469,62 @@ class StudioController extends ChangeNotifier {
       notifyListeners();
       return;
     }
+    _commit(live.frozen());
+  }
+
+  void _commit(StudioOp op) {
     _remember();
     final layer = activeLayer;
-    final op = live.frozen();
     final next = layer.copyWith(ops: List.unmodifiable([...layer.ops, op]));
     _extendPicture(layer, next, op);
     _layers[_active] = next;
     notifyListeners();
+  }
+
+  /// القالبُ المفتوح في اللوحة، إن كان.
+  String? get templateId {
+    for (final layer in _layers.reversed) {
+      for (final op in layer.ops) {
+        if (op.kind == StudioOpKind.template) return op.template;
+      }
+    }
+    return null;
+  }
+
+  /// الدلو: يملأ منطقةَ القالب التي تحت [p] كما تُرى — لا تتسرّب من خطوطها.
+  /// يعيد `false` بلا قالب، أو والطبقةُ مقفلة.
+  bool fillAt(Offset p, Color color, {double opacity = 1}) {
+    final drawing = studioTemplateDrawing(templateId);
+    if (drawing == null || activeLayer.locked) return false;
+    final region = drawing.regionAt(p / studioTemplateScale);
+    _commit(StudioOp(
+      kind: StudioOpKind.fill,
+      points: List.unmodifiable([p]),
+      color: color,
+      opacity: opacity,
+      template: drawing.id,
+      region: region,
+    ));
+    return true;
+  }
+
+  /// لوحةٌ جديدةٌ من القالب [id]: طبقةُ تلوينٍ في الأسفل نشطة، وفوقها طبقةُ
+  /// الخطوط مقفلةً بمزج «ضرب» — بياضُها شفّافٌ على الألوان وخطوطُها فوقها،
+  /// كما في برامج الرسم. ونسخةُ الطالب تُحفظ وحدها؛ القالبُ في الشيفرة لا يتغيّر.
+  static StudioController? fromTemplate(String id, {String colorLayer = '1', String lineLayer = '2'}) {
+    if (studioTemplateDrawing(id) == null) return null;
+    return StudioController(layers: [
+      StudioLayer(id: 1, name: colorLayer),
+      StudioLayer(
+        id: 2,
+        name: lineLayer,
+        blend: StudioBlend.multiply,
+        locked: true,
+        ops: List.unmodifiable([
+          StudioOp(kind: StudioOpKind.template, points: const [Offset.zero], color: const Color(0xFF2B2B3A), template: id),
+        ]),
+      ),
+    ]);
   }
 
   // ── الطبقات ──
@@ -594,6 +725,21 @@ class StudioController extends ChangeNotifier {
         _paintShape(canvas, op);
       case StudioOpKind.gradient:
         _paintGradient(canvas, op);
+      case StudioOpKind.template:
+        _paintTemplate(canvas, op);
+      case StudioOpKind.fill:
+        final drawing = studioTemplateDrawing(op.template);
+        if (drawing == null) return;
+        canvas
+          ..save()
+          ..scale(studioTemplateScale)
+          ..drawPath(
+            studioVisibleRegion(drawing, op.region),
+            Paint()
+              ..isAntiAlias = true
+              ..color = op.color.withValues(alpha: op.color.a * op.opacity),
+          )
+          ..restore();
     }
   }
 
@@ -777,6 +923,33 @@ class StudioController extends ChangeNotifier {
     final paint = _line(op.color.withValues(alpha: op.color.a * op.opacity), op.size)
       ..style = op.filled && !open ? PaintingStyle.fill : PaintingStyle.stroke;
     canvas.drawPath(shapePath(op.shape, op.points[0], op.points[1]), paint);
+  }
+
+  /// خطوطُ القالب: كلُّ منطقةٍ بيضاءُ بحدٍّ أسود من الخلف إلى الأمام، فما
+  /// يغطّيه غيرُه لا يظهر حدُّه — ثم التفاصيل.
+  static void _paintTemplate(Canvas canvas, StudioOp op) {
+    final drawing = studioTemplateDrawing(op.template);
+    if (drawing == null) return;
+    final paper = Paint()..color = const Color(0xFFFFFFFF);
+    final ink = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 3
+      ..strokeJoin = StrokeJoin.round
+      ..strokeCap = StrokeCap.round
+      ..isAntiAlias = true
+      ..color = op.color;
+    canvas
+      ..save()
+      ..scale(studioTemplateScale);
+    for (final region in drawing.regions) {
+      canvas
+        ..drawPath(region, paper)
+        ..drawPath(region, ink);
+    }
+    for (final detail in drawing.details) {
+      canvas.drawPath(detail, ink..strokeWidth = 2.6);
+    }
+    canvas.restore();
   }
 
   static void _paintGradient(Canvas canvas, StudioOp op) {
