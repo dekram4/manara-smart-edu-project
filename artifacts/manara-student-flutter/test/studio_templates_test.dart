@@ -138,4 +138,22 @@ void main() {
     expect(find.byKey(const ValueKey('studio-project-delete-1')), findsNothing);
     await tester.pump(const Duration(seconds: 4));
   });
+
+  test('شخصياتُ الأنمي في قسم «شخصيات»: كلُّ واحدةٍ تُفتح، والدلو يلوّن شعرَها ووجهَها وحدهما', () {
+    final anime = studioTemplates.where((t) => t.id.startsWith('anime_')).toList();
+    expect(anime.length, greaterThanOrEqualTo(10));
+    expect(anime.every((t) => t.section == 'characters'), isTrue);
+    for (final t in anime) {
+      final drawing = studioTemplateDrawing(t.id)!;
+      expect(drawing.titleAr, isNotEmpty);
+      final c = StudioController.fromTemplate(t.id)!;
+      // ‏الوجه: الخدّ الأيسر بين العين والفم.
+      final cheek = drawing.regionAt(const Offset(140, 172));
+      expect(cheek, isNot(-1), reason: t.id);
+      expect(c.fillAt(const Offset(140, 172) * studioTemplateScale, const Color(0xFFFFD7B5)), isTrue);
+      // ‏الخلفيةُ منطقةٌ أخرى لا يتسرّب إليها لونُ الوجه.
+      expect(studioVisibleRegion(drawing, cheek).contains(const Offset(10, 10)), isFalse, reason: t.id);
+      expect(studioVisibleRegion(drawing, -1).contains(const Offset(150, 140)), isFalse, reason: t.id);
+    }
+  });
 }

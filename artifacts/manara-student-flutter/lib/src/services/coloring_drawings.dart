@@ -1113,4 +1113,294 @@ final Map<String, ColoringDrawing Function()> studioTemplateDrawings = {
   'dinosaur': _dinosaur,
   'castle': _castle,
   'bouquet': _bouquet,
+  ...animeTemplateDrawings,
+};
+
+// ── شخصياتُ أنمي لمكتبة القوالب ───────────────────────────────────────
+//
+// وجهٌ واحدٌ بأسلوب الأنمي ([_animeFeatures]) لكل الشخصيات: عينان كبيرتان
+// ببؤبؤٍ ولمعتين، وخدّان وفمٌ مبتسم — والشعرُ والملابسُ ما يميّز كلاً منها.
+// كلُّ جزءٍ منطقةٌ مغلقة، فيلوّن الدلوُ الشعرَ أو الشريطةَ أو العينَ وحدها.
+
+Path _animeFace() => _oval(150, 140, 52, 56);
+Path _animeNeck() => _rect(140, 186, 20, 28, 6);
+List<Path> _animeEars() => [_circle(98, 148, 10), _circle(202, 148, 10)];
+
+Path _animeMouth() => Path()
+  ..moveTo(141, 176)
+  ..arcTo(Rect.fromCenter(center: const Offset(150, 176), width: 18, height: 14), 0, math.pi, false)
+  ..close();
+
+List<Path> _animeFeatures() => [
+      _oval(128, 148, 13, 16),
+      _oval(172, 148, 13, 16),
+      _oval(129, 151, 9, 12),
+      _oval(173, 151, 9, 12),
+      _circle(132, 145, 4),
+      _circle(176, 145, 4),
+      _circle(125, 157, 2),
+      _circle(169, 157, 2),
+      _oval(112, 170, 8, 5),
+      _oval(188, 170, 8, 5),
+      _animeMouth(),
+    ];
+
+List<Path> _animeDetails({bool lashes = false}) => [
+      _curve(116, 128, 128, 122, 140, 128),
+      _curve(160, 128, 172, 122, 184, 128),
+      _curve(148, 163, 150, 166, 152, 163),
+      if (lashes) ...[_line([115, 141, 107, 135]), _line([185, 141, 193, 135])],
+    ];
+
+/// خصلاتٌ مدبّبةٌ تحت قبّعة: من ([l]،[top]) إلى ([r]،[top])، رؤوسُها نحو [tip].
+Path _tufts(double l, double r, double top, double tip, int count) {
+  final xy = <double>[l, tip + 6, l + 2, top, r - 2, top, r, tip + 6];
+  final step = (r - l) / count;
+  for (var i = count - 1; i > 0; i--) {
+    xy
+      ..add(l + step * i + step / 2)
+      ..add(tip - 6)
+      ..add(l + step * i)
+      ..add(tip + 8);
+  }
+  return _poly(xy);
+}
+
+ColoringDrawing _animeTwintails() => ColoringDrawing(
+      id: 'anime_twintails',
+      titleAr: 'صاحبة الضفيرتين',
+      titleEn: 'Twin-Tails Girl',
+      category: ColoringCategory.characters,
+      regions: [
+        _rotOval(74, 196, 18, 58, 0.22),
+        _rotOval(226, 196, 18, 58, -0.22),
+        _oval(150, 134, 64, 66),
+        _poly([94, 300, 116, 214, 184, 214, 206, 300]),
+        _poly([116, 214, 150, 254, 184, 214, 172, 208, 150, 230, 128, 208]),
+        _poly([150, 240, 130, 228, 130, 252]),
+        _poly([150, 240, 170, 228, 170, 252]),
+        _circle(150, 240, 6),
+        _animeNeck(),
+        _animeFace(),
+        _poly([96, 140, 100, 106, 120, 84, 150, 76, 180, 84, 200, 106, 204, 140, 190, 118, 176, 132, 164, 110, 150, 128,
+          136, 110, 124, 132, 110, 118]),
+        _circle(90, 140, 10),
+        _circle(210, 140, 10),
+        ..._animeFeatures(),
+      ],
+      details: _animeDetails(lashes: true),
+    );
+
+ColoringDrawing _animePrincess() => ColoringDrawing(
+      id: 'anime_princess',
+      titleAr: 'الأميرة الصغيرة',
+      titleEn: 'Little Princess',
+      category: ColoringCategory.characters,
+      regions: [
+        _union([_oval(150, 136, 66, 70), _rect(84, 136, 132, 140, 40)]),
+        _poly([66, 300, 112, 216, 188, 216, 234, 300]),
+        _rect(112, 230, 76, 14, 7),
+        _animeNeck(),
+        _circle(150, 214, 7),
+        _animeFace(),
+        _poly([92, 150, 96, 108, 118, 84, 150, 76, 188, 86, 206, 112, 208, 150, 196, 120, 160, 104, 130, 118, 108, 132]),
+        _poly([118, 82, 122, 48, 136, 66, 150, 40, 164, 66, 178, 48, 182, 82]),
+        _circle(150, 64, 5),
+        ..._animeFeatures(),
+      ],
+      details: _animeDetails(lashes: true),
+    );
+
+ColoringDrawing _animeBob() => ColoringDrawing(
+      id: 'anime_bob',
+      titleAr: 'صاحبة الشعر القصير',
+      titleEn: 'Bob-Hair Girl',
+      category: ColoringCategory.characters,
+      regions: [
+        _rect(90, 208, 120, 94, 30),
+        _rect(118, 256, 64, 30, 10),
+        _animeNeck(),
+        _union([_oval(150, 132, 66, 62), _rect(84, 132, 132, 62, 18)]),
+        _animeFace(),
+        _semi(150, 122, 56),
+        _union([
+          for (var i = 0; i < 5; i++)
+            _circle(200 + 8 * math.cos(i * 2 * math.pi / 5), 98 + 8 * math.sin(i * 2 * math.pi / 5), 7),
+        ]),
+        _circle(200, 98, 5),
+        ..._animeFeatures(),
+      ],
+      details: [
+        ..._animeDetails(lashes: true),
+        _line([138, 214, 134, 244]),
+        _line([162, 214, 166, 244]),
+      ],
+    );
+
+ColoringDrawing _animePonytail() => ColoringDrawing(
+      id: 'anime_ponytail',
+      titleAr: 'البطلة الرياضية',
+      titleEn: 'Sporty Girl',
+      category: ColoringCategory.characters,
+      regions: [
+        _rotOval(224, 158, 18, 54, -0.6),
+        _oval(150, 132, 62, 64),
+        _poly([82, 254, 104, 210, 196, 210, 218, 254, 196, 262, 196, 300, 104, 300, 104, 262]),
+        _heart(150, 264, 14),
+        _animeNeck(),
+        _animeFace(),
+        _poly([94, 140, 98, 104, 122, 82, 158, 76, 194, 90, 206, 120, 180, 106, 150, 112, 120, 126]),
+        _circle(202, 116, 8),
+        ..._animeFeatures(),
+      ],
+      details: _animeDetails(lashes: true),
+    );
+
+ColoringDrawing _animeFairy() => ColoringDrawing(
+      id: 'anime_fairy',
+      titleAr: 'الجنيّة اللطيفة',
+      titleEn: 'Little Fairy',
+      category: ColoringCategory.characters,
+      regions: [
+        _rotOval(82, 232, 30, 48, -0.6),
+        _rotOval(218, 232, 30, 48, 0.6),
+        _rotOval(96, 282, 20, 26, 0.5),
+        _rotOval(204, 282, 20, 26, -0.5),
+        _oval(150, 138, 64, 72),
+        _poly([104, 300, 120, 214, 180, 214, 196, 300, 176, 286, 150, 300, 124, 286]),
+        _animeNeck(),
+        _animeFace(),
+        _poly([94, 140, 100, 104, 122, 82, 150, 90, 178, 82, 200, 104, 206, 140, 190, 114, 150, 106, 110, 114]),
+        _star(150, 70, 16, 7, 5),
+        _star(258, 150, 14, 6, 5),
+        ..._animeFeatures(),
+      ],
+      details: [..._animeDetails(lashes: true), _line([214, 214, 250, 162])],
+    );
+
+ColoringDrawing _animeNinja() => ColoringDrawing(
+      id: 'anime_ninja',
+      titleAr: 'النينجا الشجاع',
+      titleEn: 'Brave Ninja',
+      category: ColoringCategory.characters,
+      regions: [
+        _rotOval(214, 220, 10, 30, -0.9),
+        _rect(92, 210, 116, 92, 28),
+        _animeNeck(),
+        _rect(114, 198, 72, 24, 12),
+        ..._animeEars(),
+        _animeFace(),
+        _poly([86, 132, 82, 92, 104, 100, 102, 64, 128, 84, 140, 50, 158, 80, 182, 54, 186, 88, 214, 78, 206, 112,
+          218, 132, 196, 116, 150, 110, 106, 116]),
+        _rect(96, 108, 108, 20, 6),
+        _rect(130, 106, 40, 24, 5),
+        ..._animeFeatures(),
+      ],
+      details: [
+        ..._animeDetails(),
+        _curve(142, 118, 150, 110, 158, 118),
+        _line([150, 222, 150, 300]),
+      ],
+    );
+
+ColoringDrawing _animeCapBoy() => ColoringDrawing(
+      id: 'anime_cap',
+      titleAr: 'صاحب القبّعة',
+      titleEn: 'Cap Boy',
+      category: ColoringCategory.characters,
+      regions: [
+        _rect(90, 208, 120, 94, 30),
+        _rect(118, 256, 64, 30, 10),
+        _animeNeck(),
+        ..._animeEars(),
+        _animeFace(),
+        _tufts(96, 204, 104, 126, 7),
+        _semi(150, 106, 56),
+        _oval(186, 106, 42, 9),
+        _circle(150, 52, 5),
+        _star(150, 82, 11, 5, 5),
+        ..._animeFeatures(),
+      ],
+      details: [..._animeDetails(), _line([138, 214, 134, 244]), _line([162, 214, 166, 244])],
+    );
+
+ColoringDrawing _animeGlasses() => ColoringDrawing(
+      id: 'anime_glasses',
+      titleAr: 'العبقري الصغير',
+      titleEn: 'Little Genius',
+      category: ColoringCategory.characters,
+      regions: [
+        _rect(92, 208, 116, 94, 26),
+        _animeNeck(),
+        _poly([122, 208, 150, 224, 138, 240]),
+        _poly([178, 208, 150, 224, 162, 240]),
+        _poly([150, 226, 132, 216, 132, 238]),
+        _poly([150, 226, 168, 216, 168, 238]),
+        _circle(150, 226, 5),
+        ..._animeEars(),
+        _animeFace(),
+        _poly([92, 136, 94, 104, 114, 82, 150, 74, 188, 82, 206, 104, 208, 136, 200, 114, 120, 110, 104, 124]),
+        ..._animeFeatures(),
+      ],
+      details: [
+        ..._animeDetails(),
+        Path()..addOval(Rect.fromCircle(center: const Offset(128, 148), radius: 20)),
+        Path()..addOval(Rect.fromCircle(center: const Offset(172, 148), radius: 20)),
+        _curve(148, 146, 150, 142, 152, 146),
+      ],
+    );
+
+ColoringDrawing _animeSoccer() => ColoringDrawing(
+      id: 'anime_soccer',
+      titleAr: 'لاعب الكرة',
+      titleEn: 'Soccer Star',
+      category: ColoringCategory.characters,
+      regions: [
+        _poly([82, 254, 104, 208, 196, 208, 218, 254, 196, 262, 196, 300, 104, 300, 104, 262]),
+        _rect(140, 208, 20, 92),
+        _circle(242, 268, 26),
+        _polygon(242, 268, 9, 5),
+        _animeNeck(),
+        ..._animeEars(),
+        _animeFace(),
+        _poly([88, 134, 86, 98, 104, 76, 128, 70, 140, 56, 158, 68, 182, 64, 200, 82, 214, 108, 212, 134, 198, 112,
+          182, 120, 170, 102, 154, 118, 138, 102, 120, 120, 102, 110]),
+        ..._animeFeatures(),
+      ],
+      details: _animeDetails(),
+    );
+
+ColoringDrawing _animeWizard() => ColoringDrawing(
+      id: 'anime_wizard',
+      titleAr: 'الساحر الصغير',
+      titleEn: 'Little Wizard',
+      category: ColoringCategory.characters,
+      regions: [
+        _poly([70, 300, 112, 208, 188, 208, 230, 300]),
+        _rect(110, 208, 80, 94, 20),
+        _star(150, 260, 14, 6, 5),
+        _animeNeck(),
+        ..._animeEars(),
+        _animeFace(),
+        _tufts(98, 202, 104, 124, 6),
+        _poly([104, 106, 196, 106, 166, 20]),
+        _oval(150, 106, 72, 12),
+        _star(156, 74, 10, 4.5, 5),
+        ..._animeFeatures(),
+      ],
+      details: _animeDetails(),
+    );
+
+/// شخصياتُ الأنمي — تُضاف إلى [studioTemplateDrawings].
+final Map<String, ColoringDrawing Function()> animeTemplateDrawings = {
+  'anime_twintails': _animeTwintails,
+  'anime_princess': _animePrincess,
+  'anime_bob': _animeBob,
+  'anime_ponytail': _animePonytail,
+  'anime_fairy': _animeFairy,
+  'anime_ninja': _animeNinja,
+  'anime_cap': _animeCapBoy,
+  'anime_glasses': _animeGlasses,
+  'anime_soccer': _animeSoccer,
+  'anime_wizard': _animeWizard,
 };
