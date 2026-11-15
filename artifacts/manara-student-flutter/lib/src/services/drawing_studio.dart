@@ -23,7 +23,7 @@ const double studioSize = 1000;
 
 /// الفرش: قلمُ حبرٍ يرقّ بالسرعة، وقلمُ رصاص، وقلمُ تحبيرٍ مدبّبُ الطرفين،
 /// وفرشاةٌ زيتية بشعيراتها، وألوانٌ مائية، وبخّاخ، وقلمُ تحديد، وممحاة.
-enum StudioBrush { inkPen, pencil, inking, oil, watercolor, airbrush, marker, eraser }
+enum StudioBrush { inkPen, pencil, inking, sketch, oil, watercolor, airbrush, marker, eraser }
 
 /// الأشكالُ الحرّة: تُسحب من زاويةٍ إلى زاوية.
 enum StudioShape { line, rectangle, ellipse, triangle, star, hexagon, arrow }
@@ -308,6 +308,13 @@ class StudioController extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// يُلغي الخطَّ الجاري بلا أثر: لمسةُ إصبعٍ ثانٍ، أو ضغطةٌ مطوّلة للقطّارة.
+  void cancel() {
+    if (_live == null) return;
+    _live = null;
+    notifyListeners();
+  }
+
   void end() {
     final live = _live;
     _live = null;
@@ -552,6 +559,16 @@ class StudioController extends ChangeNotifier {
           ..maskFilter = MaskFilter.blur(BlurStyle.normal, w * 0.45);
         for (final p in _along(points, math.max(1.5, w * 0.22))) {
           canvas.drawCircle(p, w * 0.7, dot);
+        }
+      case StudioBrush.sketch:
+        // ‏قلمُ التخطيط: خطوطٌ رفيعةٌ متقاربةٌ خفيفة، كمن يرسم الهيكلَ قبل التحبير.
+        final path = smoothPath(points);
+        for (var k = 0; k < 3; k++) {
+          final j = (k - 1) * math.max(0.6, w * 0.18).toDouble();
+          canvas.drawPath(
+            path.shift(Offset(j, -j * 0.6)),
+            _line(color.withValues(alpha: color.a * 0.45), math.max(0.8, w * 0.3)),
+          );
         }
       case StudioBrush.marker:
         canvas.drawPath(

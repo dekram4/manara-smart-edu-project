@@ -46,6 +46,21 @@ class DrawingStudioScreenState extends State<DrawingStudioScreen> {
   Color _color = const Color(0xFF111827);
   Color _color2 = const Color(0xFFFFFFFF);
   List<Color> _custom = const [];
+
+  /// آخرُ الألوان التي رُسم بها — تلقائياً، الأحدثُ أوّلاً.
+  final List<Color> _recent = [];
+
+  // ── اللمسات: إصبعان للتراجع، وثلاثةٌ للإعادة، وضغطةٌ مطوّلةٌ للقطّارة ──
+  final Set<int> _touches = {};
+  int _maxTouches = 0;
+  final Stopwatch _multiClock = Stopwatch();
+  bool _multiMoved = false;
+  Timer? _holdTimer;
+  Offset? _holdAt;
+  bool _held = false;
+
+  @visibleForTesting
+  List<Color> get recentColors => List.unmodifiable(_recent);
   bool _saving = false;
   int? _pointer;
   String? _message;
@@ -69,7 +84,8 @@ class DrawingStudioScreenState extends State<DrawingStudioScreen> {
     StudioBrush.oil: (Icons.brush_rounded, 'زيتية', 'Oil'),
     StudioBrush.watercolor: (Icons.water_drop_rounded, 'مائية', 'Watercolor'),
     StudioBrush.airbrush: (Icons.blur_on_rounded, 'بخّاخ', 'Airbrush'),
-    StudioBrush.marker: (Icons.border_color_rounded, 'تحديد', 'Marker'),
+    StudioBrush.sketch: (Icons.gesture_rounded, 'قلم تخطيط', 'Sketch'),
+    StudioBrush.marker: (Icons.border_color_rounded, 'قلم تحديد', 'Marker'),
     StudioBrush.eraser: (Icons.auto_fix_normal_rounded, 'ممحاة', 'Eraser'),
   };
 
@@ -101,6 +117,7 @@ class DrawingStudioScreenState extends State<DrawingStudioScreen> {
   @override
   void dispose() {
     _messageTimer?.cancel();
+    _holdTimer?.cancel();
     if (widget.initial != _controller || widget.initial == null) _controller.dispose();
     super.dispose();
   }
@@ -385,7 +402,6 @@ class DrawingStudioScreenState extends State<DrawingStudioScreen> {
 
   Widget _board() => LayoutBuilder(builder: (context, box) {
         final side = math.max(1.0, math.min(box.maxWidth, box.maxHeight));
-        Offset toDoc(Offset local) => local / side * studioSize;
         return SizedBox.square(
           dimension: side,
           child: Container(
@@ -401,30 +417,10 @@ class DrawingStudioScreenState extends State<DrawingStudioScreen> {
                 return Listener(
                   key: const ValueKey('studio-board'),
                   behavior: HitTestBehavior.opaque,
-                  onPointerDown: (e) {
-                    if (_pointer != null) return;
-                    _pointer = e.pointer;
-                    if (_tool == StudioTool.eyedropper) return;
-                    _controller.begin(toDoc(e.localPosition), _pen);
-                  },
-                  onPointerMove: (e) {
-                    if (e.pointer != _pointer || _tool == StudioTool.eyedropper) return;
-                    _controller.move(toDoc(e.localPosition));
-                  },
-                  onPointerUp: (e) {
-                    if (e.pointer != _pointer) return;
-                    _pointer = null;
-                    if (_tool == StudioTool.eyedropper) {
-                      unawaited(_sample(toDoc(e.localPosition)));
-                    } else {
-                      _controller.end();
-                    }
-                  },
-                  onPointerCancel: (e) {
-                    if (e.pointer != _pointer) return;
-                    _pointer = null;
-                    _controller.end();
-                  },
+                  onPointerDown: (e) => _down(e, side),
+                  onPointerMove: (e) => _move(e, side),
+                  onPointerUp: (e) => _up(e, side),
+                  onPointerCancel: (e) => _up(e, side),
                   child: RepaintBoundary(
                     child: CustomPaint(
                       isComplex: true,
@@ -439,6 +435,107 @@ class DrawingStudioScreenState extends State<DrawingStudioScreen> {
           ),
         );
       });
+
+  /// الضغطةُ المطوّلة دون حركة: قطّارةٌ في أيّ أداة.
+  static const holdToPick = Duration(milliseconds: 550);
+
+  void _down(PointerDownEvent e, double side) {
+    _touches.add(e.pointer);
+    if (_touches.length > 1) {
+      // ‏إصبعٌ ثانٍ: ليس رسماً بل إيماءة — يُلغى الخطُّ الذي بدأه الأوّل.
+      _holdTimer?.cancel();
+      if (_maxTouches == 1) {
+        _controller.cancel();
+        _multiClock
+          ..reset()
+          ..start();
+        _multiMoved = false;
+      }
+      _maxTouches = math.max(_maxTouches, _touches.length);
+      return;
+    }
+    _maxTouches = 1;
+    _held = false;
+    _pointer = e.pointer;
+    if (_tool == StudioTool.eyedropper) return;
+    _controller.begin(e.localPosition / side * studioSize, _pen);
+    _holdAt = e.localPosition;
+    _holdTimer?.cancel();
+    _holdTimer = Timer(holdToPick, () {
+      final at = _holdAt;
+      if (_pointer == null || _maxTouches > 1 || at == null) return;
+      _held = true;
+      _controller.cancel();
+      HapticFeedback.mediumImpact();
+      unawaited(_sample(at / side * studioSize));
+    });
+  }
+
+  void _move(PointerMoveEvent e, double side) {
+    if (_maxTouches > 1) {
+      if (e.delta.distance > 3) _multiMoved = true;
+      return;
+    }
+    if (e.pointer != _pointer || _tool == StudioTool.eyedropper || _held) return;
+    final hold = _holdAt;
+    if (hold != null && (e.localPosition - hold).distance > 8) {
+      _holdTimer?.cancel();
+      _holdAt = null;
+    }
+    _controller.move(e.localPosition / side * studioSize);
+  }
+
+  void _up(PointerEvent e, double side) {
+    _touches.remove(e.pointer);
+    if (_maxTouches > 1) {
+      if (_touches.isEmpty) {
+        final quick = _multiClock.elapsed < const Duration(milliseconds: 450);
+        if (quick && !_multiMoved && e is PointerUpEvent) {
+          if (_maxTouches == 2 && _controller.canUndo) {
+            _controller.undo();
+            _toast(_t('↩️ تراجع', '↩️ Undo'));
+          } else if (_maxTouches >= 3 && _controller.canRedo) {
+            _controller.redo();
+            _toast(_t('↪️ إعادة', '↪️ Redo'));
+          }
+        }
+        _maxTouches = 0;
+        _pointer = null;
+        _multiClock.stop();
+      }
+      return;
+    }
+    if (e.pointer != _pointer) return;
+    _pointer = null;
+    _maxTouches = 0;
+    _holdTimer?.cancel();
+    _holdAt = null;
+    if (_held) {
+      _held = false;
+      return;
+    }
+    if (_tool == StudioTool.eyedropper) {
+      if (e is PointerUpEvent) unawaited(_sample(e.localPosition / side * studioSize));
+      return;
+    }
+    if (e is! PointerUpEvent) {
+      _controller.cancel();
+      return;
+    }
+    final drew = _controller.liveOp != null;
+    _controller.end();
+    if (drew && _brush != StudioBrush.eraser) _remember(_color);
+  }
+
+  void _remember(Color c) {
+    if (_recent.isNotEmpty && _recent.first == c) return;
+    setState(() {
+      _recent
+        ..remove(c)
+        ..insert(0, c);
+      if (_recent.length > 10) _recent.removeLast();
+    });
+  }
 
   Widget _section(BuildContext context, String title, Widget child) => Padding(
         padding: const EdgeInsets.only(top: 10),
@@ -651,6 +748,22 @@ class DrawingStudioScreenState extends State<DrawingStudioScreen> {
                 for (final (i, c) in quickColors.indexed)
                   _dot(c, key: ValueKey('studio-quick-$i'), selected: c == _color),
               ]),
+              if (_recent.isNotEmpty) ...[
+                const SizedBox(height: 8),
+                Text(_t('آخر الألوان', 'Recent'),
+                    style: TextStyle(fontSize: 12, fontWeight: FontWeight.w900, color: StudentSurface.mutedInk(context))),
+                const SizedBox(height: 4),
+                Wrap(spacing: 6, runSpacing: 6, children: [
+                  for (final (i, c) in _recent.indexed) _dot(c, key: ValueKey('studio-recent-$i'), size: 26, selected: c == _color),
+                ]),
+              ],
+              const SizedBox(height: 4),
+              Text(
+                _t('💡 اضغط مطوّلاً على الرسمة لأخذ لونها · إصبعان للتراجع · ثلاثة للإعادة',
+                    '💡 Hold on the drawing to pick its colour · two-finger tap undo · three-finger redo'),
+                key: const ValueKey('studio-gesture-hint'),
+                style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: StudentSurface.mutedInk(context)),
+              ),
               const SizedBox(height: 8),
               Row(children: [
                 Text(_t('ألواني', 'My colours'), style: TextStyle(fontSize: 12, fontWeight: FontWeight.w900, color: StudentSurface.mutedInk(context))),
@@ -831,6 +944,31 @@ class _ColorPickerSheetState extends State<_ColorPickerSheet> {
 
   Color get _color => _hsv.toColor();
 
+  Widget _swatchRow(String title, String key, List<Color> colors) => Padding(
+        padding: const EdgeInsets.only(bottom: 8),
+        child: Row(children: [
+          SizedBox(width: 92, child: Text(title, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w800))),
+          Expanded(
+            child: Wrap(spacing: 5, runSpacing: 5, children: [
+              for (final (i, c) in colors.indexed)
+                GestureDetector(
+                  key: ValueKey('studio-picker-$key-$i'),
+                  onTap: () => _set(HSVColor.fromColor(c).withAlpha(_hsv.alpha)),
+                  child: Container(
+                    width: 26,
+                    height: 26,
+                    decoration: BoxDecoration(
+                      color: c.withValues(alpha: 1),
+                      borderRadius: BorderRadius.circular(7),
+                      border: Border.all(color: Colors.black26),
+                    ),
+                  ),
+                ),
+            ]),
+          ),
+        ]),
+      );
+
   void _set(HSVColor hsv) {
     setState(() => _hsv = hsv);
     _hex.text = _hexOf(hsv.toColor());
@@ -923,6 +1061,15 @@ class _ColorPickerSheetState extends State<_ColorPickerSheet> {
                 ),
               );
             }),
+            const SizedBox(height: 10),
+            _swatchRow(_t('درجاتُه', 'Shades'), 'shade', [
+              for (var i = 0; i < 9; i++)
+                HSLColor.fromColor(_color).withLightness(0.1 + 0.1 * i).toColor(),
+            ]),
+            _swatchRow(_t('ألوانٌ تناسبه', 'Goes well with'), 'harmony', [
+              for (final shift in const [180.0, 120.0, 240.0, 30.0, -30.0])
+                _hsv.withHue((_hsv.hue + shift) % 360).toColor(),
+            ]),
             Row(children: [
               Text(_t('الشفافية', 'Opacity')),
               Expanded(

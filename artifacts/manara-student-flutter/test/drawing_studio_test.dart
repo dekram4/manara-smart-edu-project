@@ -207,4 +207,70 @@ void main() {
       painter.dispose();
     });
   });
+
+  testWidgets('اللمسات: إصبعان للتراجع، وثلاثةٌ للإعادة، والضغطةُ المطوّلة لا ترسم، وآخرُ الألوان', (tester) async {
+    tester.view.physicalSize = const Size(1200, 800);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    await tester.pumpWidget(const MaterialApp(home: DrawingStudioScreen()));
+    await tester.pump();
+    final state = tester.state<DrawingStudioScreenState>(find.byType(DrawingStudioScreen));
+    final board = find.byKey(const ValueKey('studio-board'));
+    final center = tester.getCenter(board);
+
+    await tester.tap(find.byKey(const ValueKey('studio-brush-sketch')));
+    await tester.pump();
+    await tester.dragFrom(center, const Offset(100, 30));
+    await tester.pump();
+    expect(state.controller.layers[0].ops.single.brush, StudioBrush.sketch);
+    expect(state.recentColors.first, state.color);
+
+    Future<void> fingers(int n) async {
+      final gestures = [
+        for (var i = 0; i < n; i++) await tester.startGesture(center + Offset(i * 40.0, 0), pointer: 20 + i),
+      ];
+      await tester.pump(const Duration(milliseconds: 60));
+      for (final g in gestures) {
+        await g.up();
+      }
+      await tester.pump();
+    }
+
+    await fingers(2);
+    expect(state.controller.layers[0].ops, isEmpty, reason: 'إصبعان: تراجع');
+    await fingers(3);
+    expect(state.controller.layers[0].ops, hasLength(1), reason: 'ثلاثة: إعادة');
+
+    // ‏ضغطةٌ مطوّلةٌ دون حركة: قطّارةٌ لا خطّ.
+    final hold = await tester.startGesture(center + const Offset(-80, -80), pointer: 40);
+    await tester.pump(const Duration(milliseconds: 700));
+    await hold.up();
+    await tester.pump();
+    expect(state.controller.layers[0].ops, hasLength(1));
+    expect(state.controller.liveOp, isNull);
+    await tester.pump(const Duration(seconds: 4));
+  });
+
+  testWidgets('اللوحةُ المتقدّمة: درجاتُ اللون وألوانٌ تناسبه', (tester) async {
+    tester.view.physicalSize = const Size(1200, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    await tester.pumpWidget(const MaterialApp(home: DrawingStudioScreen()));
+    await tester.pump();
+    final state = tester.state<DrawingStudioScreenState>(find.byType(DrawingStudioScreen));
+    await tester.ensureVisible(find.byKey(const ValueKey('studio-color-picker')));
+    await tester.tap(find.byKey(const ValueKey('studio-color-picker')));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 600));
+    await tester.enterText(find.byKey(const ValueKey('studio-picker-hex')), 'FF0000');
+    await tester.pump();
+    await tester.tap(find.byKey(const ValueKey('studio-picker-harmony-0')));
+    await tester.pump();
+    await tester.ensureVisible(find.byKey(const ValueKey('studio-picker-use')));
+    await tester.tap(find.byKey(const ValueKey('studio-picker-use')));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 600));
+    // ‏مكمّلُ الأحمر: سماويّ.
+    expect(HSVColor.fromColor(state.color).hue, closeTo(180, 1));
+  });
 }
