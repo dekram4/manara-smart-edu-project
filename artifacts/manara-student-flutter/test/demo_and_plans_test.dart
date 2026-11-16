@@ -182,13 +182,16 @@ void main() {
     expect(find.text(planPricePlaceholderAr), findsWidgets);
 
     await tester.tap(find.byKey(const ValueKey('plan-choose-school_medium')));
-    await tester.pump();
+    for (var i = 0; i < 6; i++) {
+      await tester.pump(const Duration(milliseconds: 100));
+    }
     expect(find.byKey(const ValueKey('plans-form')), findsOneWidget);
     await tester.enterText(find.byKey(const ValueKey('plans-name')), 'روضة النور');
     await tester.enterText(find.byKey(const ValueKey('plans-grade')), 'روضة');
     await tester.enterText(find.byKey(const ValueKey('plans-students')), '40');
     await tester.enterText(find.byKey(const ValueKey('plans-phone')), '0501234567');
     await tester.ensureVisible(find.byKey(const ValueKey('plans-submit')));
+    await tester.pump(const Duration(milliseconds: 100));
     await tester.tap(find.byKey(const ValueKey('plans-submit')));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 200));
@@ -199,6 +202,7 @@ void main() {
     expect(find.byKey(const ValueKey('plans-sent')), findsOneWidget);
 
     await tester.ensureVisible(find.byKey(const ValueKey('plans-whatsapp')));
+    await tester.pump(const Duration(milliseconds: 100));
     await tester.tap(find.byKey(const ValueKey('plans-whatsapp')));
     await tester.pump();
     expect(opened!.host, 'wa.me');
@@ -220,11 +224,14 @@ void main() {
       ),
     ));
     await tester.tap(find.byKey(const ValueKey('plan-choose-family')));
-    await tester.pump();
+    for (var i = 0; i < 6; i++) {
+      await tester.pump(const Duration(milliseconds: 100));
+    }
     await tester.enterText(find.byKey(const ValueKey('plans-name')), 'آل محمد');
     await tester.enterText(find.byKey(const ValueKey('plans-students')), '2');
     await tester.enterText(find.byKey(const ValueKey('plans-phone')), '0501234567');
     await tester.ensureVisible(find.byKey(const ValueKey('plans-submit')));
+    await tester.pump(const Duration(milliseconds: 100));
     await tester.tap(find.byKey(const ValueKey('plans-submit')));
     await tester.pump();
     expect(posted, isFalse);

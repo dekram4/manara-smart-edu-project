@@ -8,6 +8,8 @@ import '../l10n/student_strings.dart';
 import '../models/interactive_study.dart';
 import '../models/study_games.dart';
 import 'student_auth_service.dart';
+import 'demo_content.dart';
+import 'demo_mode.dart';
 
 /// سببُ تعذُّر تحضير المذاكرة، بمفتاحِ نصٍّ يُعرض للطفل.
 class StudyFailure implements Exception {
@@ -67,6 +69,7 @@ class StudentStudyService {
   }
 
   Future<StudyPack> fetch({required String lessonId}) async {
+    if (DemoMode.active) throw const StudyFailure('noService');
     final map = await _post(endpoint, lessonId);
     final pack = StudyPack.fromMap(map['pack']);
     if (pack == null) throw const StudyFailure('badPack');
@@ -105,6 +108,12 @@ class StudentStudyService {
   /// ألعابُ الدرس: سحبٌ وإسقاط، ومطابقة، وأسئلةٌ متتالية — يولّدها الخادم
   /// من نصّ الدرس أوّلَ مرّة ويحفظها معه.
   Future<StudyGamesPack> fetchGames({required String lessonId}) async {
+    // ‏الزائر: لعبةُ السباق من أسئلة الدرس المكتوبة في التطبيق.
+    if (DemoMode.active) {
+      final pack = DemoContent.studyGames(lessonId);
+      if (pack == null) throw const StudyFailure('badPack');
+      return pack;
+    }
     final map = await _post(gamesEndpoint, lessonId);
     final pack = StudyGamesPack.fromMap(map['pack']);
     if (pack == null) throw const StudyFailure('badPack');
@@ -133,6 +142,12 @@ class StudentStudyService {
     required StudyGameType type,
     required List<String> exclude,
   }) async {
+    // ‏الزائر: تُعاد أسئلةُ الدرس نفسُها بترتيبٍ آخر.
+    if (DemoMode.active) {
+      final game = DemoContent.studyGames(lessonId)?.games.first;
+      if (game == null) throw const StudyFailure('badPack');
+      return game.withQuestions([...game.questions]..shuffle());
+    }
     final map = await _post(freshGameEndpoint, lessonId, extra: {
       'gameType': type.wire,
       'exclude': exclude,

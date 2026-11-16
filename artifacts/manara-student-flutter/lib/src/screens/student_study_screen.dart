@@ -12,6 +12,7 @@ import '../models/student_profile.dart';
 import '../services/coloring_canvas.dart';
 import '../services/coloring_drawings.dart';
 import '../services/coloring_cloud.dart';
+import '../services/demo_mode.dart';
 import '../services/student_content_service.dart';
 import '../services/student_settings.dart';
 import '../services/student_sound_service.dart';
@@ -138,7 +139,7 @@ class _StudentStudyScreenState extends State<StudentStudyScreen> {
     final auth = widget.contentService.authService;
     return ColoringAccount(
       studentId: widget.profile.id,
-      cloud: auth == null ? null : ColoringCloud(baseUrl: widget.contentService.baseUrl, authService: auth),
+      cloud: auth == null || DemoMode.active ? null : ColoringCloud(baseUrl: widget.contentService.baseUrl, authService: auth),
     );
   }
 

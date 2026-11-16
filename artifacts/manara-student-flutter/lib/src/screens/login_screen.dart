@@ -22,6 +22,7 @@ import '../widgets/student_mascot.dart';
 import '../widgets/voice_mic_button.dart';
 import 'academic_selection_screen.dart';
 import '../services/demo_mode.dart';
+import '../widgets/demo_ui.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({
@@ -305,35 +306,11 @@ class _LoginScreenState extends State<LoginScreen> {
     StudentSoundService.instance.playTap();
     final track = await showModalBottomSheet<String>(
       context: context,
-      showDragHandle: true,
-      builder: (context) => SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
-          child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-            Text(tr('demo.pickTrack'),
-                textAlign: TextAlign.center, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w900)),
-            const SizedBox(height: 6),
-            Text(tr('demo.pickTrackHint'), textAlign: TextAlign.center),
-            const SizedBox(height: 14),
-            for (final (key, emoji, label) in [
-              ('kg', '🧸', tr('demo.track.kg')),
-              ('grade4', '📘', tr('demo.track.grade4')),
-            ]) ...[
-              FilledButton(
-                key: ValueKey('demo-track-$key'),
-                onPressed: () => Navigator.pop(context, key),
-                style: FilledButton.styleFrom(
-                  minimumSize: const Size.fromHeight(56),
-                  backgroundColor: key == 'kg' ? const Color(0xFFEC4899) : const Color(0xFF2563EB),
-                  textStyle: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900),
-                ),
-                child: Text('$emoji  $label'),
-              ),
-              const SizedBox(height: 10),
-            ],
-          ]),
-        ),
-      ),
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      // ‏على التابلت والأيباد لا تمتدّ اللوحةُ بعرض الشاشة كلِّها.
+      constraints: const BoxConstraints(maxWidth: 560),
+      builder: (context) => const DemoTrackSheet(),
     );
     if (track == null || !mounted) return;
     setState(() {
@@ -1100,14 +1077,30 @@ class _BoardLoginForm extends StatelessWidget {
             ),
             if (onGuest != null) ...[
               const SizedBox(height: 6),
-              TextButton.icon(
+              // ‏زرٌّ زجاجيٌّ بحافّةٍ ذهبيّة، ينضغط تحت الإصبع، ونصُّه يصغر ولا يُقصّ.
+              DemoPressable(
                 key: const ValueKey('login-guest'),
-                onPressed: isLoading ? null : onGuest,
-                icon: const Icon(Icons.explore_rounded, color: Color(0xFFFDE68A)),
-                label: Text(
-                  tr('demo.tryAsGuest'),
-                  maxLines: 1,
-                  style: const TextStyle(color: Color(0xFFFDE68A), fontSize: 17, fontWeight: FontWeight.w900),
+                onTap: isLoading ? null : onGuest,
+                child: Container(
+                  constraints: const BoxConstraints(minHeight: 44),
+                  padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: Colors.black.withValues(alpha: 0.22),
+                    borderRadius: BorderRadius.circular(30),
+                    border: Border.all(color: DemoPalette.goldLight.withValues(alpha: 0.85), width: 1.6),
+                  ),
+                  child: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: Row(mainAxisSize: MainAxisSize.min, children: [
+                      const Icon(Icons.explore_rounded, color: DemoPalette.goldLight),
+                      const SizedBox(width: 8),
+                      Text(
+                        tr('demo.tryAsGuest'),
+                        maxLines: 1,
+                        style: const TextStyle(color: DemoPalette.goldLight, fontSize: 17, fontWeight: FontWeight.w900),
+                      ),
+                    ]),
+                  ),
                 ),
               ),
             ],

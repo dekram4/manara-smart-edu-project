@@ -11,6 +11,7 @@ import '../services/duel_voice_recorder.dart';
 import '../services/student_settings.dart';
 import '../services/student_sound_service.dart';
 import '../theme/student_theme.dart';
+import '../widgets/demo_ui.dart';
 import '../widgets/chat_voice.dart';
 
 /// دردشةُ الزائر: محادثةٌ مع حسابٍ افتراضيّ («منار») على الجهاز وحده.
@@ -176,23 +177,44 @@ class DemoChatScreenState extends State<DemoChatScreen> {
 
   void _imagesClosed() {
     StudentSoundService.instance.play(StudentSoundCue.warning);
-    showDialog<void>(
+    showDemoDialog<void>(
       context: context,
-      builder: (context) => AlertDialog(
-        key: const ValueKey('demo-chat-images-closed'),
-        title: Text('🖼️ ${tr('demo.chat.imagesTitle')}'),
-        content: Text(tr('demo.chat.imagesBody')),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: Text(tr('demo.ok'))),
-          if (widget.onGetAccount != null)
-            FilledButton(
-              onPressed: () {
-                Navigator.pop(context);
-                widget.onGetAccount!();
-              },
-              child: Text(tr('demo.getAccount')),
-            ),
-        ],
+      key: const ValueKey('demo-chat-images-closed'),
+      emoji: '🖼️',
+      title: tr('demo.chat.imagesTitle'),
+      body: Text(tr('demo.chat.imagesBody'), textAlign: TextAlign.center),
+      actions: [
+        if (widget.onGetAccount != null)
+          DemoGradientButton(
+            label: tr('demo.getAccount'),
+            icon: Icons.workspace_premium_rounded,
+            shimmer: true,
+            onPressed: () {
+              Navigator.pop(context);
+              widget.onGetAccount!();
+            },
+          ),
+        TextButton(onPressed: () => Navigator.pop(context), child: Text(tr('demo.ok'))),
+      ],
+    );
+  }
+
+  Widget _roundButton({required Key key, required IconData icon, required VoidCallback onTap, required Gradient gradient, String? tooltip}) {
+    return Tooltip(
+      message: tooltip ?? '',
+      child: DemoPressable(
+        key: key,
+        onTap: onTap,
+        child: Container(
+          width: 46,
+          height: 46,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            gradient: gradient,
+            boxShadow: [BoxShadow(color: gradient.colors.last.withValues(alpha: 0.35), blurRadius: 10, offset: const Offset(0, 4))],
+          ),
+          child: Icon(icon, color: Colors.white),
+        ),
       ),
     );
   }
@@ -201,113 +223,165 @@ class DemoChatScreenState extends State<DemoChatScreen> {
   Widget build(BuildContext context) {
     final leftTexts = DemoMode.chatTexts - _texts;
     final leftVoices = DemoMode.chatVoices - _voices;
+    final dark = Theme.of(context).brightness == Brightness.dark;
     return Directionality(
       textDirection: StudentSettings.direction,
       child: Scaffold(
         backgroundColor: StudentSurface.ground(context),
         appBar: AppBar(
+          foregroundColor: Colors.white,
+          flexibleSpace: Container(decoration: const BoxDecoration(gradient: DemoPalette.violetGradient)),
           title: Row(children: [
-            const CircleAvatar(backgroundColor: Color(0xFFFDE68A), child: Text('🤖')),
+            Container(
+              width: 40,
+              height: 40,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                gradient: DemoPalette.goldGradient,
+                border: Border.all(color: Colors.white, width: 2),
+              ),
+              alignment: Alignment.center,
+              child: const Text('🤖', style: TextStyle(fontSize: 20)),
+            ),
             const SizedBox(width: 10),
             Expanded(
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text(tr('demo.chat.friend'), style: const TextStyle(fontWeight: FontWeight.w900)),
-                Text(tr('demo.chat.friendSub'), style: const TextStyle(fontSize: 12)),
+                Text(tr('demo.chat.friend'),
+                    maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w900)),
+                Text(tr('demo.chat.friendSub'),
+                    maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12, color: Colors.white70)),
               ]),
             ),
           ]),
         ),
         body: SafeArea(
-          child: Column(children: [
-            Container(
-              key: const ValueKey('demo-chat-quota'),
-              width: double.infinity,
-              margin: const EdgeInsets.fromLTRB(12, 8, 12, 0),
-              padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(color: const Color(0xFFFEF3C7), borderRadius: BorderRadius.circular(12)),
-              child: Text(
-                trf('demo.chat.quota', {'texts': '$leftTexts', 'voices': '$leftVoices'}),
-                textAlign: TextAlign.center,
-                style: const TextStyle(fontWeight: FontWeight.w800, color: Color(0xFF92400E)),
-              ),
-            ),
-            Expanded(
-              child: ListView.builder(
-                controller: _scroll,
-                padding: const EdgeInsets.all(12),
-                itemCount: _messages.length,
-                itemBuilder: (context, i) {
-                  final m = _messages[i];
-                  return Align(
-                    alignment: m.mine ? AlignmentDirectional.centerStart : AlignmentDirectional.centerEnd,
-                    child: Container(
-                      key: ValueKey('demo-chat-message-$i'),
-                      margin: const EdgeInsets.symmetric(vertical: 4),
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
-                      constraints: const BoxConstraints(maxWidth: 320),
-                      decoration: BoxDecoration(
-                        color: m.mine ? const Color(0xFF2563EB) : StudentSurface.card(context),
-                        borderRadius: BorderRadius.circular(16),
-                        border: Border.all(color: StudentSurface.outline(context)),
-                      ),
-                      child: m.voice != null
-                          ? ChatVoiceNoteView(
-                              seed: 'demo-$i',
-                              duration: Duration(milliseconds: m.durationMs),
-                              playing: _playing == i,
-                              loading: false,
-                              mine: m.mine,
-                              onTap: () => unawaited(_play(i)),
-                            )
-                          : Text(
-                              m.text ?? '',
-                              style: TextStyle(
-                                fontWeight: FontWeight.w700,
-                                color: m.mine ? Colors.white : StudentSurface.ink(context),
-                              ),
-                            ),
-                    ),
-                  );
-                },
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(8, 4, 8, 8),
-              child: Row(children: [
-                IconButton(
-                  key: const ValueKey('demo-chat-image'),
-                  tooltip: tr('demo.chat.imagesTitle'),
-                  onPressed: _imagesClosed,
-                  icon: const Icon(Icons.image_not_supported_outlined),
-                ),
-                Expanded(
-                  child: TextField(
-                    key: const ValueKey('demo-chat-input'),
-                    controller: _input,
-                    enabled: !_recording,
-                    textInputAction: TextInputAction.send,
-                    onSubmitted: (_) => _sendText(),
-                    decoration: InputDecoration(
-                      hintText: tr('demo.chat.hint'),
-                      isDense: true,
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(18)),
-                    ),
+          child: Center(
+            child: ConstrainedBox(
+              // ‏على التابلت والأيباد تبقى المحادثةُ في عمودٍ مريحٍ للقراءة.
+              constraints: const BoxConstraints(maxWidth: 760),
+              child: Column(children: [
+                Container(
+                  key: const ValueKey('demo-chat-quota'),
+                  width: double.infinity,
+                  margin: const EdgeInsets.fromLTRB(12, 10, 12, 0),
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+                  decoration: BoxDecoration(
+                    gradient: DemoPalette.goldGradient,
+                    borderRadius: BorderRadius.circular(16),
+                    boxShadow: [BoxShadow(color: DemoPalette.gold.withValues(alpha: 0.3), blurRadius: 10, offset: const Offset(0, 4))],
+                  ),
+                  child: Text(
+                    trf('demo.chat.quota', {'texts': '$leftTexts', 'voices': '$leftVoices'}),
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(fontWeight: FontWeight.w900, color: DemoPalette.goldInk),
                   ),
                 ),
-                IconButton(
-                  key: const ValueKey('demo-chat-voice'),
-                  onPressed: () => unawaited(_toggleVoice()),
-                  icon: Icon(_recording ? Icons.stop_circle_rounded : Icons.mic_rounded,
-                      color: _recording ? const Color(0xFFDC2626) : null),
+                Expanded(
+                  child: LayoutBuilder(builder: (context, box) {
+                    final bubbleMax = math.min(420.0, box.maxWidth * 0.78);
+                    return ListView.builder(
+                      controller: _scroll,
+                      padding: const EdgeInsets.all(12),
+                      itemCount: _messages.length,
+                      itemBuilder: (context, i) {
+                        final m = _messages[i];
+                        return Align(
+                          alignment: m.mine ? AlignmentDirectional.centerStart : AlignmentDirectional.centerEnd,
+                          child: DemoEntrance(
+                            index: 0,
+                            child: Container(
+                              key: ValueKey('demo-chat-message-$i'),
+                              margin: const EdgeInsets.symmetric(vertical: 5),
+                              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                              constraints: BoxConstraints(maxWidth: bubbleMax),
+                              decoration: BoxDecoration(
+                                gradient: m.mine ? DemoPalette.violetGradient : null,
+                                color: m.mine ? null : (dark ? const Color(0xFF2A1C40) : Colors.white),
+                                borderRadius: BorderRadius.circular(20),
+                                border: m.mine ? null : Border.all(color: DemoPalette.gold.withValues(alpha: 0.55), width: 1.4),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: (m.mine ? DemoPalette.violet : DemoPalette.gold).withValues(alpha: 0.18),
+                                    blurRadius: 10,
+                                    offset: const Offset(0, 4),
+                                  ),
+                                ],
+                              ),
+                              child: m.voice != null
+                                  ? ChatVoiceNoteView(
+                                      seed: 'demo-$i',
+                                      duration: Duration(milliseconds: m.durationMs),
+                                      playing: _playing == i,
+                                      loading: false,
+                                      mine: m.mine,
+                                      onTap: () => unawaited(_play(i)),
+                                    )
+                                  : Text(
+                                      m.text ?? '',
+                                      style: TextStyle(
+                                        fontWeight: FontWeight.w700,
+                                        height: 1.45,
+                                        color: m.mine ? Colors.white : StudentSurface.ink(context),
+                                      ),
+                                    ),
+                            ),
+                          ),
+                        );
+                      },
+                    );
+                  }),
                 ),
-                IconButton(
-                  key: const ValueKey('demo-chat-send'),
-                  onPressed: _sendText,
-                  icon: const Icon(Icons.send_rounded),
+                Container(
+                  margin: const EdgeInsets.fromLTRB(10, 4, 10, 10),
+                  padding: const EdgeInsets.all(6),
+                  decoration: BoxDecoration(
+                    color: dark ? const Color(0xFF221536) : Colors.white,
+                    borderRadius: BorderRadius.circular(30),
+                    border: Border.all(color: DemoPalette.violet.withValues(alpha: 0.3)),
+                    boxShadow: [BoxShadow(color: DemoPalette.violet.withValues(alpha: 0.12), blurRadius: 14, offset: const Offset(0, 4))],
+                  ),
+                  child: Row(children: [
+                    IconButton(
+                      key: const ValueKey('demo-chat-image'),
+                      tooltip: tr('demo.chat.imagesTitle'),
+                      onPressed: _imagesClosed,
+                      icon: const Icon(Icons.image_not_supported_outlined, color: DemoPalette.violet),
+                    ),
+                    Expanded(
+                      child: TextField(
+                        key: const ValueKey('demo-chat-input'),
+                        controller: _input,
+                        enabled: !_recording,
+                        textInputAction: TextInputAction.send,
+                        onSubmitted: (_) => _sendText(),
+                        decoration: InputDecoration(
+                          hintText: tr('demo.chat.hint'),
+                          isDense: true,
+                          border: InputBorder.none,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 4),
+                    _roundButton(
+                      key: const ValueKey('demo-chat-voice'),
+                      icon: _recording ? Icons.stop_rounded : Icons.mic_rounded,
+                      gradient: _recording
+                          ? const LinearGradient(colors: [Color(0xFFF87171), Color(0xFFDC2626)])
+                          : DemoPalette.goldGradient,
+                      onTap: () => unawaited(_toggleVoice()),
+                    ),
+                    const SizedBox(width: 6),
+                    _roundButton(
+                      key: const ValueKey('demo-chat-send'),
+                      icon: Icons.send_rounded,
+                      gradient: DemoPalette.violetGradient,
+                      onTap: _sendText,
+                    ),
+                  ]),
                 ),
               ]),
             ),
-          ]),
+          ),
         ),
       ),
     );

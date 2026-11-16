@@ -12,6 +12,8 @@ import '../models/student_content.dart';
 import '../l10n/student_strings.dart';
 import '../models/student_profile.dart';
 import 'subscription_plans.dart';
+import 'demo_content.dart';
+import 'demo_mode.dart';
 import '../models/student_gamification.dart';
 import 'student_auth_service.dart';
 
@@ -80,6 +82,8 @@ class StudentContentService {
     String route,
     Map<String, dynamic> body,
   ) async {
+    // ‏الزائرُ لا يُحفظ له شيء، ولا يُسأل الخادم: مكافأتُه صفر.
+    if (DemoMode.active) return const <String, dynamic>{};
     final auth = authService;
     if (auth == null) throw StateError(tr('svc.noSession'));
 
@@ -191,6 +195,8 @@ class StudentContentService {
   ///
   /// `null` إن تعذّر الطريقان معاً، فيُبقي المستدعي آخر ما عرفه.
   Future<Map<String, bool>?> fetchCardPermissions(StudentProfile profile) async {
+    // ‏الزائر: البطاقاتُ كلُّها ظاهرة، وما يُقفل فيها يقرّره [DemoMode].
+    if (DemoMode.active) return const {};
     try {
       final (status, body) = await _apiGet('/api/student/card-permissions');
       if (status >= 200 && status < 300) {
@@ -276,6 +282,7 @@ class StudentContentService {
   }
 
   Future<StudentGamification> fetchGamification(StudentProfile profile) async {
+    if (DemoMode.active) return const StudentGamification();
     // ‏من الخادم بجلسة الطالب، لا من جدول `students` بالمفتاح العام.
     final me = await _studentMe(fresh: true);
     if (me == null) throw StateError(tr('auth.serviceUnreachable'));
@@ -350,6 +357,8 @@ class StudentContentService {
   Future<AcademicSelectionData> fetchAcademicSelectionData(
     StudentProfile profile,
   ) async {
+    // ‏الزائر: شجرةُ المسار ودروسُه من التطبيق نفسِه ([DemoContent]).
+    if (DemoMode.active) return DemoContent.selection(profile);
     Object? hierarchyValue;
     var hierarchyUnavailable = false;
 
@@ -494,6 +503,7 @@ class StudentContentService {
     StudentProfile profile, {
     AcademicContext? academicContext,
   }) async {
+    if (DemoMode.active) return DemoContent.lessonsFor(profile, academicContext);
     final response = await client
         .from('lesson_configs')
         .select('id,data')
@@ -540,6 +550,9 @@ class StudentContentService {
     required AcademicContext? academicContext,
     required TutorExperienceType type,
   }) async {
+    if (DemoMode.active) {
+      return TutorExperienceSelection(type: type, status: TutorExperienceStatus.unavailable);
+    }
     if (academicContext == null || !academicContext.hasCompletePath) {
       return TutorExperienceSelection(
         type: type,
@@ -674,6 +687,8 @@ class StudentContentService {
       _remember('gameCatalog|$baseUrl', _fetchGameCatalog());
 
   Future<List<HtmlGame>> _fetchGameCatalog() async {
+    // ‏الزائر: لعبةٌ واحدة من الفهرس المدمج، بلا سؤال الخادم.
+    if (DemoMode.active) return _embeddedGameCatalog('').take(DemoMode.entertainmentGames).toList();
     final base = baseUrl.trim().replaceFirst(RegExp(r'/$'), '');
     if (base.isEmpty) return _embeddedGameCatalog('');
 
@@ -699,6 +714,7 @@ class StudentContentService {
       _remember('teacherGames|$baseUrl', _fetchTeacherGames());
 
   Future<List<HtmlGame>> _fetchTeacherGames() async {
+    if (DemoMode.active) return const [];
     final base = baseUrl.trim().replaceFirst(RegExp(r'/$'), '');
     if (base.isEmpty) return const [];
     final (status, body) = await _apiGet('/api/student/entertainment');
@@ -752,6 +768,7 @@ class StudentContentService {
     StudentProfile profile, {
     AcademicContext? academicContext,
   }) async {
+    if (DemoMode.active) return DemoContent.cinema;
     int? status;
     var body = const <String, dynamic>{};
     try {
@@ -869,6 +886,7 @@ class StudentContentService {
     StudentProfile profile, {
     AcademicContext? academicContext,
   }) async {
+    if (DemoMode.active) return DemoContent.quizzes(profile, academicContext);
     final response = await client
         .from('created_quizzes')
         .select('id,data,updated_at')
@@ -909,6 +927,8 @@ class StudentContentService {
   Future<List<Map<String, dynamic>>> _fetchQuizResults(
     StudentProfile profile,
   ) async {
+    // ‏الزائر: نتائجُ هذه الجلسة على الجهاز وحده.
+    if (DemoMode.active) return List.of(_demoResults);
     // ‏من الخادم بجلسة الطالب: نتائجُه وحده. كان الجدولُ يُقرأ بالمفتاح العام،
     // ‏فكانت نتائجُ الطلاب كلِّهم مقروءةً لكل من يملكه.
     final (status, body) = await _apiGet('/api/student/quiz-results');
@@ -937,6 +957,11 @@ class StudentContentService {
     if (id.isEmpty) {
       throw ArgumentError(tr('svc.noResultId'));
     }
+    if (DemoMode.active) {
+      final saved = <String, dynamic>{...result, 'id': id};
+      _demoResults.insert(0, saved);
+      return saved;
+    }
     final payload = await _postProgress('quiz-result', {
       'result': <String, dynamic>{
         ...result,
@@ -947,6 +972,9 @@ class StudentContentService {
     });
     return _asMap(payload['result']);
   }
+
+  /// نتائجُ الزائر في جلسته — تُمحى بخروجه من التطبيق.
+  static final List<Map<String, dynamic>> _demoResults = [];
 
   Future<void> saveAppearance({
     required StudentProfile profile,
@@ -964,6 +992,7 @@ class StudentContentService {
   Future<List<Map<String, dynamic>>> loadTutorHistory(
     StudentProfile profile,
   ) async {
+    if (DemoMode.active) return const [];
     // ‏من الخادم بجلسة الطالب، لا من جدول `interactions` بالمفتاح العام.
     final (status, body) = await _apiGet('/api/student/tutor-history');
     if (status < 200 || status >= 300) return const [];

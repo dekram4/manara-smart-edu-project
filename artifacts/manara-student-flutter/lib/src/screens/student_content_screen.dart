@@ -1052,9 +1052,11 @@ class _GamesModule extends StatelessWidget {
   // بملفها فلا يبلغها اختبار. ما هنا تفويض لا نسخة ثانية.
   static int requiredLevelFor(int index) =>
       GameUnlockRule.requiredLevelFor(index);
+  // ‏الزائر: لعبتُه الواحدة مفتوحةٌ بلا مستوى — مستواه صفرٌ دائماً.
   static bool isUnlocked(int index, int level) =>
-      GameUnlockRule.isUnlocked(index, level);
-  static int unlockedCount(int level) => GameUnlockRule.unlockedCount(level);
+      DemoMode.active ? index < DemoMode.entertainmentGames : GameUnlockRule.isUnlocked(index, level);
+  static int unlockedCount(int level) =>
+      DemoMode.active ? DemoMode.entertainmentGames : GameUnlockRule.unlockedCount(level);
 
   @override
   Widget build(BuildContext context) {

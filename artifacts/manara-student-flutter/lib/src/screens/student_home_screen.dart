@@ -59,6 +59,7 @@ import 'student_problem_solver_screen.dart';
 import 'student_progress_screen.dart';
 import 'student_quiz_screen.dart';
 import 'student_tutor_screen.dart';
+import '../widgets/demo_ui.dart';
 
 class StudentHomeScreen extends StatefulWidget {
   const StudentHomeScreen({
@@ -386,30 +387,40 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> with RouteAware {
   /// رسالةُ بطاقةٍ مدفوعة للزائر: ما الذي تفعله، ومتى تُفتح.
   void _showTeaser(String card) {
     StudentSoundService.instance.play(StudentSoundCue.warning);
-    showDialog<void>(
+    const emojis = {'solver': '🧮', 'meeting': '🎥', 'challenge': '⚔️', 'tutor': '🤖'};
+    showDemoDialog<void>(
       context: context,
-      builder: (context) => AlertDialog(
-        key: ValueKey('demo-teaser-$card'),
-        title: Text('🔒 ${tr('portal.$card')}'),
-        content: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text(tr('demo.teaser.$card'), style: const TextStyle(fontSize: 15, height: 1.6)),
-          const SizedBox(height: 12),
-          Text(tr('demo.teaser.after'),
-              style: const TextStyle(fontWeight: FontWeight.w900, color: Color(0xFFB45309))),
-        ]),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: Text(tr('demo.ok'))),
-          FilledButton(
-            key: const ValueKey('demo-teaser-get-account'),
-            onPressed: () {
-              Navigator.pop(context);
-              _openPlans();
-            },
-            style: FilledButton.styleFrom(backgroundColor: const Color(0xFFD97706)),
-            child: Text(tr('demo.getAccount')),
+      key: ValueKey('demo-teaser-$card'),
+      emoji: emojis[card] ?? '🔒',
+      title: tr('portal.$card'),
+      body: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        Text(tr('demo.teaser.$card'), textAlign: TextAlign.center),
+        const SizedBox(height: 12),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          decoration: BoxDecoration(
+            color: DemoPalette.gold.withValues(alpha: 0.14),
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: DemoPalette.gold.withValues(alpha: 0.6)),
           ),
-        ],
-      ),
+          child: Text(tr('demo.teaser.after'),
+              textAlign: TextAlign.center,
+              style: const TextStyle(fontWeight: FontWeight.w900, color: DemoPalette.goldDeep)),
+        ),
+      ]),
+      actions: [
+        DemoGradientButton(
+          key: const ValueKey('demo-teaser-get-account'),
+          label: tr('demo.getAccount'),
+          icon: Icons.workspace_premium_rounded,
+          shimmer: true,
+          onPressed: () {
+            Navigator.pop(context);
+            _openPlans();
+          },
+        ),
+        TextButton(onPressed: () => Navigator.pop(context), child: Text(tr('demo.ok'))),
+      ],
     );
   }
 
@@ -555,7 +566,8 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> with RouteAware {
   Future<void> _signOut() async {
     StudentSoundService.instance.playTap();
     try {
-      await widget.authService.client.auth.signOut();
+      // ‏الزائرُ لم يدخل الخادمَ أصلاً: لا جلسةَ تُغلق هناك.
+      if (!DemoMode.active) await widget.authService.client.auth.signOut();
     } catch (_) {}
     widget.authService.clearApiSession();
     DemoMode.exit();
@@ -698,7 +710,7 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> with RouteAware {
                 // ‏لوحاتُ الطفل باسمه وحده على التابلت، وفي سحابته.
                 account: ColoringAccount(
                   studentId: widget.profile.id,
-                  cloud: ColoringCloud(baseUrl: widget.apiBaseUrl, authService: widget.authService),
+                  cloud: DemoMode.active ? null : ColoringCloud(baseUrl: widget.apiBaseUrl, authService: widget.authService),
                 ),
               ),
             ),
@@ -1178,19 +1190,16 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> with RouteAware {
                           Padding(
                             padding: const EdgeInsets.fromLTRB(14, 4, 14, 8),
                             child: Center(
-                              child: FilledButton.icon(
-                                key: const ValueKey('demo-get-account'),
-                                onPressed: _openPlans,
-                                icon: const Icon(Icons.workspace_premium_rounded),
-                                label: Text(tr('demo.getAccount')),
-                                style: FilledButton.styleFrom(
-                                  backgroundColor: const Color(0xFFF59E0B),
-                                  foregroundColor: const Color(0xFF451A03),
-                                  minimumSize: const Size(260, 50),
-                                  textStyle: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900),
-                                  elevation: 6,
-                                  shadowColor: const Color(0xFFF59E0B),
-                                  side: const BorderSide(color: Color(0xFFFDE68A), width: 2),
+                              // ‏يمتدّ حتى ٤٢٠ ويصغر نصُّه على الجوال الضيّق بدل أن يُقصّ.
+                              child: ConstrainedBox(
+                                constraints: const BoxConstraints(maxWidth: 420),
+                                child: DemoGradientButton(
+                                  key: const ValueKey('demo-get-account'),
+                                  label: tr('demo.getAccount'),
+                                  icon: Icons.workspace_premium_rounded,
+                                  shimmer: true,
+                                  height: 52,
+                                  onPressed: _openPlans,
                                 ),
                               ),
                             ),

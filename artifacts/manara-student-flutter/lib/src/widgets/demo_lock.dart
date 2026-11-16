@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../l10n/student_strings.dart';
 import '../services/student_sound_service.dart';
+import 'demo_ui.dart';
 
 /// رسالةُ ما أُغلق في وضع الزائر: يُفتح كلُّه في الحساب الرسمي.
 void showDemoLocked(BuildContext context) {
@@ -11,7 +12,11 @@ void showDemoLocked(BuildContext context) {
     ..showSnackBar(SnackBar(
       key: const ValueKey('demo-locked'),
       behavior: SnackBarBehavior.floating,
-      backgroundColor: const Color(0xFF92400E),
+      backgroundColor: DemoPalette.violetDeep,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+        side: const BorderSide(color: DemoPalette.gold, width: 1.5),
+      ),
       content: Row(children: [
         const Icon(Icons.lock_rounded, color: Color(0xFFFDE68A)),
         const SizedBox(width: 10),
@@ -38,11 +43,17 @@ class DemoLocked extends StatelessWidget {
           child: InkWell(
             borderRadius: BorderRadius.circular(20),
             onTap: () => showDemoLocked(context),
-            child: const Center(
-              child: CircleAvatar(
-                radius: 22,
-                backgroundColor: Color(0xFFF59E0B),
-                child: Icon(Icons.lock_rounded, color: Colors.white),
+            child: Center(
+              child: Container(
+                width: 44,
+                height: 44,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  gradient: DemoPalette.goldGradient,
+                  border: Border.all(color: Colors.white, width: 2.5),
+                  boxShadow: [BoxShadow(color: DemoPalette.gold.withValues(alpha: 0.55), blurRadius: 14)],
+                ),
+                child: const Icon(Icons.lock_rounded, color: DemoPalette.goldInk, size: 22),
               ),
             ),
           ),
