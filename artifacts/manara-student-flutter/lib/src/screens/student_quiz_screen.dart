@@ -17,6 +17,7 @@ import '../widgets/portal_watermark.dart';
 import '../widgets/student_experience.dart';
 import '../widgets/student_icon_notice.dart';
 import '../services/demo_mode.dart';
+import '../widgets/demo_lock.dart';
 
 class StudentQuizScreen extends StatefulWidget {
   const StudentQuizScreen({
@@ -198,7 +199,10 @@ class _StudentQuizScreenState extends State<StudentQuizScreen>
     }
     if (_isTeacherQuiz(quiz) && previous != null) {
       StudentSoundService.instance.playTap();
-      setState(() => _shownResult = previous);
+      setState(() {
+        _shownResult = previous;
+        _lockedQuestions = 0;
+      });
       return;
     }
     final questions = _quizQuestions(quiz);
@@ -218,14 +222,18 @@ class _StudentQuizScreenState extends State<StudentQuizScreen>
     }
     setState(() {
       _activeQuiz = quiz;
-      // ‏الزائر: سؤالان لكل درس.
+      // ‏الزائر: سؤالان لكل درس، والباقي ظاهرٌ بعدده تحت قفلٍ ذهبيّ.
       _questions = DemoMode.limit(questions, DemoMode.quizQuestions);
+      _lockedQuestions = questions.length - _questions.length;
       _answers.clear();
       _questionIndex = 0;
       _shownResult = null;
     });
     StudentSoundService.instance.playTap();
   }
+
+  /// الزائر: كم سؤالاً حُجب من الاختبار المفتوح.
+  int _lockedQuestions = 0;
 
   Future<void> _submit() async {
     final quiz = _activeQuiz;
@@ -462,13 +470,18 @@ class _StudentQuizScreenState extends State<StudentQuizScreen>
       return StudentEntrance(
         child: _QuizResultView(
           result: _shownResult!,
-          onBack: () => setState(() => _shownResult = null),
+          lockedCount: _lockedQuestions,
+          onBack: () => setState(() {
+            _shownResult = null;
+            _lockedQuestions = 0;
+          }),
         ),
       );
     }
     if (_activeQuiz != null) {
       return _QuestionList(
         questions: _questions,
+        lockedCount: _lockedQuestions,
         answers: _answers,
         questionIndex: _questionIndex,
         submitting: _submitting,
@@ -643,6 +656,7 @@ class _QuizCatalog extends StatelessWidget {
 class _QuestionList extends StatelessWidget {
   const _QuestionList({
     required this.questions,
+    this.lockedCount = 0,
     required this.answers,
     required this.questionIndex,
     required this.submitting,
@@ -653,6 +667,9 @@ class _QuestionList extends StatelessWidget {
   });
 
   final List<Map<String, dynamic>> questions;
+
+  /// الزائر: أسئلةُ الاختبار المحجوبة بعد ما يظهر له.
+  final int lockedCount;
   final Map<String, String> answers;
   final int questionIndex;
   final bool submitting;
@@ -775,16 +792,23 @@ class _QuestionList extends StatelessWidget {
             ),
           ],
         ),
+        if (lockedCount > 0) ...[
+          const SizedBox(height: 18),
+          DemoLockedQuestions(count: lockedCount, shown: questions.length),
+        ],
       ],
     );
   }
 }
 
 class _QuizResultView extends StatelessWidget {
-  const _QuizResultView({required this.result, required this.onBack});
+  const _QuizResultView({required this.result, required this.onBack, this.lockedCount = 0});
 
   final Map<String, dynamic> result;
   final VoidCallback onBack;
+
+  /// الزائر: ما حُجب من أسئلة الاختبار — رسالتُه الذهبية تحت النتيجة.
+  final int lockedCount;
 
   @override
   Widget build(BuildContext context) {
@@ -838,6 +862,10 @@ class _QuizResultView extends StatelessWidget {
             ),
           ),
         ),
+        if (lockedCount > 0) ...[
+          const SizedBox(height: 16),
+          DemoLockedQuestions(count: lockedCount, shown: int.tryParse('${result['total'] ?? ''}') ?? DemoMode.quizQuestions),
+        ],
         if (details.isNotEmpty) ...[
           const SizedBox(height: 16),
           Student3DCard(

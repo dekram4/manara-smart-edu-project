@@ -78,3 +78,95 @@ class DemoLocked extends StatelessWidget {
     ]);
   }
 }
+
+/// أسئلةُ الاختبار المحجوبة عن الزائر: يرى عددها مقفلاً، ورسالةً ذهبية تدعوه
+/// إلى الحساب الرسمي لإكمالها وفتح المنهج كاملاً.
+class DemoLockedQuestions extends StatelessWidget {
+  const DemoLockedQuestions({super.key, required this.count, required this.shown});
+
+  /// كم سؤالاً حُجب، وكم ظهر قبلها (لترقيم المحجوب).
+  final int count;
+  final int shown;
+
+  @override
+  Widget build(BuildContext context) {
+    final navigator = Navigator.maybeOf(context);
+    return Container(
+      key: const ValueKey('demo-quiz-locked'),
+      padding: const EdgeInsets.all(2),
+      decoration: BoxDecoration(
+        gradient: DemoPalette.goldGradient,
+        borderRadius: BorderRadius.circular(24),
+        boxShadow: [BoxShadow(color: DemoPalette.gold.withValues(alpha: 0.35), blurRadius: 16, offset: const Offset(0, 6))],
+      ),
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(16, 16, 16, 14),
+        decoration: BoxDecoration(
+          gradient: DemoPalette.violetGradient,
+          borderRadius: BorderRadius.circular(22),
+        ),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+          Row(children: [
+            Container(
+              width: 40,
+              height: 40,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                gradient: DemoPalette.goldGradient,
+                border: Border.all(color: Colors.white, width: 2),
+              ),
+              child: const Icon(Icons.lock_rounded, color: DemoPalette.goldInk, size: 20),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                trf('demo.quiz.lockedCount', {'n': count}),
+                style: const TextStyle(color: DemoPalette.goldLight, fontWeight: FontWeight.w900, fontSize: 16),
+              ),
+            ),
+          ]),
+          const SizedBox(height: 12),
+          // ‏المحجوبُ ظاهرٌ بعدده ورقمه، لا بنصّه.
+          Wrap(spacing: 8, runSpacing: 8, children: [
+            for (var i = 0; i < count; i++)
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(color: DemoPalette.goldLight.withValues(alpha: 0.6)),
+                ),
+                child: Row(mainAxisSize: MainAxisSize.min, children: [
+                  const Icon(Icons.lock_rounded, size: 14, color: DemoPalette.goldLight),
+                  const SizedBox(width: 5),
+                  Text(
+                    trf('demo.quiz.lockedItem', {'n': shown + i + 1}),
+                    style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w800),
+                  ),
+                ]),
+              ),
+          ]),
+          const SizedBox(height: 12),
+          Text(
+            tr('demo.quiz.lockedMore'),
+            textAlign: TextAlign.center,
+            style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w800, height: 1.5),
+          ),
+          const SizedBox(height: 12),
+          DemoGradientButton(
+            key: const ValueKey('demo-quiz-get-account'),
+            label: tr('demo.getAccount'),
+            icon: Icons.workspace_premium_rounded,
+            shimmer: true,
+            height: 50,
+            onPressed: navigator == null
+                ? null
+                : () => navigator.push(
+                      MaterialPageRoute<void>(builder: (_) => PlansScreen(apiBaseUrl: DemoMode.plansBaseUrl)),
+                    ),
+          ),
+        ]),
+      ),
+    );
+  }
+}

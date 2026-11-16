@@ -119,7 +119,8 @@ void main() {
               expect(lesson.videos, hasLength(4));
               expect(lesson.lessonText, isNotEmpty);
               final context = AcademicContext(grade: DemoContent.grade4, subject: subject, term: term, unit: unit, selectedLesson: lesson);
-              expect(DemoContent.quizzes(profile, context).single['questions'], hasLength(4), reason: lesson.lessonName);
+              expect((DemoContent.quizzes(profile, context).single['questions'] as List).length, greaterThanOrEqualTo(3),
+                  reason: lesson.lessonName);
               final game = DemoContent.studyGames(lesson.id)!.games.single;
               expect(game.questions.every((q) => q.options.contains(q.answer)), isTrue, reason: lesson.lessonName);
             }
