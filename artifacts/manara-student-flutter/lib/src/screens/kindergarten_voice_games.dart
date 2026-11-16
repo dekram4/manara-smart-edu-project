@@ -13,6 +13,7 @@ import '../services/student_voice_service.dart';
 import '../theme/student_theme.dart';
 import '../widgets/portal_watermark.dart';
 import '../widgets/voice_mic_button.dart' show ensureVoiceMic;
+import '../services/demo_mode.dart';
 
 /// ألعابُ الروضة الصوتية في «الثقافة العامة»: الألوان، والأشكال، والحساب.
 ///
@@ -249,7 +250,10 @@ class KgVoiceGameScreenState extends State<KgVoiceGameScreen> {
     if (language != null) unawaited(_stopPrompt());
     setState(() {
       if (language != null) _language = language;
-      _round = buildKgVoiceRound(widget.kind, _random, language: _language);
+      // ‏الزائر: لعبةُ الألوان سؤالان بالعربية وسؤالان بالإنجليزية.
+      _round = DemoMode.active
+          ? buildKgVoiceRound(widget.kind, _random, language: _language, count: DemoMode.kgColorQuestions)
+          : buildKgVoiceRound(widget.kind, _random, language: _language);
       _index = 0;
       _score = 0;
       _stage = _Stage.playing;

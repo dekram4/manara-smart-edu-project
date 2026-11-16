@@ -17,6 +17,8 @@ import '../widgets/portal_watermark.dart';
 import '../widgets/student_experience.dart';
 import '../widgets/student_video_player.dart';
 import '../widgets/video_rows.dart';
+import '../services/demo_mode.dart';
+import 'dart:math' as math;
 
 class StudentCinemaScreen extends StatefulWidget {
   const StudentCinemaScreen({
@@ -44,8 +46,13 @@ class _StudentCinemaScreenState extends State<StudentCinemaScreen> {
   String? _error;
   bool _checkingLocked = false;
 
-  int get _unlockedVideoCount =>
-      CinemaUnlockRules.unlockedCount(_gamification.gems);
+  int get _unlockedVideoCount => DemoMode.active
+      ? math.min(DemoMode.cinemaVideos, _videos.length)
+      : CinemaUnlockRules.unlockedCount(_gamification.gems);
+
+  /// الزائر: الفيديو الأوّلُ مفتوحٌ بلا جواهر — الجواهرُ لا تفتح له شيئاً.
+  bool _isUnlocked(int index) =>
+      DemoMode.active ? index < DemoMode.cinemaVideos : CinemaUnlockRules.isUnlocked(index, _gamification.gems);
 
   @override
   void initState() {
@@ -60,7 +67,7 @@ class _StudentCinemaScreenState extends State<StudentCinemaScreen> {
       StudentContentService.resultKey('cinema', widget.profile, widget.academicContext),
     );
     if (cached != null) {
-      _videos = cached;
+      _videos = DemoMode.limit(cached, DemoMode.cinemaVideos);
       _loading = false;
     }
     _loadVideos(quiet: cached != null);
@@ -93,7 +100,7 @@ class _StudentCinemaScreenState extends State<StudentCinemaScreen> {
       ]);
       if (!mounted) return;
       setState(() {
-        _videos = values[0] as List<LessonVideo>;
+        _videos = DemoMode.limit(values[0] as List<LessonVideo>, DemoMode.cinemaVideos);
         _gamification = values[1] as StudentGamification;
         _loading = false;
       });
@@ -186,7 +193,7 @@ class _StudentCinemaScreenState extends State<StudentCinemaScreen> {
   }
 
   Future<void> _openVideo(LessonVideo video, int index) async {
-    if (!CinemaUnlockRules.isUnlocked(index, _gamification.gems)) {
+    if (!_isUnlocked(index)) {
       if (_checkingLocked) return;
       // ── الرصيدُ أولاً من المصدر ──
       // لعلّ الطالب كسب جواهر منذ فُتحت السينما (من جهازٍ آخر أو بطاقةٍ
@@ -203,7 +210,7 @@ class _StudentCinemaScreenState extends State<StudentCinemaScreen> {
         _checkingLocked = false;
       }
       if (!mounted) return;
-      if (!CinemaUnlockRules.isUnlocked(index, _gamification.gems)) {
+      if (!_isUnlocked(index)) {
         StudentSoundService.instance.play(StudentSoundCue.warning);
         await _showLockedDialog(index);
         return;

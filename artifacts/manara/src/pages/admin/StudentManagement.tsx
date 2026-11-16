@@ -3,6 +3,7 @@ import { saveStudentConfirmed } from '../../db/confirmedSave';
 import { gradesForOwner, readHierarchicalConfigs, subjectsForOwner, subjectsOfConfig } from '../../utils/academic';
 import { markStudentDeleted } from '../../utils/students';
 import React, { useState, useEffect, useMemo } from 'react';
+import { PLAN_OPTIONS } from '../../utils/subscriptionPlans';
 import { StudentInfo, ParentInfo, HierarchicalConfig } from '../../types';
 import { STORAGE_KEYS, COLORS, DEFAULT_PASSWORD } from '../../constants';
 import { ensureHashed } from '../../utils/password';
@@ -55,6 +56,7 @@ const StudentManagement: React.FC<StudentManagementProps> = ({ onUpdate }) => {
     assignedSubjects: [] as string[],
     canChangeGrade: false,
     permissionPackageId: '',
+    subscriptionPlan: '',
   });
 
   // مواد الصف المختار، مشتقّة من حالة النموذج لا من حدث القائمة.
@@ -272,6 +274,7 @@ const StudentManagement: React.FC<StudentManagementProps> = ({ onUpdate }) => {
       unit: finalGradeEnrollments?.[0]?.enrollments?.[0]?.unit || '',
       canChangeGrade: studentForm.canChangeGrade,
       permissionPackageId: studentForm.permissionPackageId || editingStudent?.permissionPackageId || undefined,
+      subscriptionPlan: studentForm.subscriptionPlan || undefined,
       teacherId: studentForm.teacherId || '',
       createdAt: editingStudent?.createdAt || new Date().toISOString(),
       lastActivity: new Date().toISOString(),
@@ -366,6 +369,7 @@ const StudentManagement: React.FC<StudentManagementProps> = ({ onUpdate }) => {
       assignedSubjects: [],
       canChangeGrade: false 
       ,permissionPackageId: ''
+      ,subscriptionPlan: ''
     });
     setShowStudentForm(false);
     setEditingStudent(null);
@@ -448,6 +452,7 @@ const StudentManagement: React.FC<StudentManagementProps> = ({ onUpdate }) => {
       assignedSubjects: s.assignedSubjects || [],
       canChangeGrade: s.canChangeGrade || false,
       permissionPackageId: s.permissionPackageId || '',
+      subscriptionPlan: s.subscriptionPlan || '',
     });
     setEditingStudent(s);
     setShowStudentForm(true);
@@ -633,6 +638,21 @@ const StudentManagement: React.FC<StudentManagementProps> = ({ onUpdate }) => {
                       })}
                     </div>
                   )}
+                </div>
+                <div style={styles.formGroup}>
+                    <label style={styles.label}>باقة الاشتراك</label>
+                   <select
+                     data-testid="student-plan"
+                     value={studentForm.subscriptionPlan}
+                     onChange={e => setStudentForm({...studentForm, subscriptionPlan: e.target.value})}
+                     style={styles.select}
+                   >
+                     <option value="">بلا باقة (مفتوح بالكامل كما كان)</option>
+                     {PLAN_OPTIONS.map(plan => <option key={plan.id} value={plan.id}>{plan.label}</option>)}
+                   </select>
+                   <small style={{ color: '#6b7280' }}>
+                     {PLAN_OPTIONS.find(p => p.id === studentForm.subscriptionPlan)?.detail ?? 'تُطبَّق بطاقاتُ الباقة آلياً، و«صلاحيات البطاقات» تغلبها يدوياً.'}
+                   </small>
                 </div>
                 <div style={styles.formGroup}>
                     <label style={styles.label}>إدارة صلاحيات الطالب</label>

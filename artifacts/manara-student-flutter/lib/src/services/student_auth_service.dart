@@ -30,6 +30,9 @@ class StudentAuthService {
   String? _sessionPassword;
   String? _sessionStudentId;
 
+  /// مسارُ الزائر ما دام في وضع الزائر: يُجدَّد به رمزُه بلا كلمة مرور.
+  String? _demoTrack;
+
   /// Never persist this token. It lives only for the signed-in app session.
   String? get apiSessionToken => _apiSessionToken;
   String? get apiSessionError => _apiSessionError;
@@ -128,6 +131,18 @@ class StudentAuthService {
   Future<String?> ensureApiSession() async {
     final existing = _apiSessionToken?.trim();
     if (existing != null && existing.isNotEmpty) return existing;
+    final demoTrack = _demoTrack;
+    if (demoTrack != null) {
+      try {
+        await _demoSession(demoTrack);
+        _apiSessionError = null;
+        return _apiSessionToken;
+      } catch (_) {
+        _apiSessionToken = null;
+        _apiSessionError = tr('auth.serviceUnreachable');
+        return null;
+      }
+    }
     final username = _sessionUsername;
     final password = _sessionPassword;
     final studentId = _sessionStudentId;
@@ -162,11 +177,73 @@ class StudentAuthService {
   }
 
   void clearApiSession() {
+    _demoTrack = null;
     _apiSessionToken = null;
     _apiSessionError = null;
     _sessionUsername = null;
     _sessionPassword = null;
     _sessionStudentId = null;
+  }
+
+  /// «جرّب كزائر»: حسابُ العرض للمسار [track] (`kg` أو `grade4`) بلا كلمة مرور.
+  Future<StudentProfile> signInDemo(String track) async {
+    try {
+      final payload = await _demoSession(track);
+      final row = _asMap(payload['student']);
+      if (row.isEmpty) throw StudentAuthException(tr('demo.notConfigured'));
+      final data = _asMap(row['data']);
+      final profile = StudentProfile.fromStudentRow({
+        ...row,
+        'data': {...data, 'subscriptionPlan': 'demo', 'demoTrack': track},
+      });
+      _demoTrack = track;
+      _sessionUsername = null;
+      _sessionPassword = null;
+      _sessionStudentId = profile.id;
+      return profile;
+    } on StudentAuthException {
+      rethrow;
+    } catch (error) {
+      throw StudentAuthException(trf('auth.signInError', {'error': error}));
+    }
+  }
+
+  Future<Map<String, dynamic>> _demoSession(String track) async {
+    final base = _baseUrl();
+    final response = await http
+        .post(
+          Uri.parse('$base/api/auth/student/demo'),
+          headers: const {'Content-Type': 'application/json'},
+          body: jsonEncode({'track': track}),
+        )
+        .timeout(const Duration(seconds: 12));
+    final payload = response.body.isEmpty ? <String, dynamic>{} : jsonDecode(response.body);
+    if (response.statusCode == 404 && (payload is! Map || payload['code'] == null)) {
+      // ‏خادمٌ أقدمُ لا يعرف وضعَ الزائر.
+      throw StudentAuthException(tr('demo.serverOld'));
+    }
+    if (response.statusCode < 200 || response.statusCode >= 300 || payload is! Map) {
+      final message = payload is Map ? payload['error']?.toString() : null;
+      throw StudentAuthException(message?.trim().isNotEmpty == true ? message! : tr('demo.notConfigured'));
+    }
+    final token = payload['token']?.toString().trim();
+    if (token == null || token.isEmpty) throw StudentAuthException(tr('auth.sessionFailed'));
+    _apiSessionToken = token;
+    return _asMap(payload);
+  }
+
+  /// عنوانُ الخادم كما يُقرأ في [_createApiSession].
+  String _baseUrl() {
+    var base = apiBaseUrl.trim().replaceFirst(RegExp(r'/$'), '');
+    if (base.isEmpty) {
+      final current = Uri.base;
+      if (current.scheme == 'http' || current.scheme == 'https') {
+        final isLocalBrowser = current.host == 'localhost' || current.host == '127.0.0.1';
+        base = isLocalBrowser ? 'http://localhost:8080' : current.origin;
+      }
+    }
+    if (base.isEmpty) throw StudentAuthException(tr('auth.serviceNotConfigured'));
+    return base;
   }
 
   /// ينشئ جلسة الخادم ويعيد جسمَ ردّه (الرمز وملفّ الطالب).

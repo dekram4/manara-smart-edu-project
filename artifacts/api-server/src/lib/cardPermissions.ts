@@ -124,10 +124,13 @@ export function effectiveCards(
     grade: string;
     teacherIdentities: Set<string>;
   },
+  /** حالةُ البطاقات قبل القواعد: باقةُ الطالب (`planCards`). القواعدُ تغلبها. */
+  base: CardMap = {},
 ): Record<StudentCardId, boolean> {
   const result = Object.fromEntries(
     STUDENT_CARDS.map((card) => [card.id, true]),
   ) as Record<StudentCardId, boolean>;
+  Object.assign(result, sanitizeCards(base));
   const grade = scopeKey(student.grade);
 
   const classRules = rules.filter((rule) =>

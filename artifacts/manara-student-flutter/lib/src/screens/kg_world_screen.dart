@@ -17,6 +17,8 @@ import '../widgets/student_experience.dart';
 import 'kindergarten_voice_games.dart';
 import 'drawing_studio_screen.dart';
 import 'magic_coloring_screen.dart';
+import '../services/demo_mode.dart';
+import '../widgets/demo_lock.dart';
 
 /// «عالم الحكايات والمغامرات»: ألعابُ الروضة في «الثقافة العامة» في بطاقةٍ
 /// واحدة.
@@ -83,7 +85,16 @@ class KgWorldScreen extends StatelessWidget {
                   final tiles = [
                     _entrance(_ColoringTile(key: const ValueKey('kgworld-coloring'), account: account), 0, still),
                     _entrance(_ColoringTile(key: const ValueKey('kgworld-studio'), account: account, studio: true), 1, still),
-                    for (var i = 0; i < _voiceGames.length; i++) _entrance(_voiceGames[i], i + 2, still),
+                    // ‏الزائر: «الألوان» وحدها من الألعاب الصوتية؛ واللوحةُ والاستوديو كاملان.
+                    for (var i = 0; i < _voiceGames.length; i++)
+                      _entrance(
+                        DemoLocked(
+                          locked: DemoMode.active && _voiceGames[i].kind != KgVoiceGameKind.colors,
+                          child: _voiceGames[i],
+                        ),
+                        i + 2,
+                        still,
+                      ),
                   ];
                   final columns = constraints.maxWidth >= 900
                       ? 5

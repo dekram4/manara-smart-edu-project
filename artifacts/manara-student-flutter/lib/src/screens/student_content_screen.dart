@@ -25,6 +25,7 @@ import '../widgets/portal_watermark.dart';
 import '../widgets/student_experience.dart';
 import '../widgets/student_video_player.dart';
 import '../widgets/student_web_embed.dart';
+import '../services/demo_mode.dart';
 
 enum StudentContentModule { lesson, games }
 
@@ -387,7 +388,8 @@ class _StudentContentScreenState extends State<StudentContentScreen>
         );
       case StudentContentModule.games:
         return _GamesModule(
-          games: _gamesFromLessons,
+          // ‏الزائر: لعبةٌ واحدة.
+          games: DemoMode.limit(_gamesFromLessons, DemoMode.entertainmentGames),
           apiBaseUrl: widget.apiBaseUrl,
           gamification: _gamification,
         );

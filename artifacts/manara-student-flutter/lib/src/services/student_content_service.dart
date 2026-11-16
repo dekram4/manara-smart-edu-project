@@ -11,6 +11,7 @@ import '../models/student_assessment.dart';
 import '../models/student_content.dart';
 import '../l10n/student_strings.dart';
 import '../models/student_profile.dart';
+import 'subscription_plans.dart';
 import '../models/student_gamification.dart';
 import 'student_auth_service.dart';
 
@@ -195,20 +196,34 @@ class StudentContentService {
       if (status >= 200 && status < 300) {
         final cards = _asMap(body['cards']);
         if (cards.isNotEmpty) {
-          return {
+          final access = {
             for (final entry in cards.entries)
               if (entry.value is bool) entry.key: entry.value as bool,
           };
+          // ‏خادمٌ يعرف الباقات طبّقها وقواعدَ المشرف فوقها؛ وخادمٌ أقدم لا —
+          // ‏فتُطبَّق الباقةُ هنا على ما فتحه.
+          return body['planApplied'] == true ? access : _withPlan(access, profile);
         }
       }
     } catch (_) {
       // يُجرَّب الطريق الثاني.
     }
     try {
-      return await _cardPermissionsFromSupabase(profile);
+      return _withPlan(await _cardPermissionsFromSupabase(profile), profile);
     } catch (_) {
       return null;
     }
+  }
+
+  /// يغلق ما لا تشمله باقةُ الطالب، ويُبقي ما أغلقته القواعد مغلقاً.
+  static Map<String, bool> _withPlan(Map<String, bool> access, StudentProfile profile) {
+    final plan = profile.subscriptionPlan;
+    if (plan == null || plan == 'demo') return access;
+    return {
+      ...access,
+      for (final card in const ['lesson', 'cinema', 'games', 'personality', 'tutor', 'quiz', 'solver', 'meeting', 'chat', 'challenge', 'study'])
+        if (!planAllowsCard(plan, card)) card: false,
+    };
   }
 
   Future<Map<String, bool>> _cardPermissionsFromSupabase(

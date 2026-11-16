@@ -15,6 +15,8 @@ import '../theme/student_theme.dart';
 import 'attention_glow.dart';
 import 'quiz_games.dart';
 import 'student_experience.dart';
+import '../services/demo_mode.dart';
+import 'demo_lock.dart';
 
 /// يصرف مكافأة لعبةٍ فاز بها الطفل — الخادمُ يقرّر المقدار من سجلّ الدرس.
 typedef StudyGameWin = Future<RewardResult?> Function(StudyGame game);
@@ -486,12 +488,19 @@ class _ArcadeShelf extends StatelessWidget {
                   for (final style in QuizGameStyle.values)
                     SizedBox(
                       width: width,
-                      child: _ArcadeCover(spec: _CoverSpec.arcade(style, () => onOpen?.call(style))),
+                      // ‏الزائر: «المقلاع» وحده، والباقي ظاهرٌ بقفله.
+                      child: DemoLocked(
+                        locked: DemoMode.active && style != QuizGameStyle.slingshot,
+                        child: _ArcadeCover(spec: _CoverSpec.arcade(style, () => onOpen?.call(style))),
+                      ),
                     ),
                 for (var i = 0; i < extras.length; i++)
                   SizedBox(
                     width: width,
-                    child: _ArcadeCover(spec: _CoverSpec.extra(extras[i], QuizGameStyle.values.length + i)),
+                    child: DemoLocked(
+                      locked: DemoMode.active,
+                      child: _ArcadeCover(spec: _CoverSpec.extra(extras[i], QuizGameStyle.values.length + i)),
+                    ),
                   ),
               ],
             );

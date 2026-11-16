@@ -21,6 +21,7 @@ import '../widgets/student_avatar_view.dart';
 import '../widgets/student_mascot.dart';
 import '../widgets/voice_mic_button.dart';
 import 'academic_selection_screen.dart';
+import '../services/demo_mode.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({
@@ -261,6 +262,7 @@ class _LoginScreenState extends State<LoginScreen> {
         username: username,
         password: password,
       );
+      DemoMode.enterFor(student);
       StudentSoundService.instance.play(StudentSoundCue.loginSuccess);
       if (!mounted) return;
       setState(() => _loginSucceeded = true);
@@ -291,6 +293,69 @@ class _LoginScreenState extends State<LoginScreen> {
           _errorMessage = tr('login.failed');
         });
       }
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  /// «جرّب كزائر»: يختار المسارَ (الروضة أو الصف الرابع) ثم يدخل حسابَ العرض.
+  Future<void> _guest() async {
+    final service = widget.authService;
+    if (service == null) return;
+    StudentSoundService.instance.playTap();
+    final track = await showModalBottomSheet<String>(
+      context: context,
+      showDragHandle: true,
+      builder: (context) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
+          child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+            Text(tr('demo.pickTrack'),
+                textAlign: TextAlign.center, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w900)),
+            const SizedBox(height: 6),
+            Text(tr('demo.pickTrackHint'), textAlign: TextAlign.center),
+            const SizedBox(height: 14),
+            for (final (key, emoji, label) in [
+              ('kg', '🧸', tr('demo.track.kg')),
+              ('grade4', '📘', tr('demo.track.grade4')),
+            ]) ...[
+              FilledButton(
+                key: ValueKey('demo-track-$key'),
+                onPressed: () => Navigator.pop(context, key),
+                style: FilledButton.styleFrom(
+                  minimumSize: const Size.fromHeight(56),
+                  backgroundColor: key == 'kg' ? const Color(0xFFEC4899) : const Color(0xFF2563EB),
+                  textStyle: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900),
+                ),
+                child: Text('$emoji  $label'),
+              ),
+              const SizedBox(height: 10),
+            ],
+          ]),
+        ),
+      ),
+    );
+    if (track == null || !mounted) return;
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+    });
+    try {
+      final student = await service.signInDemo(track);
+      if (!mounted) return;
+      DemoMode.enterFor(student);
+      await Navigator.of(context).pushReplacement(
+        StudentPageRoute<void>(
+          builder: (_) => AcademicSelectionScreen(
+            profile: student,
+            authService: service,
+            apiBaseUrl: widget.apiBaseUrl,
+          ),
+        ),
+      );
+    } on StudentAuthException catch (error) {
+      StudentSoundService.instance.play(StudentSoundCue.warning);
+      if (mounted) setState(() => _errorMessage = error.message);
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
@@ -670,6 +735,7 @@ class _LoginScreenState extends State<LoginScreen> {
                               setState(() => _hidePassword = !_hidePassword);
                             },
                             onSubmit: _submit,
+                            onGuest: isConfigured ? _guest : null,
                             ),
                           ),
                         ),
@@ -859,6 +925,7 @@ class _BoardLoginForm extends StatelessWidget {
     required this.onPasswordChanged,
     required this.onTogglePassword,
     required this.onSubmit,
+    this.onGuest,
   });
 
   final GlobalKey<FormState> formKey;
@@ -877,6 +944,9 @@ class _BoardLoginForm extends StatelessWidget {
   final ValueChanged<String> onPasswordChanged;
   final VoidCallback onTogglePassword;
   final Future<void> Function() onSubmit;
+
+  /// «جرّب كزائر»: وضعُ الزائر الاستكشافي.
+  final VoidCallback? onGuest;
 
   @override
   Widget build(BuildContext context) {
@@ -1028,6 +1098,19 @@ class _BoardLoginForm extends StatelessWidget {
               ),
             ),
             ),
+            if (onGuest != null) ...[
+              const SizedBox(height: 6),
+              TextButton.icon(
+                key: const ValueKey('login-guest'),
+                onPressed: isLoading ? null : onGuest,
+                icon: const Icon(Icons.explore_rounded, color: Color(0xFFFDE68A)),
+                label: Text(
+                  tr('demo.tryAsGuest'),
+                  maxLines: 1,
+                  style: const TextStyle(color: Color(0xFFFDE68A), fontSize: 17, fontWeight: FontWeight.w900),
+                ),
+              ),
+            ],
           ],
         ),
     );

@@ -12,6 +12,8 @@ import '../services/student_sound_service.dart';
 import '../services/student_voice_service.dart';
 import '../theme/student_theme.dart';
 import 'voice_mic_button.dart' show ensureVoiceMic;
+import '../services/demo_mode.dart';
+import 'demo_lock.dart';
 
 /// سورةٌ سُمِّعت كاملةً صحيحة: مكافأتُها من الخادم، مرّةً لكل سورة.
 typedef QuranRecitationWin = Future<RewardResult?> Function(QuranSurah surah);
@@ -273,6 +275,10 @@ class QuranRecitationGameState extends State<QuranRecitationGame> with TickerPro
     if (surah == null) return;
     final index = widget.surahs.indexOf(surah) + delta;
     if (index < 0 || index >= widget.surahs.length) return;
+    if (!DemoMode.allowsSurah(widget.surahs[index].name)) {
+      showDemoLocked(context);
+      return;
+    }
     await _quiet();
     if (!mounted) return;
     _open(widget.surahs[index]);
@@ -489,7 +495,9 @@ class QuranRecitationGameState extends State<QuranRecitationGame> with TickerPro
               crossAxisSpacing: 16,
               childAspectRatio: 0.92,
               children: [
-                for (var i = 0; i < widget.surahs.length; i++) _surahTile(widget.surahs[i], i),
+                // ‏الزائر: سورةُ الفاتحة وحدها، والباقي ظاهرٌ بقفله.
+                for (var i = 0; i < widget.surahs.length; i++)
+                  DemoLocked(locked: !DemoMode.allowsSurah(widget.surahs[i].name), child: _surahTile(widget.surahs[i], i)),
               ],
             );
           }),

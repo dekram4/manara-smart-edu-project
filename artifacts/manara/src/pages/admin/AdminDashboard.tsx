@@ -23,6 +23,7 @@ import DuelQuestionReview from '../shared/DuelQuestionReview';
 import CardPermissions from '../shared/CardPermissions';
 import TeacherCertificates from '../teacher/TeacherCertificates';
 import VideoNotificationBadge from './VideoNotificationBadge';
+import JoinRequests from './JoinRequests';
 import PrivateChat from '../shared/PrivateChat';
 import { getQuizResultPercentage } from '../../utils/quizScoring';
 import {
@@ -43,6 +44,7 @@ import {
   ClipboardList,
   Film,
   Gamepad2,
+  Inbox,
   KeyRound,
   LayoutDashboard,
   MessageSquareText,
@@ -65,12 +67,14 @@ const ADMIN_PAGES = [
   'DUEL_QUESTIONS',
   'CARD_PERMISSIONS',
   'CERTIFICATES',
+  'JOIN_REQUESTS',
 ] as AdminMenuType[];
 
 /** القائمة بترتيبها، واسمُ كل صفحةٍ في الشريط العلوي. */
 const ADMIN_MENU: { id: AdminMenuType; label: string; icon: LucideIcon }[] = [
   { id: AdminMenuType.DASHBOARD, label: 'الرئيسية', icon: LayoutDashboard },
   { id: AdminMenuType.ACADEMIC_SETTINGS, label: 'الإعدادات الأكاديمية', icon: Settings2 },
+  { id: 'JOIN_REQUESTS' as AdminMenuType, label: 'طلبات الانضمام الجديدة', icon: Inbox },
   { id: AdminMenuType.STUDENT_MANAGEMENT, label: 'إدارة الحسابات', icon: UsersRound },
   { id: AdminMenuType.TEACHER_MANAGEMENT, label: 'إدارة المعلمين', icon: School },
   { id: AdminMenuType.CONTENT_MANAGEMENT, label: 'إدارة المحتوى', icon: BookOpenCheck },
@@ -244,6 +248,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
       case 'VIDEO_NOTIFICATIONS' as AdminMenuType: return <AdminVideoNotifications />;
       case 'DUEL_QUESTIONS' as AdminMenuType: return <DuelQuestionReview role="admin" />;
       case 'CARD_PERMISSIONS' as AdminMenuType: return <CardPermissions role="admin" />;
+      case 'JOIN_REQUESTS' as AdminMenuType: return <JoinRequests />;
       case 'CERTIFICATES' as AdminMenuType: return <TeacherCertificates teacherId="" teacherName="مشرف النظام" issuerRole="admin" />;
       default: return <DashboardHome stats={stats} onRefresh={refreshStats} />;
     }

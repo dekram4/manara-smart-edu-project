@@ -11,6 +11,7 @@ library;
 
 import '../models/study_games.dart';
 import 'tracing_scope.dart';
+import 'demo_mode.dart';
 
 /// معرّفُ اللعبة في الخادم: مكافأتُها `درس::tracing`.
 const tracingGameId = 'tracing';
@@ -124,7 +125,8 @@ StudyGame? writingGameFor({required String? grade, required String? subject}) {
   if (!tracingAllowedFor(grade: grade, subject: subject)) return null;
   final set = alphabetSetOf(subject);
   if (set == null) return null;
-  final items = alphabetItems(set);
+  // ‏الزائر: أوّلُ خمسة حروفٍ أو أرقام.
+  final items = DemoMode.limit(alphabetItems(set), DemoMode.tracingItems);
   final en = items.first.lang == 'en';
   return StudyGame(
     id: tracingGameId,

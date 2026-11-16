@@ -34,6 +34,8 @@ class StudentProfile {
     this.canAccessLiveMeeting = true,
     this.assignedSubjects = const [],
     this.gamification = const StudentGamification(),
+    this.subscriptionPlan,
+    this.demoTrack,
   });
 
   factory StudentProfile.fromStudentRow(Map<String, dynamic> row) {
@@ -57,7 +59,12 @@ class StudentProfile {
       canAccessChat: _asBool(data['canAccessChat'], fallback: true),
       canAccessLiveMeeting: _asBool(data['canAccessLiveMeeting'], fallback: true),
       assignedSubjects: _asNameList(data['assignedSubjects']),
-      gamification: StudentGamification.fromMap(data['gamification']),
+      // ‏الزائرُ يبدأ بلا جواهر ولا مستوى ولا مكافآت.
+      gamification: _asText(data['subscriptionPlan']) == 'demo'
+          ? const StudentGamification()
+          : StudentGamification.fromMap(data['gamification']),
+      subscriptionPlan: _asText(data['subscriptionPlan']) ?? _asText(data['subscription_plan']),
+      demoTrack: _asText(data['demoTrack']),
     );
   }
 
@@ -130,6 +137,16 @@ class StudentProfile {
   }
 
   final StudentGamification gamification;
+
+  /// باقةُ الاشتراك (`individual`، `family`، `school_*`، أو `demo` للزائر).
+  /// `null`: حسابٌ قبل نظام الباقات — مفتوحٌ كما كان.
+  final String? subscriptionPlan;
+
+  /// مسارُ الزائر: `kg` أو `grade4`.
+  final String? demoTrack;
+
+  /// «وضع الزائر الاستكشافي».
+  bool get isDemo => subscriptionPlan == 'demo';
 
   StudentAcademicValues get academicValues => StudentAcademicValues(
         grade: grade,

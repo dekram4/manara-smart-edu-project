@@ -17,6 +17,7 @@ import cardPermissionsRouter from "./cardPermissions";
 import appSettingsRouter from "./appSettings";
 import studentProfileRouter from "./studentProfile";
 import youtubeStatusRouter from "./youtubeStatus";
+import joinRequestsRouter from "./joinRequests";
 
 const router: IRouter = Router();
 
@@ -35,6 +36,7 @@ router.use(cardPermissionsRouter);
 router.use(appSettingsRouter);
 router.use(studentProfileRouter);
 router.use(youtubeStatusRouter);
+router.use(joinRequestsRouter);
 router.use(mediaRouter);
 router.use(gameEmbedRouter);
 router.use(supabaseBridgeRouter);

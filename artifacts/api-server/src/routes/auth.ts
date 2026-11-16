@@ -9,6 +9,8 @@ import {
   verifyTeacherSession,
 } from "../middleware/adminAuth";
 import { logger } from "../lib/logger";
+import { createRateLimit } from "../middleware/rateLimiter";
+import { demoUsernames } from "../lib/subscriptionPlans";
 import {
   findStudentById,
   findStudentByUsername,
@@ -410,6 +412,41 @@ router.post("/auth/student/session", async (req, res) => {
   } catch (error) {
     logger.error({ err: error }, "Student API session authentication failed");
     return res.status(503).json({ error: "تعذر إنشاء جلسة الطالب الآن. حاول مرة أخرى." });
+  }
+});
+
+// ── وضعُ الزائر ──────────────────────────────────────────────────────────
+//
+// حسابا عرضٍ حقيقيّان يُنشئهما المشرف (روضة، والصف الرابع) مربوطان بمعلّم
+// المحتوى التجريبي. يدخلهما أيُّ زائرٍ بلا كلمة مرور، وسجلُّهما يصل التطبيقَ
+// بباقة `demo` فيقيّد ما بداخل البطاقات. اسما الدخول من البيئة، وإلا فالافتراضيّان.
+const DEMO_USERNAMES: Record<string, string> = demoUsernames();
+const demoLimit = createRateLimit(20);
+
+router.post("/auth/student/demo", demoLimit, async (req, res) => {
+  const track = typeof req.body?.track === "string" ? req.body.track : "";
+  const username = DEMO_USERNAMES[track];
+  if (!username) return res.status(400).json({ error: "اختر الروضة أو الصف الرابع" });
+  try {
+    const student = await findStudentByUsername(username);
+    if (!student) {
+      return res.status(404).json({ error: "وضع الزائر غير مُعدّ بعد — تواصل مع المشرف", code: "demo_not_configured" });
+    }
+    const record = await studentRecord(student);
+    const data = record ? safeStudentData(record.data) : {};
+    // ‏الزائرُ يبدأ بلا جواهر ولا مستوى ولا مكافآت، مهما جمع زوّارٌ قبله.
+    return res.json({
+      token: studentToken(student.id, 60 * 60 * 4),
+      expiresAt: Date.now() + 60 * 60 * 4 * 1000,
+      demo: true,
+      student: {
+        id: record?.id ?? student.rowId,
+        data: { ...data, subscriptionPlan: "demo", demoTrack: track, gems: 0, xp: 0, level: 1, gamification: null },
+      },
+    });
+  } catch (error) {
+    logger.error({ err: error }, "Demo session failed");
+    return res.status(503).json({ error: "تعذر فتح وضع الزائر الآن. حاول مرة أخرى." });
   }
 });
 

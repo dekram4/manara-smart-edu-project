@@ -44,6 +44,10 @@ import '../theme/student_theme.dart';
 import '../utils/student_route_observer.dart';
 import '../widgets/bouncy_text.dart';
 import '../widgets/student_welcome_banner.dart';
+import '../services/demo_mode.dart';
+import '../services/subscription_plans.dart';
+import 'demo_chat_screen.dart';
+import 'plans_screen.dart';
 import 'login_screen.dart';
 import 'student_cinema_screen.dart';
 import 'student_chat_screen.dart';
@@ -362,7 +366,65 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> with RouteAware {
   bool _isCardLocked(int index) =>
       index >= 0 &&
       index < _homeSections.length &&
-      _cardAccess[_cardIdOf(_homeSections[index])] == false;
+      (_cardAccess[_cardIdOf(_homeSections[index])] == false || _isTeaser(index));
+
+  /// بطاقةٌ يعرّفها وضعُ الزائر برسالةٍ ولا يفتحها.
+  bool _isTeaser(int index) =>
+      DemoMode.active &&
+      index >= 0 &&
+      index < _homeSections.length &&
+      DemoMode.teaserCards.contains(_cardIdOf(_homeSections[index]));
+
+  /// «احصل على حساب رسمي»: مقارنةُ الباقات وطلبُ الاشتراك.
+  void _openPlans() {
+    StudentSoundService.instance.playTap();
+    Navigator.of(context).push(
+      StudentPageRoute<void>(builder: (_) => PlansScreen(apiBaseUrl: widget.apiBaseUrl)),
+    );
+  }
+
+  /// رسالةُ بطاقةٍ مدفوعة للزائر: ما الذي تفعله، ومتى تُفتح.
+  void _showTeaser(String card) {
+    StudentSoundService.instance.play(StudentSoundCue.warning);
+    showDialog<void>(
+      context: context,
+      builder: (context) => AlertDialog(
+        key: ValueKey('demo-teaser-$card'),
+        title: Text('🔒 ${tr('portal.$card')}'),
+        content: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text(tr('demo.teaser.$card'), style: const TextStyle(fontSize: 15, height: 1.6)),
+          const SizedBox(height: 12),
+          Text(tr('demo.teaser.after'),
+              style: const TextStyle(fontWeight: FontWeight.w900, color: Color(0xFFB45309))),
+        ]),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: Text(tr('demo.ok'))),
+          FilledButton(
+            key: const ValueKey('demo-teaser-get-account'),
+            onPressed: () {
+              Navigator.pop(context);
+              _openPlans();
+            },
+            style: FilledButton.styleFrom(backgroundColor: const Color(0xFFD97706)),
+            child: Text(tr('demo.getAccount')),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showPlanLocked() {
+    StudentSoundService.instance.play(StudentSoundCue.warning);
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(SnackBar(
+        key: const ValueKey('plan-locked'),
+        behavior: SnackBarBehavior.floating,
+        backgroundColor: const Color(0xFF92400E),
+        content: Text(tr('plans.cardNotIncluded'), style: const TextStyle(fontWeight: FontWeight.w800)),
+        action: SnackBarAction(label: tr('plans.view'), textColor: const Color(0xFFFDE68A), onPressed: _openPlans),
+      ));
+  }
 
   void _showCardLocked() {
     StudentSoundService.instance.play(StudentSoundCue.warning);
@@ -401,7 +463,17 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> with RouteAware {
   /// بعدها، فبطاقةٌ أغلقها المعلمُ للتوّ لا تُفتح من اللمسة التالية.
   Future<void> _openCard(int index) async {
     unawaited(_loadCardAccess());
+    if (_isTeaser(index)) {
+      _showTeaser(_cardIdOf(_homeSections[index]));
+      return;
+    }
     if (_isCardLocked(index)) {
+      final card = _cardIdOf(_homeSections[index]);
+      // ‏بطاقةٌ لا تشملها باقةُ الطالب: تُقال الباقةُ لا «أغلقها معلّمك».
+      if (!planAllowsCard(widget.profile.subscriptionPlan, card)) {
+        _showPlanLocked();
+        return;
+      }
       _showCardLocked();
       return;
     }
@@ -409,6 +481,8 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> with RouteAware {
   }
 
   Future<void> _loadGamification() async {
+    // ‏الزائرُ: جواهرُه ومستواه ومكافآتُه أصفارٌ دائماً.
+    if (DemoMode.active) return;
     final previous = _gamification;
     StudentGamification? updated;
     try {
@@ -484,6 +558,7 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> with RouteAware {
       await widget.authService.client.auth.signOut();
     } catch (_) {}
     widget.authService.clearApiSession();
+    DemoMode.exit();
     if (!mounted) return;
     await Navigator.of(context).pushAndRemoveUntil(
       StudentPageRoute<void>(
@@ -587,6 +662,16 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> with RouteAware {
 
     if (index == 7) {
       _openTutor(liveMeeting: true);
+      return;
+    }
+
+    if (index == 8 && DemoMode.active) {
+      Navigator.of(context).push(
+        StudentPageRoute<void>(
+          immersive: true,
+          builder: (_) => DemoChatScreen(onGetAccount: _openPlans),
+        ),
+      );
       return;
     }
 
@@ -1088,6 +1173,28 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> with RouteAware {
                       key: _headerKey,
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
+                        // ‏الزائر: زرٌّ ذهبيّ بارزٌ أعلى الواجهة إلى الحساب الرسمي.
+                        if (DemoMode.active)
+                          Padding(
+                            padding: const EdgeInsets.fromLTRB(14, 4, 14, 8),
+                            child: Center(
+                              child: FilledButton.icon(
+                                key: const ValueKey('demo-get-account'),
+                                onPressed: _openPlans,
+                                icon: const Icon(Icons.workspace_premium_rounded),
+                                label: Text(tr('demo.getAccount')),
+                                style: FilledButton.styleFrom(
+                                  backgroundColor: const Color(0xFFF59E0B),
+                                  foregroundColor: const Color(0xFF451A03),
+                                  minimumSize: const Size(260, 50),
+                                  textStyle: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900),
+                                  elevation: 6,
+                                  shadowColor: const Color(0xFFF59E0B),
+                                  side: const BorderSide(color: Color(0xFFFDE68A), width: 2),
+                                ),
+                              ),
+                            ),
+                          ),
                         // ‏شريطُ الترحيب: اسمُ الطالب وصفُّه، ثم المسارُ ثم البطاقات.
                         Padding(
                           padding: const EdgeInsets.fromLTRB(14, 4, 14, 12),

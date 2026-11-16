@@ -17,6 +17,8 @@ export type StudentActor = {
   /** المواد المسندة إليه. فارغة = كل مواد معلّمه. */
   assignedSubjects: string[];
   canAccessChat: boolean;
+  /** باقةُ الاشتراك (`subscriptionPlan`)، أو `null` لحسابٍ قبل نظام الباقات. */
+  plan?: string | null;
   /** من أنشأ السجلّ — معلّمُه في السجلّات الأقدم التي لا `teacherId` فيها. */
   createdBy?: string;
   parentId?: string;
@@ -110,6 +112,7 @@ function fromRow(row: { id?: unknown; data?: unknown }): StudentActor | null {
     unit: text(data.unit),
     assignedSubjects: nameList(data.assignedSubjects),
     canAccessChat: data.canAccessChat !== false && data.can_access_chat !== false,
+    plan: text(data.subscriptionPlan) || text(data.subscription_plan) || null,
     createdBy: text(data.createdBy) || text(data.created_by),
     parentId: text(data.parentId) || text(data.parent_id),
   };

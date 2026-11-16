@@ -16,6 +16,7 @@ import '../theme/student_theme.dart';
 import '../widgets/portal_watermark.dart';
 import '../widgets/student_experience.dart';
 import '../widgets/student_icon_notice.dart';
+import '../services/demo_mode.dart';
 
 class StudentQuizScreen extends StatefulWidget {
   const StudentQuizScreen({
@@ -217,7 +218,8 @@ class _StudentQuizScreenState extends State<StudentQuizScreen>
     }
     setState(() {
       _activeQuiz = quiz;
-      _questions = questions;
+      // ‏الزائر: سؤالان لكل درس.
+      _questions = DemoMode.limit(questions, DemoMode.quizQuestions);
       _answers.clear();
       _questionIndex = 0;
       _shownResult = null;

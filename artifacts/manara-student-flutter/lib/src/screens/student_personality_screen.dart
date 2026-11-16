@@ -13,6 +13,8 @@ import '../services/student_sound_service.dart';
 import '../theme/student_theme.dart';
 import '../widgets/portal_watermark.dart';
 import '../widgets/student_experience.dart';
+import '../services/demo_mode.dart';
+import '../widgets/demo_lock.dart';
 
 /// A child-friendly editor for the appearance stored with a student profile.
 ///
@@ -216,7 +218,10 @@ class _StudentPersonalityScreenState extends State<StudentPersonalityScreen> {
                   index: index,
                   selected: avatar.id == _staged.id,
                   startDelay: MotionDurations.morph * 0.6,
-                  child: _AvatarTile(
+                  child: DemoLocked(
+                    // ‏الزائر: شخصيتان.
+                    locked: DemoMode.active && index >= DemoMode.avatars,
+                    child: _AvatarTile(
                     avatar: avatar,
                     selected: avatar.id == _staged.id,
                     // Tapping a character *is* choosing it.
@@ -233,6 +238,7 @@ class _StudentPersonalityScreenState extends State<StudentPersonalityScreen> {
                       setState(() => _staged = avatar);
                       unawaited(_chooseAvatar(avatar));
                     },
+                  ),
                   ),
                 );
               },

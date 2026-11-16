@@ -110,6 +110,10 @@ jobs:
           if [ -n "${API_BASE_URL:-}" ]; then
             args+=("--dart-define=API_BASE_URL=$API_BASE_URL")
           fi
+          # ‏رقمُ واتساب المشرف لزرّ «احصل على حساب رسمي» (اختياري).
+          if [ -n "${ADMIN_WHATSAPP:-}" ]; then
+            args+=("--dart-define=ADMIN_WHATSAPP=$ADMIN_WHATSAPP")
+          fi
           if [ -z "${SUPABASE_URL:-}" ] || [ -z "${SUPABASE_ANON_KEY:-}" ]; then
             echo "::warning::SUPABASE_URL أو SUPABASE_ANON_KEY غير مضبوط في أسرار المستودع — سيُبنى تطبيق بلا اتصال بقاعدة البيانات."
           fi
@@ -121,6 +125,7 @@ jobs:
           # ‏خادمٌ تجريبيٌّ لهذا الفرع إن ضُبط سرُّه (PREVIEW_API_BASE_URL): مساراتُ
           # ‏الصور واللوحات السحابية فيه قبل أن تصل الخادمَ الأساسيّ. وإلا فالأساسيّ.
           API_BASE_URL: ${{ secrets.PREVIEW_API_BASE_URL || secrets.API_BASE_URL }}
+          ADMIN_WHATSAPP: ${{ secrets.ADMIN_WHATSAPP }}
 
       - name: Verify release signature and package
         # ‏موقَّعٌ بمفتاح الإصدار لا بمفتاح التطوير، ومعرّفُه com.manara.student.
