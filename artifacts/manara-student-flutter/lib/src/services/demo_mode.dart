@@ -34,26 +34,15 @@ class DemoMode {
   /// عنوانُ الخادم لشاشة الباقات: زرُّ «احصل على حساب رسمي» في رسالة القفل.
   static String plansBaseUrl = '';
 
-  // ── المسار: المادة، والفصل، والوحدة، والدرس ──
-
-  /// الصفُّ الرابع: الرياضياتُ وحدها. الروضة: كلُّ المواد.
-  static bool allowsSubject(String subject) {
-    if (_track != DemoTrack.grade4) return true;
-    final s = subject.replaceAll(RegExp('[ًٌٍَُِّْ]'), '');
-    return s.contains('رياضيات') || s.toLowerCase().contains('math');
-  }
-
-  /// الفصلُ الأوّل والوحدةُ الأولى وحدهما ([index] ترتيبُهما في القائمة).
-  static bool allowsTerm(int index) => !active || index == 0;
-  static bool allowsUnit(int index) => !active || index == 0;
-
-  /// الدرسان الأوّل والثاني.
-  static bool allowsLesson(int index) => !active || index < 2;
+  // ── المسار ──
+  // ‏صفحةُ المسارات كالحساب العادي تماماً: كلُّ المواد والفصول والوحدات
+  // ‏والدروس ظاهرةٌ مفتوحة. والقيودُ كلُّها بعد الدخول، داخل البطاقات.
 
   // ── ما بداخل البطاقات ──
 
-  /// قلمي السحري: كلُّ الحروف والأرقام ظاهرة، وأوّلُ خمسةٍ منها مفتوحة.
-  static const tracingItems = 5;
+  /// قلمي السحري: كلُّ الحروف والأرقام ظاهرة، وأوّلُ أربعةٍ مفتوحة من كلٍّ
+  /// منها (الحروف العربية والإنجليزية، والأرقام العربية والإنجليزية).
+  static const tracingItems = 4;
   static bool allowsTracing(int index) => !active || index < tracingItems;
 
   /// المذاكرة: «المقلاع» وحده — على الرفّ وفي شريط التبديل داخل اللعبة.

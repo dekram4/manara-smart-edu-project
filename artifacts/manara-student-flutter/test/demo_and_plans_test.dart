@@ -91,27 +91,26 @@ void main() {
       expect(DemoMode.track, DemoTrack.kg);
     });
 
-    test('الصف الرابع: الرياضياتُ وحدها، والفصلُ والوحدةُ الأوليان، والدرسان الأوّلان', () {
+    test('داخل البطاقات: سؤالان، ومقطعٌ واحد، و«المقلاع»، والفاتحة', () {
       DemoMode.enterFor(demoProfile('grade4'));
-      expect(DemoMode.allowsSubject('الرياضيات'), isTrue);
-      expect(DemoMode.allowsSubject('العلوم'), isFalse);
-      expect(DemoMode.allowsTerm(0), isTrue);
-      expect(DemoMode.allowsTerm(1), isFalse);
-      expect(DemoMode.allowsUnit(1), isFalse);
-      expect(DemoMode.allowsLesson(1), isTrue);
-      expect(DemoMode.allowsLesson(2), isFalse);
       expect(DemoMode.limit([1, 2, 3, 4], DemoMode.quizQuestions), [1, 2]);
+      expect(DemoMode.allowsSegment(0), isTrue);
+      expect(DemoMode.allowsSegment(1), isFalse);
+      expect(DemoMode.allowsStudyGame('slingshot'), isTrue);
+      expect(DemoMode.allowsStudyGame('train'), isFalse);
       expect(DemoMode.allowsSurah('سورة الفاتحة'), isTrue);
       expect(DemoMode.allowsSurah('سورة الإخلاص'), isFalse);
     });
 
     test('الروضة: كلُّ المواد؛ والحسابُ الحقيقيّ بلا قيود', () {
       DemoMode.enterFor(demoProfile('kg'));
-      expect(DemoMode.allowsSubject('اللغة العربية'), isTrue);
+      expect(DemoMode.allowsTracing(3), isTrue);
+      expect(DemoMode.allowsTracing(4), isFalse);
       DemoMode.enterFor(const StudentProfile(id: 's', username: 'u', name: 'n', role: 'student'));
       expect(DemoMode.active, isFalse);
       expect(DemoMode.limit([1, 2, 3], 1), [1, 2, 3]);
-      expect(DemoMode.allowsLesson(9), isTrue);
+      expect(DemoMode.allowsTracing(40), isTrue);
+      expect(DemoMode.allowsSegment(9), isTrue);
     });
 
     testWidgets('عنصرٌ مقفل: باهتٌ بقفل، ولمستُه تقول لماذا', (tester) async {

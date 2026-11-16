@@ -83,8 +83,8 @@ void main() {
       );
       final opened = await service.fetchLessons(profile, academicContext: context);
       expect(opened.first.id, lessons.first.id);
-      // ‏مبدّلُ الدروس داخل الشرح لا يصل الدرسين المقفلين.
-      expect(opened, hasLength(2));
+      // ‏مبدّلُ الدروس داخل الشرح: دروسُ الوحدة الأربعة كلُّها.
+      expect(opened, hasLength(4));
 
       final quizzes = await service.fetchAvailableQuizzes(profile, academicContext: context);
       expect(quizzes, hasLength(1));

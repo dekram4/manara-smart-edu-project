@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'package:manara_student/src/models/academic_context.dart';
 import 'package:manara_student/src/services/demo_content.dart';
 import 'package:manara_student/src/services/demo_mode.dart';
 import 'package:manara_student/src/services/kindergarten_voice_quiz.dart';
@@ -40,7 +41,6 @@ void main() {
       final selection = DemoContent.selection(profile);
       final subjects = selection.subjectsFor(grade: DemoContent.kgGrade);
       expect(subjects, containsAll(['القرآن الكريم', 'الحروف العربية', 'الحروف الإنجليزية', 'الأرقام العربية', 'الأرقام الإنجليزية', 'الثقافة العامة']));
-      expect(subjects.every(DemoMode.allowsSubject), isTrue);
 
       final quran = selection.lessonsFor(
           grade: DemoContent.kgGrade, subject: 'القرآن الكريم', term: DemoContent.term1, unit: DemoContent.unit1);
@@ -62,14 +62,14 @@ void main() {
       expect(DemoContent.cinema.length, greaterThan(DemoMode.cinemaVideos));
     });
 
-    test('قلمي السحري: كلُّ الحروف والأرقام ظاهرة، وأوّلُ خمسةٍ مفتوحة', () {
+    test('قلمي السحري: كلُّ الحروف والأرقام ظاهرة، وأوّلُ أربعةٍ مفتوحة', () {
       DemoMode.enterFor(DemoContent.profile('kg'));
       final letters = writingGameFor(grade: DemoContent.kgGrade, subject: 'الحروف العربية')!;
       expect(letters.tracing.length, greaterThanOrEqualTo(28));
       final digits = writingGameFor(grade: DemoContent.kgGrade, subject: 'الأرقام الإنجليزية')!;
       expect(digits.tracing.length, greaterThan(10));
-      expect(DemoMode.allowsTracing(4), isTrue);
-      expect(DemoMode.allowsTracing(5), isFalse);
+      expect(DemoMode.allowsTracing(3), isTrue);
+      expect(DemoMode.allowsTracing(4), isFalse);
     });
 
     testWidgets('قلمي السحري: الحرفُ المقفل يُظهر رسالةَ الاشتراك ولا تُفتح لوحتُه', (tester) async {
@@ -89,8 +89,8 @@ void main() {
         ),
       ));
       await _frames(tester);
-      // ‏السادسُ في الصفحة الأولى مقفل.
-      await tester.tap(find.byKey(const ValueKey('tracing-lock-5')));
+      // ‏الخامسُ في الصفحة الأولى مقفل.
+      await tester.tap(find.byKey(const ValueKey('tracing-lock-4')));
       await _frames(tester, 3);
       expect(find.byKey(const ValueKey('demo-locked')), findsOneWidget);
       expect(find.byKey(const ValueKey('tracing-back-to-grid')), findsNothing);
@@ -102,22 +102,40 @@ void main() {
   });
 
   group('الصف الرابع', () {
-    test('كلُّ المواد ظاهرة والرياضياتُ وحدها مفتوحة؛ والوحداتُ الثلاث ظاهرةٌ والأولى وحدها', () {
+    test('المسارُ كاملٌ كالحساب العادي: كلُّ مادةٍ وفصلٍ ووحدةٍ ودرسٍ له شرحٌ وأسئلةٌ ولعبة', () {
       final profile = DemoContent.profile('grade4');
       DemoMode.enterFor(profile);
       final selection = DemoContent.selection(profile);
       final subjects = selection.subjectsFor(grade: DemoContent.grade4);
       expect(subjects.length, greaterThanOrEqualTo(8));
-      expect(subjects.where(DemoMode.allowsSubject), ['الرياضيات']);
-      expect(selection.termsFor(grade: DemoContent.grade4, subject: 'الرياضيات'), [DemoContent.term1, DemoContent.term2]);
-      final units = selection.unitsFor(grade: DemoContent.grade4, subject: 'الرياضيات', term: DemoContent.term1);
-      expect(units, [DemoContent.unit1, DemoContent.unit2, DemoContent.unit3]);
-      expect([for (var i = 0; i < units.length; i++) DemoMode.allowsUnit(i)], [true, false, false]);
-      final lessons = selection.lessonsFor(
-          grade: DemoContent.grade4, subject: 'الرياضيات', term: DemoContent.term1, unit: DemoContent.unit1);
-      expect(lessons, hasLength(4));
-      expect([for (var i = 0; i < 4; i++) DemoMode.allowsLesson(i)], [true, true, false, false]);
-      expect(lessons.first.videos, hasLength(4), reason: 'مقاطعُ الشرح كالروضة');
+      for (final subject in subjects) {
+        final terms = selection.termsFor(grade: DemoContent.grade4, subject: subject);
+        expect(terms, [DemoContent.term1, DemoContent.term2], reason: subject);
+        for (final term in terms) {
+          for (final unit in selection.unitsFor(grade: DemoContent.grade4, subject: subject, term: term)) {
+            final lessons = selection.lessonsFor(grade: DemoContent.grade4, subject: subject, term: term, unit: unit);
+            expect(lessons, isNotEmpty, reason: '$subject / $term / $unit');
+            for (final lesson in lessons) {
+              expect(lesson.videos, hasLength(4));
+              expect(lesson.lessonText, isNotEmpty);
+              final context = AcademicContext(grade: DemoContent.grade4, subject: subject, term: term, unit: unit, selectedLesson: lesson);
+              expect(DemoContent.quizzes(profile, context).single['questions'], hasLength(4), reason: lesson.lessonName);
+              final game = DemoContent.studyGames(lesson.id)!.games.single;
+              expect(game.questions.every((q) => q.options.contains(q.answer)), isTrue, reason: lesson.lessonName);
+            }
+          }
+        }
+      }
+      final units = selection.unitsFor(grade: DemoContent.grade4, subject: 'العلوم', term: DemoContent.term1);
+      expect(units, [DemoContent.unit1, DemoContent.unit2]);
+      // ‏مبدّلُ الدروس داخل الشرح: دروسُ الوحدة المختارة كلُّها.
+      final science = selection.lessonsFor(
+          grade: DemoContent.grade4, subject: 'العلوم', term: DemoContent.term1, unit: DemoContent.unit2);
+      final ctx = AcademicContext(
+          grade: DemoContent.grade4, subject: 'العلوم', term: DemoContent.term1, unit: DemoContent.unit2, selectedLesson: science.last);
+      final opened = DemoContent.lessonsFor(profile, ctx);
+      expect(opened.first.id, science.last.id);
+      expect(opened, hasLength(science.length));
     });
   });
 

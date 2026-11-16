@@ -428,10 +428,8 @@ class _AcademicSelectionScreenState extends State<AcademicSelectionScreen> {
   /// فيرى الطالب مساراً لا يملكه دون أن يختاره.
   List<String> _allowedSubjects(AcademicSelectionData data, String? grade) {
     if (grade == null) return const [];
-    final subjects = data.subjectsFor(grade: grade).where(widget.profile.allowsSubject).toList();
-    // ‏الزائر: المادةُ المفتوحة أوّلاً، فيختارها الاختيارُ التلقائي — والمقفلةُ بعدها ظاهرةً بقفلها.
-    if (!DemoMode.active) return subjects;
-    return [...subjects.where(DemoMode.allowsSubject), ...subjects.where((s) => !DemoMode.allowsSubject(s))];
+    // ‏الزائرُ كغيره: المسارُ كلُّه مفتوح، والقيودُ داخل البطاقات ([DemoMode]).
+    return data.subjectsFor(grade: grade).where(widget.profile.allowsSubject).toList();
   }
 
   /// لمسةٌ على خيارٍ مقفلٍ في وضع الزائر: السببُ مكتوباً، ورسالةُ القفل بزرّ الاشتراك.
@@ -445,17 +443,8 @@ class _AcademicSelectionScreenState extends State<AcademicSelectionScreen> {
   bool _gradeLocked(String grade) =>
       DemoMode.active && _normalized(grade) != _normalized(widget.profile.grade) && (widget.profile.grade ?? '').isNotEmpty;
 
-  /// هل المسارُ المختار مفتوحٌ للزائر؟ حارسُ «ابدأ المغامرة» أيّاً كان طريقُ الاختيار (لمسٌ أو صوت).
-  bool get _demoPathAllowed {
-    if (!DemoMode.active) return true;
-    final s = _subject, t = _term, u = _unit, l = _lesson?.lessonName;
-    if (s == null || !DemoMode.allowsSubject(s)) return false;
-    if (_grade != null && _gradeLocked(_grade!)) return false;
-    if (t != null && !DemoMode.allowsTerm(_termOptions.indexOf(t))) return false;
-    if (u != null && !DemoMode.allowsUnit(_unitOptions.indexOf(u))) return false;
-    if (l != null && !DemoMode.allowsLesson(_lessonOptions.indexOf(l))) return false;
-    return true;
-  }
+  /// هل المسارُ المختار مفتوحٌ للزائر؟ صفُّه وحده — وكلُّ موادّه وفصوله ووحداته ودروسه مفتوحة.
+  bool get _demoPathAllowed => _grade == null || !_gradeLocked(_grade!);
 
   /// مواد الصف المختار. مادةٌ واحدة مسندة تعني قائمةً من عنصر واحد،
   /// و`_pick` تختاره من تلقائه — فتُحدَّد المادة بلا أن يلمسها الطفل.
@@ -1025,8 +1014,6 @@ class _AcademicSelectionScreenState extends State<AcademicSelectionScreen> {
           value: _subject,
           options: _subjectOptions,
           artFor: (subject, _) => RouteArt.subject(subject),
-          isLocked: (subject, _) => !DemoMode.allowsSubject(subject),
-          onLocked: _demoLocked,
           onSelected: (value) {
             _selectSubject(value);
             _advanceJourney(1);
@@ -1041,8 +1028,6 @@ class _AcademicSelectionScreenState extends State<AcademicSelectionScreen> {
           value: _term,
           options: _termOptions,
           artFor: (_, index) => RouteArt.term(index),
-          isLocked: (_, index) => !DemoMode.allowsTerm(index),
-          onLocked: _demoLocked,
           onSelected: (value) {
             _selectTerm(value);
             _advanceJourney(2);
@@ -1059,8 +1044,6 @@ class _AcademicSelectionScreenState extends State<AcademicSelectionScreen> {
           // ‏صورةُ ما يدلّ عليه اسمُ الوحدة، وإلا من صور مادّتها — بلا تكرار.
           artFor: (_, index) => RouteArt.assign(_subject ?? '', _unitOptions)[index],
           numbered: true,
-          isLocked: (_, index) => !DemoMode.allowsUnit(index),
-          onLocked: _demoLocked,
           onSelected: (value) {
             _selectUnit(value);
             _advanceJourney(3);
@@ -1077,8 +1060,6 @@ class _AcademicSelectionScreenState extends State<AcademicSelectionScreen> {
           // ‏صورةُ ما يدلّ عليه اسمُ الدرس («سورة الفاتحة» مصحف)، بلا تكرار.
           artFor: (_, index) => RouteArt.assign(_subject ?? '', _lessonOptions)[index],
           numbered: true,
-          isLocked: (_, index) => !DemoMode.allowsLesson(index),
-          onLocked: _demoLocked,
           onSelected: (value) {
             _selectLessonNamed(value);
             _advanceJourney(4);

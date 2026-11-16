@@ -5,10 +5,9 @@
 /// والدروسُ والاختبارات وألعابُ المذاكرة والسينما هنا، مكتوبةً في التطبيق:
 /// يدخل الزائرُ فوراً، ولو بلا إنترنت.
 ///
-/// المنهجُ ظاهرٌ كلُّه كما في الحساب العادي: كلُّ الموادّ، والفصولُ والوحداتُ
-/// والدروس. والمفتوحُ أوّلُه وحده ([DemoMode]): الدرسان الأوّلان لهما شرحٌ
-/// بمقاطع (الأوّلُ يعمل)، وأسئلةٌ وألعاب؛ وما بعدهما بقفله ليرى الزائرُ أن في
-/// الحساب الرسميّ أكثر.
+/// المنهجُ كاملٌ مفتوحٌ كما في الحساب العادي: كلُّ الموادّ والفصولِ والوحداتِ
+/// والدروس، ولكلّ درسٍ شرحٌ بمقاطع وأسئلةٌ ولعبة. والقيودُ بعد الدخول، داخل
+/// البطاقات ([DemoMode]): مقطعٌ واحدٌ يعمل، وسؤالان، و«المقلاع» وحده…
 library;
 
 import '../models/academic_context.dart';
@@ -172,7 +171,6 @@ abstract final class DemoContent {
       _Lesson('تقريب الأعداد', 'نقرّب العدد إلى أقرب عشرة أو مئة.', const []),
       _Lesson('جمع الأعداد', 'نجمع الأعداد بدءاً من الآحاد.', const []),
     ]),
-    // ‏ظاهرةٌ كلُّها بقفلها: الرياضياتُ وحدها مفتوحةٌ للزائر.
     _Subject('لغتي', [_Lesson('الأسماء والأفعال', 'درسٌ في لغتي.', const []), _Lesson('الجملة الاسمية', 'درسٌ في لغتي.', const [])]),
     _Subject('العلوم', [_Lesson('النبات وأجزاؤه', 'درسٌ في العلوم.', const []), _Lesson('دورة حياة النبات', 'درسٌ في العلوم.', const [])]),
     _Subject('اللغة الإنجليزية', [_Lesson('My Family', 'An English lesson.', const []), _Lesson('My School', 'An English lesson.', const [])]),
@@ -182,14 +180,82 @@ abstract final class DemoContent {
     _Subject('التربية الفنية', [_Lesson('الألوان الأساسية', 'درسٌ في التربية الفنية.', const []), _Lesson('التشكيل بالصلصال', 'درسٌ في التربية الفنية.', const [])]),
   ];
 
-  static List<_Subject> _subjects(String grade) => isKindergartenGrade(grade) ? _kg : _grade4;
+  /// بقيّةُ دروس كلّ مادة بعد المكتوبة أعلاه، بالترتيب: تتوزّع على الوحدات ([_placeOf]).
+  static const _more = <String, List<String>>{
+    'القرآن الكريم': ['سورة الفلق', 'سورة الناس', 'سورة العصر', 'سورة النصر', 'سورة الفيل', 'سورة قريش'],
+    'الحروف العربية': ['حرف الجيم', 'حرف الحاء', 'حرف الخاء', 'حرف الدال', 'حرف الذال', 'حرف الراء'],
+    'الحروف الإنجليزية': ['Letter E', 'Letter F', 'Letter G', 'Letter H', 'Letter I', 'Letter J'],
+    'الأرقام العربية': ['العدد خمسة', 'العدد ستة', 'العدد سبعة', 'العدد ثمانية', 'العدد تسعة', 'العدد عشرة'],
+    'الأرقام الإنجليزية': ['Number Five', 'Number Six', 'Number Seven', 'Number Eight', 'Number Nine', 'Number Ten'],
+    'الثقافة العامة': ['الفواكه والخضروات', 'وسائل المواصلات', 'المهن من حولنا', 'جسمي وحواسي', 'النظافة الشخصية', 'السلامة في الطريق'],
+    'الرياضيات': ['طرح الأعداد', 'تقدير ناتج الجمع والطرح', 'الجمع والطرح ذهنياً', 'الضرب في عدد من رقم واحد', 'القسمة على عدد من رقم واحد', 'الكسور الاعتيادية'],
+    'لغتي': ['الجملة الفعلية', 'همزة الوصل والقطع', 'الضمائر', 'أسماء الإشارة', 'كتابة فقرة', 'الاسم الموصول', 'التاء المربوطة والمفتوحة', 'كتابة قصة قصيرة'],
+    'العلوم': ['تصنيف الحيوانات', 'السلاسل الغذائية', 'الماء في الطبيعة', 'حالات المادة', 'الطقس', 'الضوء والظل', 'الصوت', 'المغناطيس'],
+    'اللغة الإنجليزية': ['My Body', 'Colours and Shapes', 'Food I Like', 'Animals', 'My House', 'Days of the Week', 'Weather', 'Sports'],
+    'الدراسات الإسلامية': ['الصلاة', 'آداب الطعام', 'سورة الضحى', 'بر الوالدين', 'الصدق', 'الصيام', 'صلة الرحم', 'آداب المسجد'],
+    'الدراسات الاجتماعية': ['رموز وطني', 'مناطق المملكة', 'التضاريس', 'المناخ', 'الموارد الطبيعية', 'المواطنة', 'الحقوق والواجبات', 'يوم التأسيس'],
+    'المهارات الرقمية': ['لوحة المفاتيح', 'الفأرة', 'حفظ الملفات', 'المجلدات', 'الإنترنت الآمن', 'البرمجة بالرسوم', 'تصميم بطاقة', 'العرض التقديمي'],
+    'التربية الفنية': ['الرسم بالخطوط', 'الألوان الثانوية', 'الطباعة بالأوراق', 'الزخرفة الإسلامية', 'الكولاج', 'النسيج الورقي', 'الخزف', 'المجسمات'],
+  };
+
+  static List<_Subject> _complete(List<_Subject> subjects) => [
+        for (final s in subjects)
+          _Subject(s.name, [
+            ...s.lessons,
+            for (final name in _more[s.name] ?? const <String>[]) _Lesson(name, '', const []),
+          ]),
+      ];
+
+  static final _kgAll = _complete(_kg);
+  static final _grade4All = _complete(_grade4);
+
+  static List<_Subject> _subjects(String grade) => isKindergartenGrade(grade) ? _kgAll : _grade4All;
+
+  /// موضعُ الدرس [l] من مادته: أربعةٌ في الوحدة الأولى من الفصل الأوّل، ثم
+  /// ثلاثةٌ في الثانية، ثم ثلاثةٌ في الوحدة الأولى من الفصل الثاني.
+  static (String term, String unit) _placeOf(int l) => l < 4
+      ? (term1, unit1)
+      : l < 7
+          ? (term1, unit2)
+          : (term2, unit1);
+
+  static const _paths = [(term1, unit1), (term1, unit2), (term2, unit1)];
+
+  /// شرحُ الدرس: المكتوبُ له، أو تمهيدٌ باسمه ومادّته.
+  static String _textOf(String subject, _Lesson lesson) => lesson.text.isNotEmpty
+      ? lesson.text
+      : 'نتعلّم في هذا الدرس «${lesson.name}» من مادة $subject. نشاهد المقطع، ثم نجيب عن الأسئلة، ونلعب لعبةَ الدرس لنتأكّد أننا فهمنا.';
+
+  /// أسئلةُ الدرس: المكتوبةُ له، وإلا أربعةٌ من موضعه في المنهج — ليعمل
+  /// الاختبارُ واللعبةُ في كلّ درسٍ يختاره الزائر.
+  static List<_Q> _questionsOf(List<_Subject> subjects, int s, int l) {
+    final lesson = subjects[s].lessons[l];
+    if (lesson.questions.isNotEmpty) return lesson.questions;
+    final subject = subjects[s].name;
+    final siblings = subjects[s].lessons.map((x) => x.name).where((n) => n != lesson.name).toList();
+    final others = subjects.map((x) => x.name).where((n) => n != subject).toList();
+    final (term, unit) = _placeOf(l);
+    List<String> pick(String answer, List<String> pool) =>
+        [answer, for (var i = 0; i < 3 && i < pool.length; i++) pool[(l + i * 2) % pool.length]];
+    List<String> rotate(List<String> options) {
+      final k = l % options.length;
+      return [...options.sublist(k), ...options.sublist(0, k)];
+    }
+
+    return [
+      _Q('ما اسمُ الدرس الذي تذاكره الآن؟', rotate(pick(lesson.name, siblings)), lesson.name),
+      _Q('درسُ «${lesson.name}» من مادة:', rotate(pick(subject, others)), subject),
+      _Q('درسُ «${lesson.name}» في $term1.', const ['صح', 'خطأ'], term == term1 ? 'صح' : 'خطأ'),
+      _Q('في أيّ وحدةٍ درسُ «${lesson.name}»؟', rotate([unit, if (unit != unit1) unit1, if (unit != unit2) unit2, unit3]), unit),
+    ];
+  }
 
   static String _gradeOf(StudentProfile profile) => profile.demoTrack == 'grade4' ? grade4 : kgGrade;
 
   static String _lessonId(String grade, int subject, int lesson) =>
       'demo-${isKindergartenGrade(grade) ? 'kg' : 'g4'}-$subject-$lesson';
 
-  /// كلُّ دروس مسار الزائر: الفصلُ الأوّلُ والوحدةُ الأولى من كل مادة.
+  /// كلُّ دروس مسار الزائر، في كلّ فصلٍ ووحدة.
   static List<LessonContent> lessons(StudentProfile profile) {
     final grade = _gradeOf(profile);
     final subjects = _subjects(grade);
@@ -201,14 +267,14 @@ abstract final class DemoContent {
             lessonId: _lessonId(grade, s, l),
             grade: grade,
             subject: subjects[s].name,
-            term: term1,
-            unit: unit1,
+            term: _placeOf(l).$1,
+            unit: _placeOf(l).$2,
             lessonName: subjects[s].lessons[l].name,
-            createdAt: '2026-01-0${l + 1}',
+            createdAt: '2026-01-${(l + 1).toString().padLeft(2, '0')}',
             ownerId: _owner,
-            lessonText: subjects[s].lessons[l].text,
+            lessonText: _textOf(subjects[s].name, subjects[s].lessons[l]),
             // ‏مقاطعُ الشرح الأربعة ظاهرة، والأوّلُ وحده يعمل للزائر.
-            videos: l < 2 ? segments : const [],
+            videos: segments,
             games: const [],
           ),
     ];
@@ -228,45 +294,43 @@ abstract final class DemoContent {
     LessonVideo(id: 'demo-segment-4', url: videoAsset, sourceType: VideoSourceType.mp4, title: 'المقطع الرابع: تدريب وتقويم'),
   ];
 
-  /// شجرةُ المسار: الفصلان والوحداتُ الثلاث ظاهرةٌ كلُّها (ما بعد الأوّل بقفله).
+  /// شجرةُ المسار كاملةً مفتوحة: الفصلان، ووحدتا الأوّل، ووحدةُ الثاني.
   static AcademicSelectionData selection(StudentProfile profile) {
     final grade = _gradeOf(profile);
     final subjects = _subjects(grade);
     return AcademicSelectionData(
       paths: [
-        for (final subject in subjects) ...[
-          AcademicPath(grade: grade, subject: subject.name, term: term1, unit: unit1),
-          AcademicPath(grade: grade, subject: subject.name, term: term1, unit: unit2),
-          AcademicPath(grade: grade, subject: subject.name, term: term1, unit: unit3),
-          AcademicPath(grade: grade, subject: subject.name, term: term2, unit: unit1),
-          AcademicPath(grade: grade, subject: subject.name, term: term2, unit: unit2),
-        ],
+        for (final subject in subjects)
+          for (final (term, unit) in _paths) AcademicPath(grade: grade, subject: subject.name, term: term, unit: unit),
       ],
       lessons: lessons(profile),
     );
   }
 
-  /// دروسُ ما اختاره الزائر — أو كلُّ دروسه إن لم يختر بعد.
+  /// دروسُ ما اختاره الزائر: المختارُ أوّلاً ثم بقيّةُ وحدته — أو كلُّ دروسه إن لم يختر بعد.
   static List<LessonContent> lessonsFor(StudentProfile profile, AcademicContext? context) {
-    // ‏المفتوحُ وحده (الدرسان الأوّلان): مبدّلُ الدروس داخل الشرح لا يصل المقفل.
-    final all = lessons(profile).where(isOpen).toList();
+    final all = lessons(profile);
     if (context == null) return all;
     final chosen = all.where((lesson) => lesson.id == context.lessonId).toList();
     final sameUnit = all
-        .where((lesson) => lesson.subject == context.subject && lesson.id != context.lessonId)
+        .where((lesson) =>
+            lesson.subject == context.subject &&
+            lesson.term == context.term &&
+            lesson.unit == context.unit &&
+            lesson.id != context.lessonId)
         .toList();
     return [...chosen, ...sameUnit];
   }
 
-  /// درسٌ مفتوحٌ للزائر: الأوّلُ أو الثاني في مادته.
-  static bool isOpen(LessonContent lesson) => (int.tryParse(lesson.id.split('-').last) ?? 9) < 2;
-
-  static _Lesson? _lessonById(String id) {
+  /// الدرسُ وأسئلتُه من معرّفه.
+  static ({_Lesson lesson, List<_Q> questions})? _lessonById(String id) {
     for (final grade in const [kgGrade, grade4]) {
       final subjects = _subjects(grade);
       for (var s = 0; s < subjects.length; s++) {
         for (var l = 0; l < subjects[s].lessons.length; l++) {
-          if (_lessonId(grade, s, l) == id) return subjects[s].lessons[l];
+          if (_lessonId(grade, s, l) == id) {
+            return (lesson: subjects[s].lessons[l], questions: _questionsOf(subjects, s, l));
+          }
         }
       }
     }
@@ -276,15 +340,16 @@ abstract final class DemoContent {
   /// اختبارُ الدرس المختار في «مركز الاختبارات» (يقصّه [DemoMode] إلى سؤالين).
   static List<Map<String, dynamic>> quizzes(StudentProfile profile, AcademicContext? context) {
     final lessonId = context?.lessonId ?? '';
-    final lesson = _lessonById(lessonId);
-    if (lesson == null || lesson.questions.isEmpty) return const [];
+    final found = _lessonById(lessonId);
+    if (found == null) return const [];
+    final lesson = found.lesson;
     final questions = [
-      for (var i = 0; i < lesson.questions.length; i++)
+      for (var i = 0; i < found.questions.length; i++)
         {
           'id': '$lessonId-q$i',
-          'question': lesson.questions[i].question,
-          'options': lesson.questions[i].options,
-          'correctAnswer': lesson.questions[i].answer,
+          'question': found.questions[i].question,
+          'options': found.questions[i].options,
+          'correctAnswer': found.questions[i].answer,
           'quizType': 'periodic',
           'quizId': 'demo-quiz-$lessonId',
         },
@@ -311,8 +376,9 @@ abstract final class DemoContent {
 
   /// لعبةُ السباق في «المذاكرة»: أسئلةُ الدرس نفسُها، لـ«المقلاع».
   static StudyGamesPack? studyGames(String lessonId) {
-    final lesson = _lessonById(lessonId);
-    if (lesson == null || lesson.questions.isEmpty) return null;
+    final found = _lessonById(lessonId);
+    if (found == null) return null;
+    final lesson = found.lesson;
     return StudyGamesPack.fromMap({
       'lessonId': lessonId,
       'games': [
@@ -323,7 +389,7 @@ abstract final class DemoContent {
           'instructions': 'أصب الإجابة الصحيحة!',
           'items': {
             'questions': [
-              for (final q in lesson.questions)
+              for (final q in found.questions)
                 {
                   'kind': q.options.length == 2 ? 'true_false' : 'mcq',
                   'question': q.question,
