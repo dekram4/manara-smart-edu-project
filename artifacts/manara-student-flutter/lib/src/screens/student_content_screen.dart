@@ -26,6 +26,7 @@ import '../widgets/student_experience.dart';
 import '../widgets/student_video_player.dart';
 import '../widgets/student_web_embed.dart';
 import '../services/demo_mode.dart';
+import '../widgets/demo_lock.dart';
 
 enum StudentContentModule { lesson, games }
 
@@ -388,8 +389,8 @@ class _StudentContentScreenState extends State<StudentContentScreen>
         );
       case StudentContentModule.games:
         return _GamesModule(
-          // ‏الزائر: لعبةٌ واحدة.
-          games: DemoMode.limit(_gamesFromLessons, DemoMode.entertainmentGames),
+          // ‏الزائر: الرفُّ كاملاً، والأولى وحدها تعمل ([_GamesModule.isUnlocked]).
+          games: _gamesFromLessons,
           apiBaseUrl: widget.apiBaseUrl,
           gamification: _gamification,
         );
@@ -1117,6 +1118,21 @@ class _GamesModule extends StatelessWidget {
                 final game = games[index];
                 final unlocked = isUnlocked(index, gamification.level);
                 final neededLevel = requiredLevelFor(index);
+                // ‏الزائر: البطاقةُ كما هي تحت قفلٍ ذهبيّ — لا «المستوى المطلوب»، فالمستوى لا يفتح له شيئاً.
+                if (DemoMode.active && !unlocked) {
+                  return DemoLocked(
+                    key: ValueKey('demo-game-locked-$index'),
+                    locked: true,
+                    child: ArcadeGameCard(
+                      game: game,
+                      index: index,
+                      locked: false,
+                      requiredLevel: neededLevel,
+                      currentLevel: gamification.level,
+                      onPressed: () {},
+                    ),
+                  ).animate().fadeIn(duration: 260.ms, delay: (60 * index).ms);
+                }
                 // تموّجُ اللمسة فوق ضغطة البطاقة الخاصة بها.
                 return LivelyTouch(
                   child: ArcadeGameCard(
@@ -1464,6 +1480,20 @@ class _VideoCarouselState extends State<_VideoCarousel> {
         // The reward belongs to the lesson completion button, not to any
         // individual YouTube/MP4 source inside the lesson.
         const completed = false;
+        // ‏الزائر: كلُّ المقاطع ظاهرة، والأوّلُ وحده يعمل — والباقي بقفلٍ ذهبيّ يدعو للاشتراك.
+        if (!DemoMode.allowsSegment(index)) {
+          return DemoLocked(
+            key: ValueKey('demo-segment-locked-$index'),
+            locked: true,
+            child: _VideoCard(
+              video: video,
+              index: index,
+              apiBaseUrl: widget.apiBaseUrl,
+              completed: false,
+              onPressed: () {},
+            ),
+          );
+        }
         return _VideoCard(
           video: video,
           index: index,

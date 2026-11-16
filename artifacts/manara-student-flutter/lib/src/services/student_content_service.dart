@@ -684,11 +684,11 @@ class StudentContentService {
   /// ألعابُ معلّم الطالب تصل من [fetchTeacherGames] وحدها. والنسخةُ المدمجة
   /// تبقى لتطبيقٍ بلا خادمٍ مُعدّ (التطوير والاختبار) فقط.
   Future<List<HtmlGame>> fetchGameCatalog() =>
-      _remember('gameCatalog|$baseUrl', _fetchGameCatalog());
+      _remember('gameCatalog|$baseUrl|${DemoMode.active}', _fetchGameCatalog());
 
   Future<List<HtmlGame>> _fetchGameCatalog() async {
-    // ‏الزائر: لعبةٌ واحدة من الفهرس المدمج، بلا سؤال الخادم.
-    if (DemoMode.active) return _embeddedGameCatalog('').take(DemoMode.entertainmentGames).toList();
+    // ‏الزائر: الفهرسُ المدمج كاملاً بلا سؤال الخادم — الأولى تعمل والباقي بقفله.
+    if (DemoMode.active) return _embeddedGameCatalog('');
     final base = baseUrl.trim().replaceFirst(RegExp(r'/$'), '');
     if (base.isEmpty) return _embeddedGameCatalog('');
 

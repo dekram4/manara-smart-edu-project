@@ -14,6 +14,8 @@ import '../services/student_voice_service.dart';
 import '../services/tracing_glyphs.dart';
 import '../services/tracing_path.dart';
 import '../theme/student_theme.dart';
+import '../services/demo_mode.dart';
+import 'demo_lock.dart';
 
 /// لعبةُ «تتبّع واكتب» في بطاقة المذاكرة.
 ///
@@ -173,6 +175,7 @@ class TracingGameState extends State<TracingGame> with SingleTickerProviderState
   void initState() {
     super.initState();
     _index = widget.game.tracingStart.clamp(0, _items.length - 1);
+    if (!DemoMode.allowsTracing(_index)) _index = 0;
     _page = _index ~/ perPage;
     _pulse = AnimationController(vsync: this, duration: const Duration(milliseconds: 900))
       ..repeat(reverse: true);
@@ -233,6 +236,11 @@ class TracingGameState extends State<TracingGame> with SingleTickerProviderState
   /// يفتح لوحةَ عنصرٍ وينطقه في الحال.
   void _open(int index) {
     if (index < 0 || index >= _items.length) return;
+    // ‏الزائر: أيُّ طريقٍ إلى عنصرٍ مقفل — لمسةٌ أو انتقالٌ — ينتهي برسالة القفل.
+    if (!DemoMode.allowsTracing(index)) {
+      showDemoLocked(context);
+      return;
+    }
     final item = _items[index];
     setState(() {
       _index = index;
@@ -720,15 +728,19 @@ class TracingGameState extends State<TracingGame> with SingleTickerProviderState
                       for (var c = 0; c < cols; c++)
                         Expanded(
                           child: r * cols + c < count
-                              ? _LetterTile(
-                                  key: ValueKey('tracing-tile-${first + r * cols + c}'),
-                                  item: _items[first + r * cols + c],
-                                  done: _done.contains(first + r * cols + c),
-                                  color: _LetterTile.colors[(first + r * cols + c) % _LetterTile.colors.length],
-                                  onTap: () {
-                                    HapticFeedback.selectionClick();
-                                    _open(first + r * cols + c);
-                                  },
+                              ? DemoLocked(
+                                  key: ValueKey('tracing-lock-${first + r * cols + c}'),
+                                  locked: !DemoMode.allowsTracing(first + r * cols + c),
+                                  child: _LetterTile(
+                                    key: ValueKey('tracing-tile-${first + r * cols + c}'),
+                                    item: _items[first + r * cols + c],
+                                    done: _done.contains(first + r * cols + c),
+                                    color: _LetterTile.colors[(first + r * cols + c) % _LetterTile.colors.length],
+                                    onTap: () {
+                                      HapticFeedback.selectionClick();
+                                      _open(first + r * cols + c);
+                                    },
+                                  ),
                                 )
                               : const SizedBox.shrink(),
                         ),

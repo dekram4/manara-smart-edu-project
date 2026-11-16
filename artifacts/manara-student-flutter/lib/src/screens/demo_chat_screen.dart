@@ -2,7 +2,6 @@ import 'dart:async';
 import 'dart:math' as math;
 import 'dart:typed_data';
 
-import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/material.dart';
 
 import '../l10n/student_strings.dart';
@@ -47,7 +46,6 @@ class DemoChatScreenState extends State<DemoChatScreen> {
   final _scroll = ScrollController();
   late final DuelVoiceRecorder _recorder =
       widget.recorder ?? DuelVoiceRecorder(maxDuration: const Duration(seconds: 15), maxBytes: chatVoiceMaxBytes);
-  AudioPlayer? _ownPlayer;
   final List<_DemoMessage> _messages = [];
   int _texts = 0;
   int _voices = 0;
@@ -81,7 +79,7 @@ class DemoChatScreenState extends State<DemoChatScreen> {
   void dispose() {
     _input.dispose();
     _scroll.dispose();
-    _ownPlayer?.dispose();
+    if (_playing != null) unawaited(StudentSoundService.instance.stopSpeaking());
     if (_recording) unawaited(_recorder.cancel());
     super.dispose();
   }
@@ -156,22 +154,43 @@ class DemoChatScreenState extends State<DemoChatScreen> {
     _scrollDown();
   }
 
+  /// يشغّل المقطعَ على مشغّل أصوات التطبيق — كما تفعل الدردشةُ الحقيقية.
+  ///
+  /// ── لماذا لم يكن يُسمع ──
+  /// كان لكلّ مقطعٍ مشغّلٌ خاصّ بإعدادات الحزمة الافتراضية: يطلب «تركيزَ الصوت»
+  /// وحده بعد أن تركه المسجّلُ في وضع التسجيل، فيصمت أو يخرج من سمّاعة
+  /// المكالمات خافتاً. ومشغّلُ التطبيق مُعدٌّ للخلط والسمّاعة الخارجية، ويُخفض
+  /// الموسيقى تحت الكلام، ويُنادي بالانتهاء على كلّ حال.
   Future<void> _play(int index) async {
     final bytes = _messages[index].voice;
-    if (bytes == null) return;
+    if (bytes == null || _recording) return;
+    final sound = StudentSoundService.instance;
+    // ‏لمسةٌ ثانيةٌ على المقطع الجاري: إيقاف.
+    if (_playing == index) {
+      await sound.stopSpeaking();
+      if (mounted) setState(() => _playing = null);
+      return;
+    }
+    if (widget.playBytes == null && sound.muted.value) {
+      _toast(tr('demo.chat.soundMuted'));
+      return;
+    }
     setState(() => _playing = index);
     try {
       if (widget.playBytes != null) {
         await widget.playBytes!(bytes);
       } else {
-        final player = _ownPlayer ??= AudioPlayer();
-        await player.play(BytesSource(bytes));
-        await player.onPlayerComplete.first.timeout(const Duration(seconds: 20), onTimeout: () {});
+        final done = Completer<void>();
+        await sound.playVoiceNote(bytes, onDone: () {
+          if (!done.isCompleted) done.complete();
+        });
+        // ‏حدٌّ أعلى: مقطعٌ لا يُنادي بانتهائه لا يُبقي الأيقونةَ نابضة.
+        await done.future.timeout(Duration(milliseconds: _messages[index].durationMs + 3000), onTimeout: () {});
       }
     } catch (_) {
       // ‏يتعذّر التشغيل: يبقى المقطعُ ظاهراً.
     } finally {
-      if (mounted) setState(() => _playing = null);
+      if (mounted && _playing == index) setState(() => _playing = null);
     }
   }
 

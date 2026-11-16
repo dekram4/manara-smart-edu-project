@@ -19,6 +19,7 @@ import '../widgets/student_video_player.dart';
 import '../widgets/video_rows.dart';
 import '../services/demo_mode.dart';
 import 'dart:math' as math;
+import '../widgets/demo_lock.dart';
 
 class StudentCinemaScreen extends StatefulWidget {
   const StudentCinemaScreen({
@@ -67,7 +68,7 @@ class _StudentCinemaScreenState extends State<StudentCinemaScreen> {
       StudentContentService.resultKey('cinema', widget.profile, widget.academicContext),
     );
     if (cached != null) {
-      _videos = DemoMode.limit(cached, DemoMode.cinemaVideos);
+      _videos = cached;
       _loading = false;
     }
     _loadVideos(quiet: cached != null);
@@ -100,7 +101,7 @@ class _StudentCinemaScreenState extends State<StudentCinemaScreen> {
       ]);
       if (!mounted) return;
       setState(() {
-        _videos = DemoMode.limit(values[0] as List<LessonVideo>, DemoMode.cinemaVideos);
+        _videos = values[0] as List<LessonVideo>;
         _gamification = values[1] as StudentGamification;
         _loading = false;
       });
@@ -193,6 +194,11 @@ class _StudentCinemaScreenState extends State<StudentCinemaScreen> {
   }
 
   Future<void> _openVideo(LessonVideo video, int index) async {
+    // ‏الزائر: الجواهرُ لا تفتح له شيئاً — القفلُ يدعوه إلى الحساب الرسمي.
+    if (DemoMode.active && !_isUnlocked(index)) {
+      showDemoLocked(context);
+      return;
+    }
     if (!_isUnlocked(index)) {
       if (_checkingLocked) return;
       // ── الرصيدُ أولاً من المصدر ──
@@ -337,6 +343,23 @@ class _StudentCinemaScreenState extends State<StudentCinemaScreen> {
             itemCount: _videos.length,
             itemBuilder: (context, index) {
               final video = _videos[index];
+              // ‏الزائر: البطاقةُ تحت قفلٍ ذهبيّ بدل «ينقصك كذا جوهرة».
+              if (DemoMode.active && !_isUnlocked(index)) {
+                return LivelyStagger(
+                  index: index,
+                  child: DemoLocked(
+                    key: ValueKey('demo-cinema-locked-$index'),
+                    locked: true,
+                    child: _CinemaVideoCard(
+                      video: video,
+                      apiBaseUrl: widget.apiBaseUrl,
+                      locked: false,
+                      missingGems: 0,
+                      onPressed: () {},
+                    ),
+                  ),
+                );
+              }
               return LivelyStagger(
                 index: index,
                 child: _CinemaVideoCard(

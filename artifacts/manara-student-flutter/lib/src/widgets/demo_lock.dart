@@ -1,17 +1,33 @@
 import 'package:flutter/material.dart';
 
 import '../l10n/student_strings.dart';
+import '../screens/plans_screen.dart';
+import '../services/demo_mode.dart';
 import '../services/student_sound_service.dart';
 import 'demo_ui.dart';
 
-/// رسالةُ ما أُغلق في وضع الزائر: يُفتح كلُّه في الحساب الرسمي.
+/// رسالةُ ما أُغلق في وضع الزائر: يُفتح كلُّه في الحساب الرسمي — وزرُّها
+/// يفتح مقارنةَ الباقات وطلبَ الاشتراك مباشرةً.
 void showDemoLocked(BuildContext context) {
   StudentSoundService.instance.play(StudentSoundCue.warning);
+  // ‏يُلتقط الآن: لمسةُ الزرّ قد تأتي بعد أن تُغلق الشاشةُ التي أظهرت الرسالة.
+  final navigator = Navigator.maybeOf(context);
   ScaffoldMessenger.maybeOf(context)
     ?..hideCurrentSnackBar()
     ..showSnackBar(SnackBar(
       key: const ValueKey('demo-locked'),
       behavior: SnackBarBehavior.floating,
+      duration: const Duration(seconds: 5),
+      action: navigator == null
+          ? null
+          : SnackBarAction(
+              key: const ValueKey('demo-locked-get-account'),
+              label: tr('demo.getAccount'),
+              textColor: DemoPalette.goldLight,
+              onPressed: () => navigator.push(
+                MaterialPageRoute<void>(builder: (_) => PlansScreen(apiBaseUrl: DemoMode.plansBaseUrl)),
+              ),
+            ),
       backgroundColor: DemoPalette.violetDeep,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(16),

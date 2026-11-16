@@ -15,6 +15,7 @@ import '../services/student_path_memory.dart';
 import '../services/student_avatar_store.dart';
 import '../services/student_sound_service.dart';
 import '../services/demo_mode.dart';
+import '../widgets/demo_lock.dart';
 import '../services/student_content_service.dart';
 import '../services/voice_match.dart' show SpokenIndex, normalizeSpoken;
 import '../theme/student_theme.dart';
@@ -433,8 +434,12 @@ class _AcademicSelectionScreenState extends State<AcademicSelectionScreen> {
     return [...subjects.where(DemoMode.allowsSubject), ...subjects.where((s) => !DemoMode.allowsSubject(s))];
   }
 
-  /// لمسةٌ على خيارٍ مقفلٍ في وضع الزائر.
-  void _demoLocked() => _refuse(tr('demo.lockedInDemo'));
+  /// لمسةٌ على خيارٍ مقفلٍ في وضع الزائر: السببُ مكتوباً، ورسالةُ القفل بزرّ الاشتراك.
+  void _demoLocked() {
+    HapticFeedback.mediumImpact();
+    setState(() => _voiceNote = tr('demo.lockedInDemo'));
+    showDemoLocked(context);
+  }
 
   /// الزائر: صفُّه وحده من الصفوف.
   bool _gradeLocked(String grade) =>

@@ -91,8 +91,10 @@ void main() {
       expect((quizzes.first['questions'] as List), hasLength(4));
 
       final videos = await service.fetchCinemaVideos(profile);
-      expect(videos.single.url, startsWith('asset:'));
-      expect(await service.fetchGameCatalog(), hasLength(1));
+      // ‏الرفُّ كاملاً، والأوّلُ مدمجٌ في التطبيق.
+      expect(videos.length, greaterThan(1));
+      expect(videos.every((v) => v.url.startsWith('asset:')), isTrue);
+      expect((await service.fetchGameCatalog()).length, greaterThan(1));
       expect(await service.fetchCardPermissions(profile), isEmpty);
       expect((await service.fetchGamification(profile)).gems, 0);
 
@@ -110,11 +112,11 @@ void main() {
       expect(fresh.questions, hasLength(4));
     });
 
-    test('الروضة: المواد الأربع، ولكلّ درسٍ مفتوحٍ شرحٌ وأسئلةٌ ولعبة', () {
+    test('الروضة: الموادّ الستّ، ولكلّ درسٍ مفتوحٍ شرحٌ وأسئلةٌ ولعبة', () {
       final profile = DemoContent.profile('kg');
       final selection = DemoContent.selection(profile);
       final subjects = selection.subjectsFor(grade: DemoContent.kgGrade);
-      expect(subjects, hasLength(4));
+      expect(subjects, hasLength(6));
       for (final subject in subjects) {
         final lessons = selection.lessonsFor(
             grade: DemoContent.kgGrade, subject: subject, term: DemoContent.term1, unit: DemoContent.unit1);

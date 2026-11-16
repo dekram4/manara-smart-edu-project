@@ -17,6 +17,7 @@ import 'quiz_games.dart';
 import 'student_experience.dart';
 import '../services/demo_mode.dart';
 import 'demo_lock.dart';
+import 'demo_ui.dart';
 
 /// يصرف مكافأة لعبةٍ فاز بها الطفل — الخادمُ يقرّر المقدار من سجلّ الدرس.
 typedef StudyGameWin = Future<RewardResult?> Function(StudyGame game);
@@ -490,7 +491,7 @@ class _ArcadeShelf extends StatelessWidget {
                       width: width,
                       // ‏الزائر: «المقلاع» وحده، والباقي ظاهرٌ بقفله.
                       child: DemoLocked(
-                        locked: DemoMode.active && style != QuizGameStyle.slingshot,
+                        locked: !DemoMode.allowsStudyGame(style.name),
                         child: _ArcadeCover(spec: _CoverSpec.arcade(style, () => onOpen?.call(style))),
                       ),
                     ),
@@ -807,7 +808,9 @@ class _GamePage extends StatefulWidget {
 
 class _GamePageState extends State<_GamePage> {
   late StudyGame _game = widget.first;
-  late QuizGameStyle _style = widget.style;
+  // ‏الزائر: «المقلاع» وحده، أيّاً كان الغلافُ الذي فُتحت منه الصفحة.
+  late QuizGameStyle _style =
+      DemoMode.allowsStudyGame(widget.style.name) ? widget.style : QuizGameStyle.slingshot;
   int _round = 0;
   bool _preparing = false;
 
@@ -854,6 +857,11 @@ class _GamePageState extends State<_GamePage> {
 
   void _switch(QuizGameStyle style) {
     if (style == _style) return;
+    // ‏الزائر: شريطُ التبديل داخل اللعبة لا يتجاوز قفلَ الرفّ.
+    if (!DemoMode.allowsStudyGame(style.name)) {
+      showDemoLocked(context);
+      return;
+    }
     StudentSoundService.instance.playTap();
     setState(() {
       _style = style;
@@ -1071,7 +1079,13 @@ class _GameBar extends StatelessWidget {
                     Expanded(
                       child: Padding(
                         padding: const EdgeInsets.symmetric(horizontal: 3),
-                        child: _BarChip(style: each, selected: each == style, compact: compact, onTap: () => onPick(each)),
+                        child: _BarChip(
+                          style: each,
+                          selected: each == style,
+                          compact: compact,
+                          locked: !DemoMode.allowsStudyGame(each.name),
+                          onTap: () => onPick(each),
+                        ),
                       ),
                     ),
                 ],
@@ -1086,17 +1100,26 @@ class _GameBar extends StatelessWidget {
 }
 
 class _BarChip extends StatelessWidget {
-  const _BarChip({required this.style, required this.selected, required this.compact, required this.onTap});
+  const _BarChip({
+    required this.style,
+    required this.selected,
+    required this.compact,
+    required this.onTap,
+    this.locked = false,
+  });
 
   final QuizGameStyle style;
   final bool selected;
   final bool compact;
   final VoidCallback onTap;
 
+  /// الزائر: لعبةٌ مقفلة — باهتةٌ وعليها قفلٌ ذهبيٌّ صغير.
+  final bool locked;
+
   @override
   Widget build(BuildContext context) {
     final colors = _ArcadeInfo.colors(style);
-    return Semantics(
+    final chip = Semantics(
       button: true,
       selected: selected,
       label: _ArcadeInfo.title(style),
@@ -1140,6 +1163,26 @@ class _BarChip extends StatelessWidget {
         ),
       ),
     );
+    if (!locked) return chip;
+    return Stack(clipBehavior: Clip.none, children: [
+      Opacity(opacity: 0.45, child: chip),
+      PositionedDirectional(
+        top: -4,
+        end: -2,
+        child: IgnorePointer(
+          child: Container(
+            width: 20,
+            height: 20,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              gradient: DemoPalette.goldGradient,
+              border: Border.all(color: Colors.white, width: 1.5),
+            ),
+            child: const Icon(Icons.lock_rounded, size: 11, color: DemoPalette.goldInk),
+          ),
+        ),
+      ),
+    ]);
   }
 }
 

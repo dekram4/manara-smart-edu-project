@@ -321,6 +321,7 @@ class _LoginScreenState extends State<LoginScreen> {
       final student = await service.signInDemo(track);
       if (!mounted) return;
       DemoMode.enterFor(student);
+      DemoMode.plansBaseUrl = widget.apiBaseUrl;
       await Navigator.of(context).pushReplacement(
         StudentPageRoute<void>(
           builder: (_) => AcademicSelectionScreen(

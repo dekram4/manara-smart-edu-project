@@ -5,8 +5,10 @@
 /// والدروسُ والاختبارات وألعابُ المذاكرة والسينما هنا، مكتوبةً في التطبيق:
 /// يدخل الزائرُ فوراً، ولو بلا إنترنت.
 ///
-/// الدروسُ المفتوحة (الأوّل والثاني) لها شرحٌ وأسئلةٌ وألعاب؛ وما بعدها
-/// يظهر بقفله ([DemoMode]) ليرى الزائرُ أن في الحساب الرسميّ أكثر.
+/// المنهجُ ظاهرٌ كلُّه كما في الحساب العادي: كلُّ الموادّ، والفصولُ والوحداتُ
+/// والدروس. والمفتوحُ أوّلُه وحده ([DemoMode]): الدرسان الأوّلان لهما شرحٌ
+/// بمقاطع (الأوّلُ يعمل)، وأسئلةٌ وألعاب؛ وما بعدهما بقفله ليرى الزائرُ أن في
+/// الحساب الرسميّ أكثر.
 library;
 
 import '../models/academic_context.dart';
@@ -23,6 +25,7 @@ abstract final class DemoContent {
   static const term2 = 'الفصل الدراسي الثاني';
   static const unit1 = 'الوحدة الأولى';
   static const unit2 = 'الوحدة الثانية';
+  static const unit3 = 'الوحدة الثالثة';
 
   /// الفيديو المدمج في التطبيق: يُشغَّل من الحزمة لا من الشبكة.
   static const videoAsset = 'asset:assets/video/welcome.mp4';
@@ -52,6 +55,23 @@ abstract final class DemoContent {
   // ── الموادّ والدروس ──
 
   static final List<_Subject> _kg = [
+    // ‏درسُ «حفظ وشرح السور القصيرة» يفتح بطاقةَ «أبطال التسميع» — الفاتحةُ وحدها للزائر.
+    _Subject('القرآن الكريم', [
+      _Lesson('حفظ وشرح السور القصيرة', 'نحفظ اليوم سورةَ الفاتحة، أمَّ الكتاب. نقرؤها في كل صلاة، وآياتُها سبع. نبدأ بالاستعاذة ثم البسملة: بسم الله الرحمن الرحيم. الحمدُ لله ربّ العالمين: نشكر الله على نِعَمه.', [
+        _Q('كم آيةً في سورة الفاتحة؟', ['سبع', 'خمس', 'ثلاث', 'عشر'], 'سبع'),
+        _Q('ماذا نقول قبل القراءة؟', ['أعوذ بالله من الشيطان الرجيم', 'صباح الخير', 'شكراً', 'مع السلامة'], 'أعوذ بالله من الشيطان الرجيم'),
+        _Q('نقرأ الفاتحة في كل صلاة.', ['صح', 'خطأ'], 'صح'),
+        _Q('«الحمد لله» معناها:', ['نشكر الله', 'نلعب', 'ننام', 'نأكل'], 'نشكر الله'),
+      ]),
+      _Lesson('آداب تلاوة القرآن', 'نتوضّأ قبل أن نمسك المصحف، ونجلس بهدوء، ونقرأ بصوتٍ جميلٍ واضح، ونستمع إذا قُرئ القرآن.', [
+        _Q('ماذا نفعل قبل أن نمسك المصحف؟', ['نتوضّأ', 'نلعب', 'نركض', 'نأكل'], 'نتوضّأ'),
+        _Q('كيف نجلس عند التلاوة؟', ['بهدوء', 'ونحن نقفز', 'ونحن نصرخ', 'ونحن نلعب'], 'بهدوء'),
+        _Q('نستمع إذا قُرئ القرآن.', ['صح', 'خطأ'], 'صح'),
+        _Q('نقرأ القرآن بصوتٍ …', ['جميلٍ واضح', 'عالٍ جداً', 'غاضب', 'سريعٍ جداً'], 'جميلٍ واضح'),
+      ]),
+      _Lesson('سورة الإخلاص', 'قل هو الله أحد.', const []),
+      _Lesson('سورة الكوثر', 'إنا أعطيناك الكوثر.', const []),
+    ]),
     _Subject('الحروف العربية', [
       _Lesson('حرف الألف', 'الألف أوّلُ حروف اللغة العربية. نكتبه خطّاً مستقيماً من الأعلى إلى الأسفل. نقول: أ أرنب، أ أسد. الأرنبُ يقفز، والأسدُ يزأر.', [
         _Q('بأيّ حرفٍ تبدأ كلمة «أرنب»؟', ['أ', 'ب', 'ت', 'ث'], 'أ'),
@@ -116,6 +136,23 @@ abstract final class DemoContent {
       _Lesson('Number Three', 'Three (3).', const []),
       _Lesson('Number Four', 'Four (4).', const []),
     ]),
+    // ‏«الثقافة العامة» تفتح «عالم الحكايات» — لعبةُ الألوان وحدها للزائر.
+    _Subject('الثقافة العامة', [
+      _Lesson('الألوان من حولنا', 'السماءُ زرقاء، والعشبُ أخضر، والشمسُ صفراء، والتفاحةُ حمراء. الألوانُ تجعل الدنيا جميلة!', [
+        _Q('ما لونُ السماء؟', ['أزرق', 'أحمر', 'أسود', 'بنّي'], 'أزرق'),
+        _Q('ما لونُ العشب؟', ['أخضر', 'أصفر', 'برتقالي', 'أبيض'], 'أخضر'),
+        _Q('الشمسُ صفراء.', ['صح', 'خطأ'], 'صح'),
+        _Q('ما لونُ التفاحة في الدرس؟', ['أحمر', 'أزرق', 'بنفسجي', 'رمادي'], 'أحمر'),
+      ]),
+      _Lesson('الحيوانات وأصواتها', 'القطةُ تقول مياو، والبقرةُ تقول موو، والكلبُ ينبح، والأسدُ يزأر في الغابة.', [
+        _Q('ماذا تقول القطة؟', ['مياو', 'موو', 'زئير', 'صياح'], 'مياو'),
+        _Q('أين يعيش الأسد؟', ['في الغابة', 'في البحر', 'في البيت', 'في السماء'], 'في الغابة'),
+        _Q('البقرةُ تقول موو.', ['صح', 'خطأ'], 'صح'),
+        _Q('من الذي ينبح؟', ['الكلب', 'السمكة', 'العصفور', 'الأرنب'], 'الكلب'),
+      ]),
+      _Lesson('فصول السنة', 'للسنة أربعةُ فصول.', const []),
+      _Lesson('أفراد أسرتي', 'أبي وأمي وإخوتي.', const []),
+    ]),
   ];
 
   static final List<_Subject> _grade4 = [
@@ -135,9 +172,14 @@ abstract final class DemoContent {
       _Lesson('تقريب الأعداد', 'نقرّب العدد إلى أقرب عشرة أو مئة.', const []),
       _Lesson('جمع الأعداد', 'نجمع الأعداد بدءاً من الآحاد.', const []),
     ]),
-    _Subject('لغتي', [_Lesson('الأسماء والأفعال', 'درسٌ في لغتي.', const [])]),
-    _Subject('العلوم', [_Lesson('النبات وأجزاؤه', 'درسٌ في العلوم.', const [])]),
-    _Subject('English', [_Lesson('My Family', 'An English lesson.', const [])]),
+    // ‏ظاهرةٌ كلُّها بقفلها: الرياضياتُ وحدها مفتوحةٌ للزائر.
+    _Subject('لغتي', [_Lesson('الأسماء والأفعال', 'درسٌ في لغتي.', const []), _Lesson('الجملة الاسمية', 'درسٌ في لغتي.', const [])]),
+    _Subject('العلوم', [_Lesson('النبات وأجزاؤه', 'درسٌ في العلوم.', const []), _Lesson('دورة حياة النبات', 'درسٌ في العلوم.', const [])]),
+    _Subject('اللغة الإنجليزية', [_Lesson('My Family', 'An English lesson.', const []), _Lesson('My School', 'An English lesson.', const [])]),
+    _Subject('الدراسات الإسلامية', [_Lesson('أركان الإسلام', 'درسٌ في الدراسات الإسلامية.', const []), _Lesson('الوضوء', 'درسٌ في الدراسات الإسلامية.', const [])]),
+    _Subject('الدراسات الاجتماعية', [_Lesson('وطني المملكة', 'درسٌ في الدراسات الاجتماعية.', const []), _Lesson('خريطة بلادي', 'درسٌ في الدراسات الاجتماعية.', const [])]),
+    _Subject('المهارات الرقمية', [_Lesson('أجزاء الحاسب', 'درسٌ في المهارات الرقمية.', const []), _Lesson('الرسم بالحاسب', 'درسٌ في المهارات الرقمية.', const [])]),
+    _Subject('التربية الفنية', [_Lesson('الألوان الأساسية', 'درسٌ في التربية الفنية.', const []), _Lesson('التشكيل بالصلصال', 'درسٌ في التربية الفنية.', const [])]),
   ];
 
   static List<_Subject> _subjects(String grade) => isKindergartenGrade(grade) ? _kg : _grade4;
@@ -165,23 +207,28 @@ abstract final class DemoContent {
             createdAt: '2026-01-0${l + 1}',
             ownerId: _owner,
             lessonText: subjects[s].lessons[l].text,
-            videos: l < 2
-                ? const [
-                    LessonVideo(
-                      id: 'demo-tour',
-                      url: videoAsset,
-                      sourceType: VideoSourceType.mp4,
-                      title: 'جولة في منارة المعرفة',
-                      description: 'فيديو تعريفيّ مدمج في التطبيق',
-                    ),
-                  ]
-                : const [],
+            // ‏مقاطعُ الشرح الأربعة ظاهرة، والأوّلُ وحده يعمل للزائر.
+            videos: l < 2 ? segments : const [],
             games: const [],
           ),
     ];
   }
 
-  /// شجرةُ المسار: الفصلان والوحدتان ظاهرةٌ كلُّها (الثانيةُ بقفلها).
+  /// مقاطعُ «شرح الدرس»: كلُّها من الفيديو المدمج، والأوّلُ وحده يعمل للزائر.
+  static const segments = [
+    LessonVideo(
+      id: 'demo-segment-1',
+      url: videoAsset,
+      sourceType: VideoSourceType.mp4,
+      title: 'المقطع الأول: تمهيد الدرس',
+      description: 'مقطعٌ تعريفيّ يعمل في التجربة',
+    ),
+    LessonVideo(id: 'demo-segment-2', url: videoAsset, sourceType: VideoSourceType.mp4, title: 'المقطع الثاني: الشرح'),
+    LessonVideo(id: 'demo-segment-3', url: videoAsset, sourceType: VideoSourceType.mp4, title: 'المقطع الثالث: أمثلة محلولة'),
+    LessonVideo(id: 'demo-segment-4', url: videoAsset, sourceType: VideoSourceType.mp4, title: 'المقطع الرابع: تدريب وتقويم'),
+  ];
+
+  /// شجرةُ المسار: الفصلان والوحداتُ الثلاث ظاهرةٌ كلُّها (ما بعد الأوّل بقفله).
   static AcademicSelectionData selection(StudentProfile profile) {
     final grade = _gradeOf(profile);
     final subjects = _subjects(grade);
@@ -190,7 +237,9 @@ abstract final class DemoContent {
         for (final subject in subjects) ...[
           AcademicPath(grade: grade, subject: subject.name, term: term1, unit: unit1),
           AcademicPath(grade: grade, subject: subject.name, term: term1, unit: unit2),
+          AcademicPath(grade: grade, subject: subject.name, term: term1, unit: unit3),
           AcademicPath(grade: grade, subject: subject.name, term: term2, unit: unit1),
+          AcademicPath(grade: grade, subject: subject.name, term: term2, unit: unit2),
         ],
       ],
       lessons: lessons(profile),
@@ -290,7 +339,7 @@ abstract final class DemoContent {
     });
   }
 
-  /// فيديو السينما: المدمجُ في التطبيق.
+  /// رفُّ السينما كاملاً: الأوّلُ (المدمجُ في التطبيق) يعمل، والباقي بقفله.
   static const cinema = [
     LessonVideo(
       id: 'demo-cinema',
@@ -299,6 +348,13 @@ abstract final class DemoContent {
       title: 'مرحباً بك في منارة المعرفة',
       description: 'جولةٌ قصيرة في عالم منارة',
     ),
+    LessonVideo(id: 'demo-cinema-2', url: videoAsset, sourceType: VideoSourceType.mp4, title: 'مغامرة الحروف'),
+    LessonVideo(id: 'demo-cinema-3', url: videoAsset, sourceType: VideoSourceType.mp4, title: 'رحلة إلى الفضاء'),
+    LessonVideo(id: 'demo-cinema-4', url: videoAsset, sourceType: VideoSourceType.mp4, title: 'عالم الحيوانات'),
+    LessonVideo(id: 'demo-cinema-5', url: videoAsset, sourceType: VideoSourceType.mp4, title: 'تجارب علمية ممتعة'),
+    LessonVideo(id: 'demo-cinema-6', url: videoAsset, sourceType: VideoSourceType.mp4, title: 'أناشيد الأرقام'),
+    LessonVideo(id: 'demo-cinema-7', url: videoAsset, sourceType: VideoSourceType.mp4, title: 'قصص الأنبياء للأطفال'),
+    LessonVideo(id: 'demo-cinema-8', url: videoAsset, sourceType: VideoSourceType.mp4, title: 'حكاية قبل النوم'),
   ];
 }
 
