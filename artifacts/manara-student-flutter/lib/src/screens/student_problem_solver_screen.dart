@@ -68,8 +68,15 @@ class _StudentProblemSolverScreenState extends State<StudentProblemSolverScreen>
         .toList();
   }
 
-  /// الزائر: كم سؤالاً سأل من سؤاليه ([DemoMode.solverQuestions]).
+  /// الزائر: كم سؤالاً سأل اليوم من سؤاليه ([DemoMode.solverQuestions]) —
+  /// محفوظٌ على الجهاز بتاريخ اليوم ([DemoSolverQuota])، فلا يعود صفراً
+  /// بإغلاق البطاقة أو التطبيق.
   int _demoAsked = 0;
+
+  Future<void> _loadDemoUsed() async {
+    final used = await DemoSolverQuota.used();
+    if (mounted && used != _demoAsked) setState(() => _demoAsked = used);
+  }
 
   @visibleForTesting
   int get demoAsked => _demoAsked;
@@ -78,6 +85,10 @@ class _StudentProblemSolverScreenState extends State<StudentProblemSolverScreen>
 
   /// سؤالُ الزائر: جوابٌ من شرح الدرس على الجهاز، وما بعد سؤاليه مقفل.
   Future<void> _askDemo(LessonContent lesson, String question, String? photo) async {
+    // ‏من الجهاز لا من الذاكرة: بطاقةٌ أخرى فُتحت اليوم قد سألت.
+    final used = await DemoSolverQuota.used();
+    if (!mounted) return;
+    if (used != _demoAsked) setState(() => _demoAsked = used);
     if (_demoSpent) {
       StudentSoundService.instance.play(StudentSoundCue.warning);
       showDemoLocked(context, message: tr('demo.solver.locked'));
@@ -90,6 +101,7 @@ class _StudentProblemSolverScreenState extends State<StudentProblemSolverScreen>
       _answer = null;
     });
     await Future<void>.delayed(const Duration(milliseconds: 900));
+    final asked = await DemoSolverQuota.record();
     if (!mounted) return;
     setState(() {
       _answer = DemoSolver.answer(
@@ -98,7 +110,7 @@ class _StudentProblemSolverScreenState extends State<StudentProblemSolverScreen>
         photo: photo != null,
         voice: voice,
       );
-      _demoAsked++;
+      _demoAsked = asked;
       _photo = null;
       _fromCache = false;
       _sending = false;
@@ -139,6 +151,7 @@ class _StudentProblemSolverScreenState extends State<StudentProblemSolverScreen>
     // ظنّاً أنه يُشغّلها.
     _speaking = _voice.speaking;
     unawaited(_loadQuota());
+    if (DemoMode.active) unawaited(_loadDemoUsed());
     final supported = _supportedLessons;
     final activeLessonId = widget.academicContext?.selectedLesson.id;
     final activeLessons =
@@ -232,17 +245,28 @@ class _StudentProblemSolverScreenState extends State<StudentProblemSolverScreen>
   /// يبدأ الإملاء أو يوقفه.
   Future<void> _toggleListening() async {
     if (_listening) {
-      await _voice.stopListening();
+      // ‏«توقّف»: يُكتب ما قيل كلُّه، لا يُرمى.
+      _voice.finishDictation();
       if (mounted) setState(() => _listening = false);
       return;
     }
-    final started = await _voice.listen(
+    // ‏ما كُتب قبل الضغط يبقى، ويُضاف إليه المنطوق.
+    final before = _questionController.text.trim();
+    String joined(String heard) => before.isEmpty ? heard : '$before $heard';
+    // ‏إملاءٌ متّصل لا جلسةٌ واحدة: كان المحرّكُ يُغلق المايكَ عند أوّل وقفة
+    // ‏فيُكتب نصفُ السؤال («ما منزلة الرقم 7» ثم يتوقّف). انظر
+    // ‏[StudentVoiceService.listenDictation].
+    final started = await _voice.listenDictation(
+      onPartial: (heard) {
+        if (!mounted || !_listening) return;
+        _questionController.text = joined(heard);
+      },
       onResult: (heard) {
         if (!mounted) return;
         setState(() {
           _listening = false;
           if (heard.isNotEmpty) {
-            _questionController.text = heard;
+            _questionController.text = joined(heard);
             _askedByVoice = true;
           }
         });
@@ -278,15 +302,67 @@ class _StudentProblemSolverScreenState extends State<StudentProblemSolverScreen>
       if (shot == null) return;
       final bytes = await shot.readAsBytes();
       if (!mounted) return;
+      final encoded = base64Encode(bytes);
       setState(() {
-        _photo = base64Encode(bytes);
+        _photo = encoded;
         _error = null;
+        _notice = null;
       });
       StudentSoundService.instance.playTap();
+      // ‏الزائرُ بلا جلسة: صورتُه تُجاب على الجهاز كما كانت.
+      if (!DemoMode.active) unawaited(_readPhoto(encoded));
     } catch (_) {
       if (!mounted) return;
       StudentSoundService.instance.play(StudentSoundCue.warning);
       setState(() => _error = tr('solver.cameraUnavailable'));
+    }
+  }
+
+  /// هل تُقرأ الصورةُ الآن؟
+  bool _readingPhoto = false;
+
+  /// خبرٌ صغيرٌ تحت الحقل (قُرئت الصورة).
+  String? _notice;
+
+  Uri? get _readImageEndpoint {
+    final answer = _answerEndpoint;
+    if (answer == null) return null;
+    return answer.replace(path: answer.path.replaceFirst('/answer', '/read-image'));
+  }
+
+  /// يقرأ نصَّ السؤال من الصورة ويكتبه كاملاً في الخانة.
+  ///
+  /// ‏الطفلُ يرى سؤاله مكتوباً فيصحّح ما أخطأت فيه القراءة، ثم يُرسله نصّاً
+  /// ‏ومعه الصورة — فيُجاب عمّا في كتابه بالضبط. وإن تعذّرت القراءة بقيت
+  /// ‏الصورةُ مرفقةً كما كانت، ويقرؤها الخادمُ مع السؤال.
+  Future<void> _readPhoto(String encoded) async {
+    final endpoint = _readImageEndpoint;
+    if (endpoint == null) return;
+    setState(() => _readingPhoto = true);
+    try {
+      final token = await widget.authService.ensureApiSession();
+      if (token == null || token.isEmpty) return;
+      final response = await http
+          .post(
+            endpoint,
+            headers: {'Content-Type': 'application/json', 'Authorization': 'Bearer $token'},
+            body: jsonEncode({'image': encoded, 'imageMimeType': 'image/jpeg'}),
+          )
+          .timeout(const Duration(seconds: 40));
+      if (response.statusCode < 200 || response.statusCode >= 300) return;
+      final payload = jsonDecode(response.body);
+      final text = payload is Map ? payload['text']?.toString().trim() ?? '' : '';
+      // ‏صورةٌ أُزيلت أو استُبدلت في أثناء القراءة: نصُّها لا يخصّ ما في الخانة.
+      if (!mounted || text.isEmpty || _photo != encoded) return;
+      final typed = _questionController.text.trim();
+      setState(() {
+        _questionController.text = typed.isEmpty ? text : '$typed\n$text';
+        _notice = tr('solver.photoRead');
+      });
+    } catch (_) {
+      // ‏بلا قراءة: الصورةُ مرفقةٌ وتُرسل مع السؤال كما كانت.
+    } finally {
+      if (mounted) setState(() => _readingPhoto = false);
     }
   }
 
@@ -342,7 +418,9 @@ class _StudentProblemSolverScreenState extends State<StudentProblemSolverScreen>
       return;
     }
     setState(() => _speaking = true);
-    await _voice.speak(answer);
+    // ‏مقطعاً بعد مقطع، ويعود حين ينتهي الصوتُ فعلاً — انظر
+    // ‏[StudentVoiceService.speakAnswer].
+    await _voice.speakAnswer(answer);
     // المحرّك يُعلمنا بالانتهاء عبر الخدمة؛ وهذه تُبقي الزرّ صادقاً إن
     // لم يصل الإعلام على منصّةٍ ما.
     if (mounted) setState(() => _speaking = _voice.speaking);
@@ -387,6 +465,13 @@ class _StudentProblemSolverScreenState extends State<StudentProblemSolverScreen>
     // من الحوار لا من الزرّ.
     await _voice.stopSpeaking();
     if (mounted && _speaking) setState(() => _speaking = false);
+    // ‏الصورةُ تُقرأ بعد: يُنتظر نصُّها في الخانة، لا يُرسل نصفُ سؤال.
+    if (_readingPhoto) return;
+    // ‏والمايكُ ما زال يسمع: يُكتب ما قيل أوّلاً ثم يُرسل.
+    if (_listening) {
+      _voice.finishDictation();
+      if (mounted) setState(() => _listening = false);
+    }
 
     final lesson = _selectedLesson;
     final photo = _photo;
@@ -686,7 +771,36 @@ class _StudentProblemSolverScreenState extends State<StudentProblemSolverScreen>
                     const SizedBox(height: 8),
                     _PhotoStrip(
                       base64: _photo!,
-                      onRemove: () => setState(() => _photo = null),
+                      onRemove: () => setState(() {
+                        _photo = null;
+                        _notice = null;
+                      }),
+                    ),
+                  ],
+                  if (_listening || _readingPhoto || _notice != null) ...[
+                    const SizedBox(height: 8),
+                    Row(
+                      key: const ValueKey('solver-status'),
+                      children: [
+                        if (_listening || _readingPhoto)
+                          const SizedBox.square(
+                            dimension: 16,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        else
+                          const Icon(Icons.check_circle_rounded, size: 18, color: Color(0xFF16A34A)),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            _listening
+                                ? tr('solver.listening')
+                                : _readingPhoto
+                                    ? tr('solver.photoReading')
+                                    : _notice!,
+                            style: const TextStyle(fontWeight: FontWeight.w700),
+                          ),
+                        ),
+                      ],
                     ),
                   ],
                   const SizedBox(height: 10),
@@ -694,7 +808,7 @@ class _StudentProblemSolverScreenState extends State<StudentProblemSolverScreen>
                     delay: const Duration(milliseconds: 100),
                     child: TextField(
                       controller: _questionController,
-                      enabled: !_sending,
+                      enabled: !_sending && !_readingPhoto,
                       minLines: 3,
                       maxLines: 6,
                       maxLength: 2000,

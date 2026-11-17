@@ -211,4 +211,48 @@ void main() {
     ], ResultType.partial);
     expect(StudentVoiceService.childWords(result), 'سادة داود سادن داود');
   });
+
+  group('إملاءُ سؤال «حل المسائل»', () {
+    test('وقفةٌ في منتصف السؤال لا تقطعه: يُفتح المايكُ ثانيةً ويُضاف ما بعدها', () async {
+      final results = <String>[];
+      final partials = <String>[];
+      await voice.listenDictation(onResult: results.add, onPartial: partials.add);
+      expect(speech.sessions.single.listenMode, ListenMode.dictation);
+      expect(speech.sessions.single.partialResults, isTrue);
+      expect(speech.sessions.single.listenFor!.inSeconds, greaterThanOrEqualTo(59));
+      speech.say('ما منزلة الرقم 7');
+      speech.say('ما منزلة الرقم 7', last: true);
+      speech.status!(SpeechToText.doneStatus);
+      await _wait(300);
+      expect(results, isEmpty, reason: 'وقفةٌ قصيرة لا تُنهي السؤال');
+      expect(speech.sessions, hasLength(2));
+      speech.say('في العدد 4752');
+      expect(partials.last, 'ما منزلة الرقم 7 في العدد 4752');
+      speech.say('في العدد 4752', last: true);
+      expect(results, isEmpty);
+      // ‏«توقّف»: يُكتب ما قيل كلُّه.
+      voice.finishDictation();
+      expect(results, ['ما منزلة الرقم 7 في العدد 4752']);
+      expect(voice.dictating, isFalse);
+    });
+
+    test('صمتٌ كامل بعد آخر كلمة يُنهي الإملاءَ وحده بالسؤال كاملاً', () async {
+      final results = <String>[];
+      await voice.listenDictation(onResult: results.add, endSilence: const Duration(milliseconds: 300));
+      speech.say('كم عدد الألوان الأساسية');
+      await _wait(400);
+      speech.say('كم عدد الألوان الأساسية', last: true);
+      expect(results, ['كم عدد الألوان الأساسية']);
+      expect(speech.sessions, hasLength(1));
+    });
+  });
+
+  test('«اسمع الإجابة»: الإجابةُ الطويلة مقاطعُ جُمليّة كلُّها، لا يُسقط منها حرف', () {
+    final answer = List.generate(40, (i) => 'الخطوة ${i + 1}: نضرب العدد في عشرة ثم نجمع الناتج.').join(' ');
+    final chunks = StudentVoiceService.answerChunks(answer);
+    expect(chunks.length, greaterThan(1));
+    expect(chunks.every((c) => c.length <= StudentVoiceService.answerChunk), isTrue);
+    expect(chunks.join(' ').replaceAll(RegExp(r's+'), ' '), answer.replaceAll(RegExp(r's+'), ' '));
+    expect(StudentVoiceService.answerChunks('جملةٌ قصيرة.'), ['جملةٌ قصيرة.']);
+  });
 }

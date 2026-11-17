@@ -105,6 +105,7 @@ app.use((req, res, next) => {
 // والحدّ هنا أوسع قليلاً من حدّ الصورة في المسار (ستة ميغابايتات) لأن
 // الجسد يحمل معها السؤال والمعرّف وترميز JSON.
 app.use("/api/gemini/answer", express.json({ limit: "10mb" }));
+app.use("/api/gemini/read-image", express.json({ limit: "10mb" }));
 // ‏توليدُ الاختبار يحمل نصَّ الوحدة كاملاً (انظر `lib/lessonText`): مئتا ألف حرفٍ
 // ‏عربيّ تقارب أربعمئة كيلوبايت، والحدُّ الافتراضيّ مئة.
 app.use("/api/gemini/generate-quiz", express.json({ limit: "1mb" }));

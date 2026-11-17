@@ -36,7 +36,15 @@ import {
 } from "../lib/interactiveStudy";
 import { VECTOR_THRESHOLD, bestByMeaning, embedQuestion } from "../lib/embeddings";
 import { createHash } from "node:crypto";
-import { SOLVER_SCOPE_INSTRUCTION, cacheReadableColumns, imageKeyText, isRefusalAnswer } from "../lib/solverPolicy";
+import {
+  IMAGE_TRANSCRIBE_PROMPT,
+  SOLVER_SCOPE_INSTRUCTION,
+  cacheReadableColumns,
+  cleanTranscription,
+  imageKeyText,
+  isRefusalAnswer,
+  lessonGrounding,
+} from "../lib/solverPolicy";
 import {
   QUIZ_RESPONSE_SCHEMA,
   QUIZ_SYSTEM_INSTRUCTION,
@@ -80,6 +88,9 @@ const answerRateLimit = createRateLimit(20);
 // طفلٌ يُعيد اللعب بسرعة لا يتجاوز بضع جولاتٍ في الدقيقة، وما زاد فهو
 // إمّا زرٌّ عالق أو استنزافٌ لحصّة Gemini.
 const challengeRateLimit = createRateLimit(12);
+
+// قراءةُ صورة السؤال قبل إرساله: مرّةٌ لكل صورة، فالمعدّلُ كمعدّل السؤال.
+const readImageRateLimit = createRateLimit(20);
 
 const router = Router();
 
@@ -1282,11 +1293,10 @@ router.post("/gemini/answer", answerRateLimit, requireStudentSession, async (req
 
 اقرأ ما في الصورة أوّلاً، ثم أجب عن طلب الطالب: ${question}
 
-اشرح الحلّ خطوةً خطوة بلغةٍ يفهمها طفل. ${tone} ${brevity} ${SOLVER_SCOPE_INSTRUCTION} وإن كانت الصورة غير واضحة فقل ذلك صراحةً واطلب صورةً أوضح، ولا تخمّن ما لا تراه.
+${lessonGrounding(lesson)}
 
-وللاستئناس، هذا نصّ درسه:
-${lesson.text}`
-      : `أنت مساعد تعليمي ذكي. اقرأ النص التالي للاستفادة منه داخليًا:\n\n${lesson.text}\n\nالسؤال: ${question}\n\nأجب مباشرة وبأسلوب مفيد وخطوة بخطوة للطالب. ${tone} ${brevity} لا تذكر أنك اعتمدت على نص الدرس، ولا تقل "بناءً على النص الموجود في الدرس" أو أي عبارة مشابهة؛ ابدأ بالإجابة أو الحل مباشرة. ${SOLVER_SCOPE_INSTRUCTION}`;
+اشرح الحلّ خطوةً خطوة بلغةٍ يفهمها طفل. ${tone} ${brevity} ${SOLVER_SCOPE_INSTRUCTION} وإن كانت الصورة غير واضحة فقل ذلك صراحةً واطلب صورةً أوضح، ولا تخمّن ما لا تراه.`
+      : `أنت مساعد تعليمي ذكي لطالبٍ يذاكر هذا الدرس.\n\n${lessonGrounding(lesson)}\n\nسؤال الطالب: ${question}\n\nأجب مباشرة وبأسلوب مفيد وخطوة بخطوة للطالب. ${tone} ${brevity} لا تذكر أنك اعتمدت على نص الدرس، ولا تقل "بناءً على النص الموجود في الدرس" أو أي عبارة مشابهة؛ ابدأ بالإجابة أو الحل مباشرة. ${SOLVER_SCOPE_INSTRUCTION}`;
     // وما بقي من الميزانية بعد القراءة، لا ميزانيةٌ كاملةٌ ثانية: الخادم
     // ينتظر ما ينتظره التطبيق وينتهي قبله.
     const data = await callGemini(prompt, {
@@ -1349,6 +1359,41 @@ ${lesson.text}`
         ? "خدمة الذكاء الاصطناعي غير مهيّأة على الخادم (GEMINI_API_KEY)."
         : "تعذر الاتصال بخدمة الذكاء الاصطناعي",
       code: notConfigured ? "ai_not_configured" : "ai_unavailable",
+    });
+  }
+});
+
+/**
+ * نصُّ صورة المسألة، ليُكتب في خانة السؤال قبل الإرسال.
+ *
+ * الطفلُ يصوّر سؤاله فيرى نصَّه مكتوباً في الخانة — يصحّح ما أخطأت فيه
+ * القراءة، أو يزيد عليه — ثم يُرسله فيُجاب عن نصٍّ لا عن صورةٍ وحدها.
+ * قراءةٌ لا إجابة: لا تُحسب من الحصّة ولا تُكلّف جوهرة، كقراءة المفتاح.
+ */
+router.post("/gemini/read-image", readImageRateLimit, requireStudentSession, async (req, res) => {
+  const rawImage = typeof req.body?.image === "string" ? req.body.image.trim() : "";
+  const mimeType =
+    typeof req.body?.imageMimeType === "string" ? req.body.imageMimeType.trim().toLowerCase() : "image/jpeg";
+  if (!rawImage || rawImage.length > 6_000_000 || !["image/jpeg", "image/png", "image/webp"].includes(mimeType)) {
+    return res.status(400).json({ error: "صورة غير صالحة", code: "bad_image" });
+  }
+  try {
+    const data = await callGemini(IMAGE_TRANSCRIBE_PROMPT, {
+      image: { data: rawImage, mimeType },
+      temperature: 0,
+      maxOutputTokens: 700,
+      budgetMs: IMAGE_READ_BUDGET_MS * 2,
+    });
+    const text = cleanTranscription(getGeminiText(data));
+    if (!text) {
+      return res.status(422).json({ error: "لم أستطع قراءة الصورة، جرّب صورةً أوضح", code: "unreadable" });
+    }
+    return res.json({ text });
+  } catch (error: any) {
+    logger.warn({ err: error }, "[gemini] read-image failed");
+    return res.status(error?.statusCode === 503 ? 503 : 502).json({
+      error: "تعذّرت قراءة الصورة الآن",
+      code: "read_failed",
     });
   }
 });

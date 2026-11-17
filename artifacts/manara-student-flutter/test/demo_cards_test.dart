@@ -15,6 +15,7 @@ import 'package:manara_student/src/screens/student_problem_solver_screen.dart';
 import 'package:manara_student/src/services/demo_catalog.dart';
 import 'package:manara_student/src/services/demo_content.dart';
 import 'package:manara_student/src/services/demo_mode.dart';
+import 'package:manara_student/src/services/demo_solver.dart';
 import 'package:manara_student/src/services/duel_voice_recorder.dart';
 import 'package:manara_student/src/services/student_auth_service.dart';
 import 'package:manara_student/src/services/student_content_service.dart';
@@ -192,9 +193,55 @@ void main() {
     await ask('سؤال ثالث');
     expect(state.demoAsked, 2, reason: 'الثالثُ مقفل');
     expect(tester.takeException(), isNull);
+
+    // ‏العدّادُ على الجهاز بتاريخ اليوم: إغلاقُ البطاقة وفتحُها لا يُعيده.
+    final prefs = await SharedPreferences.getInstance();
+    expect(prefs.getInt('demo.solver.asked.${DemoSolverQuota.dayKey()}'), 2);
+    await tester.pumpWidget(const SizedBox());
+    await tester.pumpWidget(MaterialApp(
+      home: StudentProblemSolverScreen(
+        lessons: const [],
+        apiBaseUrl: _dead,
+        profile: guest,
+        contentService: StudentContentService(auth.client, baseUrl: _dead, authService: auth),
+        authService: auth,
+        academicContext: const AcademicContext(grade: _kg, subject: 'الثقافة العامة', term: 't', unit: 'u', selectedLesson: lesson),
+      ),
+    ));
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(find.byKey(const ValueKey('demo-solver-locked')), findsOneWidget, reason: 'رجع إلى البطاقة في اليوم نفسه');
+    final reopened = tester.state(find.byType(StudentProblemSolverScreen)) as dynamic;
+    await tester.enterText(find.byType(TextField), 'سؤال بعد الرجوع');
+    await tester.ensureVisible(find.text(tr('solver.ask')).first);
+    await tester.tap(find.text(tr('solver.ask')).first);
+    await tester.pump(const Duration(milliseconds: 1300));
+    expect(reopened.demoAsked, 2);
+    expect(prefs.getInt('demo.solver.asked.${DemoSolverQuota.dayKey()}'), 2);
     await tester.pumpWidget(const SizedBox());
     auth.client.auth.stopAutoRefresh();
     await tester.pump(const Duration(seconds: 6));
+  });
+
+  test('عدّادُ الزائر اليوميّ: يومٌ جديدٌ يبدأ من صفر، والحسابُ الرسميّ لا يُعدّ ولا يُكتب له شيء', () async {
+    DemoMode.enterFor(DemoContent.profile('grade4'));
+    final today = DateTime(2026, 11, 17, 23, 50);
+    expect(DemoSolverQuota.dayKey(today), '2026-11-17');
+    expect(await DemoSolverQuota.record(now: today), 1);
+    expect(await DemoSolverQuota.record(now: today), 2);
+    expect(await DemoSolverQuota.used(now: today), 2);
+    final tomorrow = DateTime(2026, 11, 18, 0, 5);
+    expect(await DemoSolverQuota.used(now: tomorrow), 0);
+    expect(await DemoSolverQuota.record(now: tomorrow), 1);
+    final prefs = await SharedPreferences.getInstance();
+    expect(prefs.getKeys().where((k) => k.startsWith('demo.solver.asked.')), ['demo.solver.asked.2026-11-18'],
+        reason: 'أيّامُ ما قبل اليوم تُمحى');
+
+    // ‏الحسابُ الرسميّ: لا حدّ، ولا مفتاحَ يُكتب.
+    DemoMode.exit();
+    await prefs.clear();
+    expect(await DemoSolverQuota.record(now: today), 0);
+    expect(await DemoSolverQuota.used(now: today), 0);
+    expect(prefs.getKeys(), isEmpty);
   });
 
   testWidgets('التحدّي: اتصالٌ بروبوت منارة، وثلاثةُ أسئلة، ورموزٌ وصوتٌ وعبارات', (tester) async {

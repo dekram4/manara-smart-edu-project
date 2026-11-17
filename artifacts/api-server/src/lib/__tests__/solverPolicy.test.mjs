@@ -94,3 +94,38 @@ test("لا حفظَ يفشل صامتاً: كلُّ فشلٍ يُرمى بسبب
   // وقاعدةٌ بلا الأعمدة المقروءة يُكتب فيها الصفُّ كما كان، لا يضيع.
   assert.match(gemini, /readableCacheColumns = false;[\s\S]{0,200}response = await send\(body\);/);
 });
+
+test("نصُّ الدرس مرجعٌ معلَن: بين حدَّين، بعنوانه، ومعه أمرُ الاستخراج واتّباع طريقته", () => {
+  const { lessonGrounding } = mod;
+  const out = lessonGrounding({
+    text: "المنزلة: الآحاد ثم العشرات ثم المئات. في العدد 375 الرقم 7 في منزلة العشرات.",
+    subject: "الرياضيات",
+    unit: "القيمة المنزلية",
+    lesson: "منازل الأعداد",
+  });
+  assert.match(out, /الدرس الحالي: الرياضيات — القيمة المنزلية — منازل الأعداد/);
+  assert.match(out, /<<<نص_الدرس\nالمنزلة: الآحاد/);
+  assert.match(out, /نص_الدرس>>>/);
+  assert.match(out, /استخرج من نصّ الدرس/);
+  assert.match(out, /على طريقة الدرس نفسها/);
+  assert.match(out, /لا تُجب إجابةً عامة/);
+});
+
+test("طلبُ السؤال — مكتوباً ومصوّراً — يُبنى من نصّ الدرس المعلَن، لا «للاستئناس»", () => {
+  assert.equal((gemini.match(/\$\{lessonGrounding\(lesson\)\}/g) ?? []).length, 2);
+  assert.doesNotMatch(gemini, /للاستئناس/);
+  assert.doesNotMatch(gemini, /للاستفادة منه داخليًا/);
+});
+
+test("قراءةُ صورة السؤال: مسارٌ مستقلّ لا يُحسب من الحصّة، ونصُّه منظّفٌ كاملاً بأسطره", () => {
+  const { cleanTranscription, IMAGE_TRANSCRIBE_PROMPT } = mod;
+  assert.match(gemini, /router\.post\("\/gemini\/read-image", readImageRateLimit, requireStudentSession/);
+  const route = gemini.slice(gemini.indexOf('"/gemini/read-image"'), gemini.indexOf("// Quiz generation"));
+  assert.doesNotMatch(route, /readStudentQuota|writeStudentQuota|spend\(/);
+  assert.match(IMAGE_TRANSCRIBE_PROMPT, /كاملاً/);
+  assert.equal(cleanTranscription("```\nما منزلة الرقم 7 في العدد 4752؟\n\n أ) الآحاد \nب) العشرات\n```"),
+    "ما منزلة الرقم 7 في العدد 4752؟\nأ) الآحاد\nب) العشرات");
+  assert.equal(cleanTranscription("غير واضحة"), null);
+  assert.equal(cleanTranscription(""), null);
+  assert.equal(cleanTranscription(42), null);
+});
