@@ -8,6 +8,7 @@ import '../l10n/student_strings.dart';
 import '../models/interactive_study.dart';
 import '../models/study_games.dart';
 import 'student_auth_service.dart';
+import 'demo_catalog.dart';
 import 'demo_content.dart';
 import 'demo_mode.dart';
 
@@ -110,7 +111,7 @@ class StudentStudyService {
   Future<StudyGamesPack> fetchGames({required String lessonId}) async {
     // ‏الزائر: لعبةُ السباق من أسئلة الدرس المكتوبة في التطبيق.
     if (DemoMode.active) {
-      final pack = DemoContent.studyGames(lessonId);
+      final pack = DemoContent.studyGames(lessonId) ?? DemoCatalog.studyGames(lessonId);
       if (pack == null) throw const StudyFailure('badPack');
       return pack;
     }
@@ -144,7 +145,7 @@ class StudentStudyService {
   }) async {
     // ‏الزائر: تُعاد أسئلةُ الدرس نفسُها بترتيبٍ آخر.
     if (DemoMode.active) {
-      final game = DemoContent.studyGames(lessonId)?.games.first;
+      final game = (DemoContent.studyGames(lessonId) ?? DemoCatalog.studyGames(lessonId))?.games.first;
       if (game == null) throw const StudyFailure('badPack');
       return game.withQuestions([...game.questions]..shuffle());
     }

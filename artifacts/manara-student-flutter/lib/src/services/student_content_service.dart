@@ -12,6 +12,7 @@ import '../models/student_content.dart';
 import '../l10n/student_strings.dart';
 import '../models/student_profile.dart';
 import 'subscription_plans.dart';
+import 'demo_catalog.dart';
 import 'demo_content.dart';
 import 'demo_mode.dart';
 import '../models/student_gamification.dart';
@@ -357,29 +358,36 @@ class StudentContentService {
   Future<AcademicSelectionData> fetchAcademicSelectionData(
     StudentProfile profile,
   ) async {
-    // ‏الزائر: شجرةُ المسار ودروسُه من التطبيق نفسِه ([DemoContent]).
-    if (DemoMode.active) return DemoContent.selection(profile);
+    // ‏الزائر: شجرةُ الحساب الرسمي ودروسُه ([DemoCatalog]) في المسار نفسِه،
+    // ‏أو المنهجُ المدمج ([DemoContent]) إن لم تصل نسخةٌ منها قطّ.
+    final real = DemoMode.active ? DemoCatalog.current : null;
+    if (DemoMode.active && real == null) return DemoContent.selection(profile);
     Object? hierarchyValue;
     var hierarchyUnavailable = false;
 
-    try {
-      final row = await client
-          .from('app_kv')
-          .select('value')
-          .eq('key', 'smartEdu_hierarchicalConfigs')
-          .maybeSingle();
-      hierarchyValue = row?['value'];
-    } catch (_) {
-      hierarchyUnavailable = true;
+    if (real != null) {
+      hierarchyValue = real.hierarchy;
+    } else {
+      try {
+        final row = await client
+            .from('app_kv')
+            .select('value')
+            .eq('key', 'smartEdu_hierarchicalConfigs')
+            .maybeSingle();
+        hierarchyValue = row?['value'];
+      } catch (_) {
+        hierarchyUnavailable = true;
+      }
     }
 
     final identities = await _teacherIdentities(profile);
 
-    final response = await client
-        .from('lesson_configs')
-        .select('id,data')
-        .limit(500)
-        .timeout(_requestTimeout);
+    final response = real?.lessonRows ??
+        await client
+            .from('lesson_configs')
+            .select('id,data')
+            .limit(500)
+            .timeout(_requestTimeout);
     final matchingLessons = response
         .whereType<Map>()
         .map(
@@ -503,12 +511,14 @@ class StudentContentService {
     StudentProfile profile, {
     AcademicContext? academicContext,
   }) async {
-    if (DemoMode.active) return DemoContent.lessonsFor(profile, academicContext);
-    final response = await client
-        .from('lesson_configs')
-        .select('id,data')
-        .limit(500)
-        .timeout(_requestTimeout);
+    final real = DemoMode.active ? DemoCatalog.current : null;
+    if (DemoMode.active && real == null) return DemoContent.lessonsFor(profile, academicContext);
+    final response = real?.lessonRows ??
+        await client
+            .from('lesson_configs')
+            .select('id,data')
+            .limit(500)
+            .timeout(_requestTimeout);
 
     final lessons = response
         .whereType<Map>()
@@ -886,12 +896,14 @@ class StudentContentService {
     StudentProfile profile, {
     AcademicContext? academicContext,
   }) async {
-    if (DemoMode.active) return DemoContent.quizzes(profile, academicContext);
-    final response = await client
-        .from('created_quizzes')
-        .select('id,data,updated_at')
-        .limit(300)
-        .timeout(_requestTimeout);
+    final real = DemoMode.active ? DemoCatalog.current : null;
+    if (DemoMode.active && real == null) return DemoContent.quizzes(profile, academicContext);
+    final response = real?.quizRows ??
+        await client
+            .from('created_quizzes')
+            .select('id,data,updated_at')
+            .limit(300)
+            .timeout(_requestTimeout);
 
     final createdQuizzes = <Map<String, dynamic>>[];
     for (final row in response.whereType<Map>()) {
@@ -907,10 +919,12 @@ class StudentContentService {
       });
     }
 
-    final quizMetadata = await Future.wait([
-      _fetchLegacyQuizQuestions(),
-      _fetchDeletedQuizIds(),
-    ]);
+    final quizMetadata = real != null
+        ? <Object>[real.legacyQuestions, real.deletedQuizIds.toSet()]
+        : await Future.wait([
+            _fetchLegacyQuizQuestions(),
+            _fetchDeletedQuizIds(),
+          ]);
     return StudentAssessmentRules.selectAvailableQuizzes(
       createdQuizzes: createdQuizzes,
       legacyQuestions: quizMetadata[0] as List<Map<String, dynamic>>,
@@ -1082,6 +1096,8 @@ class StudentContentService {
   Future<Set<String>> _teacherIdentities(StudentProfile profile) {
     final stored = _normalize(profile.teacherId);
     if (stored.isEmpty) return Future.value(const <String>{});
+    // ‏الزائر: معلّمُ المنهج الرسمي المعروض وحده — بلا جلسةٍ يُسأل بها الخادم.
+    if (DemoMode.active) return Future.value(<String>{stored});
     return _identities ??= () async {
       final identities = <String>{stored};
       // ‏يحسبها الخادم من جدول المعلمين ويعيدها مع ملفّ الطالب: الجدولُ نفسه

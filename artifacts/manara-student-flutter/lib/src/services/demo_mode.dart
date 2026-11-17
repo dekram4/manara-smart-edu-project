@@ -8,6 +8,7 @@
 library;
 
 import '../models/student_profile.dart';
+import 'demo_catalog.dart';
 
 enum DemoTrack { kg, grade4 }
 
@@ -29,7 +30,10 @@ class DemoMode {
             : DemoTrack.kg;
   }
 
-  static void exit() => _track = null;
+  static void exit() {
+    _track = null;
+    DemoCatalog.clear();
+  }
 
   /// عنوانُ الخادم لشاشة الباقات: زرُّ «احصل على حساب رسمي» في رسالة القفل.
   static String plansBaseUrl = '';

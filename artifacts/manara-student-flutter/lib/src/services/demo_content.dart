@@ -32,7 +32,10 @@ abstract final class DemoContent {
   static const _owner = 'supervisor';
 
   /// ملفُّ الزائر كما يُبنى من سجلّ طالب، بلا خادم.
-  static StudentProfile profile(String track) {
+  ///
+  /// ‏[grade] و[teacherId]: صفُّ الحساب الرسمي ومعلّمُه حين يُعرض منهجُه
+  /// ‏([DemoCatalog])، وإلا فصفُّ المنهج المدمج.
+  static StudentProfile profile(String track, {String? grade, String? teacherId}) {
     final kg = track != 'grade4';
     return StudentProfile.fromStudentRow({
       'id': 'demo-$track',
@@ -41,8 +44,8 @@ abstract final class DemoContent {
         'username': kg ? 'demo_kg' : 'demo_grade4',
         'name': kg ? 'زائر الروضة' : 'زائر الصف الرابع',
         'role': 'student',
-        'grade': kg ? kgGrade : grade4,
-        'teacherId': _owner,
+        'grade': grade ?? (kg ? kgGrade : grade4),
+        'teacherId': teacherId ?? _owner,
         'subscriptionPlan': 'demo',
         'demoTrack': kg ? 'kg' : 'grade4',
         'canAccessChat': true,

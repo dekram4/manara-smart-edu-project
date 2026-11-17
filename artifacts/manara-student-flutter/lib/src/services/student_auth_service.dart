@@ -4,6 +4,7 @@ import 'package:http/http.dart' as http;
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../l10n/student_strings.dart';
+import 'demo_catalog.dart';
 import 'demo_content.dart';
 import '../models/student_profile.dart';
 
@@ -184,8 +185,14 @@ class StudentAuthService {
   /// لا يُسأل الخادم: كان الزائرُ يدخل حساباً على الخادم، فإن لم يكن خادمُ
   /// هذه النسخة منشوراً رأى «غير متوفرة على الخادم». فالملفُّ والمحتوى كلُّه
   /// من [DemoContent]، والدخولُ فوريٌّ ولو بلا إنترنت.
+  ///
+  /// ‏والمنهجُ منهجُ الحساب الرسمي نفسُه ([DemoCatalog]): الملفُّ يحمل صفَّه
+  /// ‏ومعلّمَه، فتمرّ الشجرةُ والدروسُ في مسار الحساب الرسمي. وإن لم تصل نسخةٌ
+  /// ‏منه قطّ (أوّلُ دخولٍ بلا إنترنت) فالمنهجُ المدمج [DemoContent].
   Future<StudentProfile> signInDemo(String track) async {
-    final profile = DemoContent.profile(track == 'grade4' ? 'grade4' : 'kg');
+    final key = track == 'grade4' ? 'grade4' : 'kg';
+    final catalog = await DemoCatalog.load(client, key);
+    final profile = DemoContent.profile(key, grade: catalog?.grade, teacherId: catalog?.owner);
     _demoTrack = track;
     _apiSessionToken = null;
     _apiSessionError = tr('demo.localOnly');
