@@ -162,7 +162,7 @@ void main() {
 
   test('دخولُ الزائر بنسخةٍ محفوظة وخادمٍ معطّل: صفُّ الحساب الرسمي ومعلّمُه، بلا خطأ', () async {
     final data = DemoCatalog.build(track: 'kg', hierarchy: _hierarchy, lessonRows: _rows, quizRows: _quizzes)!;
-    SharedPreferences.setMockInitialValues({'demo.catalog.v1.kg': jsonEncode(data.toJson())});
+    SharedPreferences.setMockInitialValues({'demo.catalog.v2.kg': jsonEncode(data.toJson())});
     final auth = StudentAuthService(SupabaseClient(_deadServer, 'k'), apiBaseUrl: _deadServer);
     final profile = await auth.signInDemo('kg');
     expect(profile.grade, _kg);

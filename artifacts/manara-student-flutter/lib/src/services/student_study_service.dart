@@ -8,7 +8,6 @@ import '../l10n/student_strings.dart';
 import '../models/interactive_study.dart';
 import '../models/study_games.dart';
 import 'student_auth_service.dart';
-import 'demo_catalog.dart';
 import 'demo_content.dart';
 import 'demo_mode.dart';
 
@@ -108,12 +107,18 @@ class StudentStudyService {
 
   /// ألعابُ الدرس: سحبٌ وإسقاط، ومطابقة، وأسئلةٌ متتالية — يولّدها الخادم
   /// من نصّ الدرس أوّلَ مرّة ويحفظها معه.
-  Future<StudyGamesPack> fetchGames({required String lessonId}) async {
-    // ‏الزائر: لعبةُ السباق من أسئلة الدرس المكتوبة في التطبيق.
+  ///
+  /// ‏[subject] و[lessonName] و[grade]: للزائر — يُبنى منها لعبُ درسٍ لا أسئلةَ
+  /// ‏له في المنهج ([DemoContent.gamesFor])، فلا تتعذّر بطاقةٌ في أيّ مادة.
+  Future<StudyGamesPack> fetchGames({
+    required String lessonId,
+    String? subject,
+    String? lessonName,
+    String? grade,
+  }) async {
+    // ‏الزائر: لعبةُ السباق من أسئلة الدرس، على الجهاز في كلّ مادة.
     if (DemoMode.active) {
-      final pack = DemoContent.studyGames(lessonId) ?? DemoCatalog.studyGames(lessonId);
-      if (pack == null) throw const StudyFailure('badPack');
-      return pack;
+      return DemoContent.gamesFor(lessonId: lessonId, subject: subject, lessonName: lessonName, grade: grade);
     }
     final map = await _post(gamesEndpoint, lessonId);
     final pack = StudyGamesPack.fromMap(map['pack']);
@@ -142,11 +147,14 @@ class StudentStudyService {
     required String lessonId,
     required StudyGameType type,
     required List<String> exclude,
+    String? subject,
+    String? lessonName,
+    String? grade,
   }) async {
     // ‏الزائر: تُعاد أسئلةُ الدرس نفسُها بترتيبٍ آخر.
     if (DemoMode.active) {
-      final game = (DemoContent.studyGames(lessonId) ?? DemoCatalog.studyGames(lessonId))?.games.first;
-      if (game == null) throw const StudyFailure('badPack');
+      final game =
+          DemoContent.gamesFor(lessonId: lessonId, subject: subject, lessonName: lessonName, grade: grade).games.first;
       return game.withQuestions([...game.questions]..shuffle());
     }
     final map = await _post(freshGameEndpoint, lessonId, extra: {

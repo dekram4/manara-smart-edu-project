@@ -50,6 +50,8 @@ import 'demo_chat_screen.dart';
 import 'plans_screen.dart';
 import 'login_screen.dart';
 import 'student_cinema_screen.dart';
+import 'demo_duel_screen.dart';
+import '../services/demo_content.dart';
 import 'student_chat_screen.dart';
 import 'student_content_screen.dart';
 import 'student_duel_screen.dart';
@@ -774,6 +776,27 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> with RouteAware {
     // ومفتاحُ العنوان `portal.challenge` كما كان — لا `portal.duel` — فيبقى
     // لها مقطعُها الصوتيُّ `challenge_ar.mp3` وخلفيّتُها وصورتُها. والنصُّ
     // وحده تغيّر.
+    // ‏الزائر: مباراةٌ مع «روبوت منارة» على الجهاز، بثلاثة أسئلةٍ من درسه.
+    if (index == 9 && DemoMode.active) {
+      final academic = _academicContext;
+      Navigator.of(context).push(
+        StudentPageRoute<void>(
+          immersive: true,
+          builder: (_) => DemoDuelScreen(
+            questions: DemoContent.lessonQuestions(
+              lessonId: academic?.lessonId ?? '',
+              subject: academic?.subject,
+              lessonName: academic?.lesson,
+              grade: academic?.grade ?? widget.profile.grade,
+            ),
+            lessonName: academic?.lesson,
+            onGetAccount: _openPlans,
+          ),
+        ),
+      );
+      return;
+    }
+
     if (index == 9) {
       Navigator.of(context)
           .push(

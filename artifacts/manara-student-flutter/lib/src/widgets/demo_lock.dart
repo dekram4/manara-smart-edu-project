@@ -8,7 +8,9 @@ import 'demo_ui.dart';
 
 /// رسالةُ ما أُغلق في وضع الزائر: يُفتح كلُّه في الحساب الرسمي — وزرُّها
 /// يفتح مقارنةَ الباقات وطلبَ الاشتراك مباشرةً.
-void showDemoLocked(BuildContext context) {
+///
+/// ‏[message]: نصُّ القفل لهذا الموضع، وإلا «يُفتح في الحساب الرسمي».
+void showDemoLocked(BuildContext context, {String? message}) {
   StudentSoundService.instance.play(StudentSoundCue.warning);
   // ‏يُلتقط الآن: لمسةُ الزرّ قد تأتي بعد أن تُغلق الشاشةُ التي أظهرت الرسالة.
   final navigator = Navigator.maybeOf(context);
@@ -36,7 +38,7 @@ void showDemoLocked(BuildContext context) {
       content: Row(children: [
         const Icon(Icons.lock_rounded, color: Color(0xFFFDE68A)),
         const SizedBox(width: 10),
-        Expanded(child: Text(tr('demo.lockedInDemo'), style: const TextStyle(fontWeight: FontWeight.w800))),
+        Expanded(child: Text(message ?? tr('demo.lockedInDemo'), style: const TextStyle(fontWeight: FontWeight.w800))),
       ]),
     ));
 }
@@ -155,6 +157,90 @@ class DemoLockedQuestions extends StatelessWidget {
           const SizedBox(height: 12),
           DemoGradientButton(
             key: const ValueKey('demo-quiz-get-account'),
+            label: tr('demo.getAccount'),
+            icon: Icons.workspace_premium_rounded,
+            shimmer: true,
+            height: 50,
+            onPressed: navigator == null
+                ? null
+                : () => navigator.push(
+                      MaterialPageRoute<void>(builder: (_) => PlansScreen(apiBaseUrl: DemoMode.plansBaseUrl)),
+                    ),
+          ),
+        ]),
+      ),
+    );
+  }
+}
+
+/// ما بقي للزائر من تجربةٍ محدودة («تبقّى لك سؤالان»): شارةٌ ذهبية.
+class DemoQuotaChip extends StatelessWidget {
+  const DemoQuotaChip({super.key, required this.text});
+
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+      decoration: BoxDecoration(
+        gradient: DemoPalette.goldGradient,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [BoxShadow(color: DemoPalette.gold.withValues(alpha: 0.3), blurRadius: 10, offset: const Offset(0, 4))],
+      ),
+      child: Row(mainAxisSize: MainAxisSize.min, children: [
+        const Icon(Icons.auto_awesome_rounded, size: 16, color: DemoPalette.goldInk),
+        const SizedBox(width: 6),
+        Flexible(
+          child: Text(text, style: const TextStyle(fontWeight: FontWeight.w900, color: DemoPalette.goldInk)),
+        ),
+      ]),
+    );
+  }
+}
+
+/// انتهت تجربةُ الزائر في هذا الموضع: بطاقةٌ بنفسجيةٌ بإطارٍ ذهبيّ، ورسالتُها،
+/// وزرٌّ إلى الباقات وطلب الاشتراك.
+class DemoLockedCard extends StatelessWidget {
+  const DemoLockedCard({super.key, required this.message});
+
+  final String message;
+
+  @override
+  Widget build(BuildContext context) {
+    final navigator = Navigator.maybeOf(context);
+    return Container(
+      padding: const EdgeInsets.all(2),
+      decoration: BoxDecoration(
+        gradient: DemoPalette.goldGradient,
+        borderRadius: BorderRadius.circular(24),
+        boxShadow: [BoxShadow(color: DemoPalette.gold.withValues(alpha: 0.35), blurRadius: 16, offset: const Offset(0, 6))],
+      ),
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(16, 16, 16, 14),
+        decoration: BoxDecoration(gradient: DemoPalette.violetGradient, borderRadius: BorderRadius.circular(22)),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+          Row(children: [
+            Container(
+              width: 40,
+              height: 40,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                gradient: DemoPalette.goldGradient,
+                border: Border.all(color: Colors.white, width: 2),
+              ),
+              child: const Icon(Icons.lock_rounded, color: DemoPalette.goldInk, size: 20),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                message,
+                style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w900, height: 1.5),
+              ),
+            ),
+          ]),
+          const SizedBox(height: 12),
+          DemoGradientButton(
             label: tr('demo.getAccount'),
             icon: Icons.workspace_premium_rounded,
             shimmer: true,

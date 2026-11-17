@@ -18,7 +18,8 @@ class FakeStudy implements StudentStudyService {
   int packs = 0;
 
   @override
-  Future<StudyGamesPack> fetchGames({required String lessonId}) async => StudyGamesPack.fromMap({
+  Future<StudyGamesPack> fetchGames({required String lessonId, String? subject, String? lessonName, String? grade}) async =>
+      StudyGamesPack.fromMap({
         'lessonId': lessonId,
         'games': [
           {

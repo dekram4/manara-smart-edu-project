@@ -35,6 +35,8 @@ class DemoCatalogData {
     this.quizRows = const [],
     this.legacyQuestions = const [],
     this.deletedQuizIds = const [],
+    this.videos = const [],
+    this.deletedVideoIds = const [],
   });
 
   /// `kg` أو `grade4`.
@@ -53,6 +55,11 @@ class DemoCatalogData {
   final List<Map<String, dynamic>> legacyQuestions;
   final List<String> deletedQuizIds;
 
+  /// رفُّ «سينما منارة» القديم (`smartEdu_videos`) — ما يقرؤه الحسابُ الرسمي
+  /// حين لا تصله واجهةُ السينما.
+  final List<Map<String, dynamic>> videos;
+  final List<String> deletedVideoIds;
+
   Map<String, dynamic> toJson() => {
         'track': track,
         'grade': grade,
@@ -62,6 +69,8 @@ class DemoCatalogData {
         'quizRows': quizRows,
         'legacyQuestions': legacyQuestions,
         'deletedQuizIds': deletedQuizIds,
+        'videos': videos,
+        'deletedVideoIds': deletedVideoIds,
       };
 
   static DemoCatalogData? fromJson(Object? raw) {
@@ -79,6 +88,8 @@ class DemoCatalogData {
       quizRows: _maps(raw['quizRows']),
       legacyQuestions: _maps(raw['legacyQuestions']),
       deletedQuizIds: [for (final id in _list(raw['deletedQuizIds'])) '$id'],
+      videos: _maps(raw['videos']),
+      deletedVideoIds: [for (final id in _list(raw['deletedVideoIds'])) '$id'],
     );
   }
 }
@@ -88,7 +99,7 @@ abstract final class DemoCatalog {
   static DemoCatalogData? current;
 
   static const _timeout = Duration(seconds: 8);
-  static String _cacheKey(String track) => 'demo.catalog.v1.$track';
+  static String _cacheKey(String track) => 'demo.catalog.v2.$track';
 
   /// يحمّل منهجَ [track]: من النسخة المحفوظة فوراً (وتتجدّد في الخلفية)،
   /// وإلا من الخادم. وإن تعذّر الاثنان بقي `null`.
@@ -115,6 +126,8 @@ abstract final class DemoCatalog {
       client.from('created_quizzes').select('id,data,updated_at').limit(300),
       _kv(client, 'smartEdu_quizQuestions').catchError((Object _) => null),
       _kv(client, 'smartEdu_deletedQuizzes').catchError((Object _) => null),
+      _kv(client, 'smartEdu_videos').catchError((Object _) => null),
+      _kv(client, 'smartEdu_deletedVideos').catchError((Object _) => null),
     ]).timeout(_timeout);
     final data = build(
       track: track,
@@ -123,6 +136,8 @@ abstract final class DemoCatalog {
       quizRows: results[2],
       legacyQuestions: results[3],
       deletedQuizIds: results[4],
+      videos: results[5],
+      deletedVideoIds: results[6],
     );
     if (data == null) return null;
     // ‏جلسةُ الزائر ما زالت على المسار نفسه: تُعرض النسخةُ الجديدة من الطلب التالي.
@@ -159,6 +174,8 @@ abstract final class DemoCatalog {
     Object? quizRows,
     Object? legacyQuestions,
     Object? deletedQuizIds,
+    Object? videos,
+    Object? deletedVideoIds,
   }) {
     final configs = [for (final c in _list(hierarchy)) if (c is Map) Map<String, dynamic>.from(c)];
     final rows = _maps(lessonRows);
@@ -198,6 +215,8 @@ abstract final class DemoCatalog {
       quizRows: [for (final r in _maps(quizRows)) if (mine(_map(r['data']))) r],
       legacyQuestions: [for (final q in _maps(legacyQuestions)) if (mine(q)) q],
       deletedQuizIds: [for (final id in _list(deletedQuizIds)) if (_text(id).isNotEmpty) _text(id)],
+      videos: [for (final v in _maps(videos)) if (mine(v)) v],
+      deletedVideoIds: [for (final id in _list(deletedVideoIds)) if (_text(id).isNotEmpty) _text(id)],
     );
   }
 
@@ -208,10 +227,10 @@ abstract final class DemoCatalog {
     return isKindergartenGrade(grade);
   }
 
-  /// لعبةُ «المقلاع» لدرسٍ رسمي: أسئلةُ اختباراته في المنهج نفسه.
-  static StudyGamesPack? studyGames(String lessonId) {
+  /// أسئلةُ درسٍ رسمي من اختباراته: `{question, options, answer}`.
+  static List<Map<String, dynamic>> questionsFor(String lessonId) {
     final data = current;
-    if (data == null) return null;
+    if (data == null) return const [];
     final row = data.lessonRows.where((r) => _text(r['id']) == lessonId || _text(_map(r['data'])['lessonId']) == lessonId);
     final name = row.isEmpty ? '' : _norm(_text(_map(row.first['data'])['lesson'] ?? _map(row.first['data'])['lessonName']));
     final questions = <Map<String, dynamic>>[];
@@ -232,7 +251,15 @@ abstract final class DemoCatalog {
         });
       }
     }
+    return questions;
+  }
+
+  /// لعبةُ «المقلاع» لدرسٍ رسمي: أسئلةُ اختباراته في المنهج نفسه.
+  static StudyGamesPack? studyGames(String lessonId) {
+    final questions = questionsFor(lessonId);
     if (questions.isEmpty) return null;
+    final data = current!;
+    final row = data.lessonRows.where((r) => _text(r['id']) == lessonId || _text(_map(r['data'])['lessonId']) == lessonId);
     return StudyGamesPack.fromMap({
       'lessonId': lessonId,
       'games': [

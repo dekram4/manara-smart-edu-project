@@ -127,7 +127,7 @@ void main() {
     });
   });
 
-  testWidgets('الواجهة للزائر: زرٌّ ذهبيّ للحساب الرسمي، و«حلّ المسائل» تشرح نفسها ولا تُفتح', (tester) async {
+  testWidgets('الواجهة للزائر: زرٌّ ذهبيّ للحساب الرسمي، و«اللقاء المباشر» يشرح نفسه ولا يُفتح', (tester) async {
     tester.view.physicalSize = const Size(1280, 900);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.reset);
@@ -144,14 +144,14 @@ void main() {
       await tester.pump(const Duration(milliseconds: 120));
     }
     expect(find.byKey(const ValueKey('demo-get-account')), findsOneWidget);
-    final solver = find.byKey(const ValueKey('portal-tile-portal.solver'));
-    await tester.ensureVisible(solver);
-    await tester.tap(solver);
+    final meeting = find.byKey(const ValueKey('portal-tile-portal.meeting'));
+    await tester.ensureVisible(meeting);
+    await tester.tap(meeting);
     for (var i = 0; i < 6; i++) {
       await tester.pump(const Duration(milliseconds: 120));
     }
-    expect(find.byKey(const ValueKey('demo-teaser-solver')), findsOneWidget);
-    expect(find.text(tr('demo.teaser.solver')), findsOneWidget);
+    expect(find.byKey(const ValueKey('demo-teaser-meeting')), findsOneWidget);
+    expect(find.text(tr('demo.teaser.meeting')), findsOneWidget);
     await tester.pumpWidget(const SizedBox());
   });
 

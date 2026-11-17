@@ -81,5 +81,11 @@ class DemoMode {
       active && items.length > limit ? items.sublist(0, limit) : items;
 
   /// بطاقاتٌ تُعرَّف للزائر برسالةٍ تشرحها، ولا تُفتح.
-  static const teaserCards = {'solver', 'meeting', 'challenge', 'tutor'};
+  static const teaserCards = {'meeting', 'tutor'};
+
+  /// «حلّ المسائل»: سؤالان (مكتوبان أو بالصوت أو بالصورة)، ثم القفل.
+  static const solverQuestions = 2;
+
+  /// «تحدَّ زملاءك»: مباراةٌ مع شخصيةٍ افتراضية بثلاثة أسئلة.
+  static const duelQuestions = 3;
 }

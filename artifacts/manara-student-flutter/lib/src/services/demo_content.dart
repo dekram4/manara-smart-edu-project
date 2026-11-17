@@ -14,6 +14,7 @@ import '../models/academic_context.dart';
 import '../models/student_content.dart';
 import '../models/student_profile.dart';
 import '../models/study_games.dart';
+import 'demo_catalog.dart';
 import 'demo_curriculum.dart';
 import 'tracing_scope.dart';
 
@@ -230,6 +231,105 @@ abstract final class DemoContent {
       ],
     });
   }
+
+  // ── أسئلةُ أيّ درسٍ للزائر، على الجهاز ──
+  //
+  // ‏كانت لعبةُ «المذاكرة» تُبنى من أسئلة اختبار الدرس الرسمي وحدها، فدرسٌ لا
+  // ‏اختبارَ له (أغلبُ موادّ الروضة) لا لعبةَ له: «وصلت مادة غير صالحة من
+  // ‏الخادم». فصار لكلّ درسٍ أسئلةٌ على الجهاز: أسئلةُ درسه المدمج، أو أسئلةُ
+  // ‏اختباره الرسمي، أو أسئلةُ أقرب درسٍ مدمجٍ من مادّته — ولا طلبَ شبكة.
+
+  /// أسئلةُ الدرس `{question, options, answer}`، ولا تكون فارغةً أبداً.
+  static List<Map<String, dynamic>> lessonQuestions({
+    required String lessonId,
+    String? subject,
+    String? lessonName,
+    String? grade,
+  }) {
+    final own = _lessonById(lessonId);
+    if (own != null) return _asMaps(own.lesson, own.index);
+    final real = DemoCatalog.questionsFor(lessonId);
+    if (real.isNotEmpty) return real;
+    final near = _nearest(subject ?? '', lessonName ?? '', grade);
+    return _asMaps(near.lesson, near.index);
+  }
+
+  static List<Map<String, dynamic>> _asMaps(DemoLesson lesson, int seed) => [
+        for (var i = 0; i < lesson.questions.length; i++)
+          {
+            'kind': lesson.questions[i].options.length == 2 ? 'true_false' : 'mcq',
+            'question': lesson.questions[i].question,
+            'options': _arranged(lesson.questions[i], seed + i),
+            'answer': lesson.questions[i].answer,
+          },
+      ];
+
+  static String _key(String s) => s
+      .toLowerCase()
+      .replaceAll(RegExp('[\u064B-\u0652\u0640]'), '')
+      .replaceAll(RegExp('[أإآ]'), 'ا')
+      .replaceAll('ة', 'ه')
+      .replaceAll('ى', 'ي')
+      .trim();
+
+  /// أقربُ درسٍ مدمج: المادّةُ باسمها أو بموضوعها، والدرسُ باسمه أو بترتيبٍ ثابت.
+  static ({DemoLesson lesson, int index}) _nearest(String subject, String lessonName, String? grade) {
+    final kg = grade == null || grade.trim().isEmpty || isKindergartenGrade(grade);
+    final subjects = kg ? demoKgCurriculum : demoGrade4Curriculum;
+    final s = _key(subject);
+    DemoSubject? pick = subjects.where((x) => _key(x.name) == s).firstOrNull;
+    if (pick == null) {
+      final english = RegExp('انجليز|انكليز|english').hasMatch(s);
+      final numbers = RegExp('ارقام|اعداد|رقم|number|math|رياض').hasMatch(s);
+      final topic = RegExp('قران|سور').hasMatch(s)
+          ? (kg ? 'القرآن' : 'الإسلامية')
+          : numbers
+              ? (english ? 'الأرقام الإنجليزية' : (kg ? 'الأرقام العربية' : 'الرياضيات'))
+              : english
+                  ? (kg ? 'الحروف الإنجليزية' : 'اللغة الإنجليزية')
+                  : RegExp('نوران|حروف|عربي|لغتي|قراءه').hasMatch(s)
+                      ? (kg ? 'الحروف العربية' : 'لغتي')
+                      : RegExp('علوم').hasMatch(s)
+                          ? 'العلوم'
+                          : RegExp('اسلام|توحيد|فقه|حديث').hasMatch(s)
+                              ? 'الدراسات الإسلامية'
+                              : kg
+                                  ? 'الثقافة'
+                                  : 'الرياضيات';
+      pick = subjects.where((x) => x.name.contains(topic)).firstOrNull ?? subjects.last;
+    }
+    final n = _key(lessonName);
+    for (var l = 0; l < pick.lessons.length; l++) {
+      final name = _key(pick.lessons[l].name);
+      if (n.isNotEmpty && (name.contains(n) || n.contains(name))) return (lesson: pick.lessons[l], index: l);
+    }
+    final l = n.isEmpty ? 0 : n.runes.fold<int>(0, (a, r) => a + r) % pick.lessons.length;
+    return (lesson: pick.lessons[l], index: l);
+  }
+
+  /// لعبةُ «المقلاع» لأيّ درس: من [lessonQuestions].
+  static StudyGamesPack gamesFor({
+    required String lessonId,
+    String? subject,
+    String? lessonName,
+    String? grade,
+  }) =>
+      StudyGamesPack.fromMap({
+        'lessonId': lessonId,
+        'games': [
+          {
+            'id': 'demo-race',
+            'game_type': StudyGameType.endlessQuiz.wire,
+            'title': lessonName ?? '',
+            'instructions': 'أصب الإجابة الصحيحة!',
+            'items': {
+              'questions': lessonQuestions(lessonId: lessonId, subject: subject, lessonName: lessonName, grade: grade),
+            },
+            'gems_reward': 0,
+            'points_reward': 0,
+          },
+        ],
+      })!;
 
   /// رفُّ السينما كاملاً: الأوّلُ (المدمجُ في التطبيق) يعمل، والباقي بقفله.
   static const cinema = [

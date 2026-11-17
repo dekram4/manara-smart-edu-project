@@ -11,6 +11,8 @@ import '../models/student_assessment.dart';
 import '../models/student_content.dart';
 import '../models/student_profile.dart';
 import '../l10n/student_strings.dart';
+import '../services/demo_mode.dart';
+import '../services/demo_solver.dart';
 import '../services/student_content_service.dart';
 import '../services/student_auth_service.dart';
 import '../services/student_settings.dart';
@@ -18,6 +20,7 @@ import '../services/student_sound_service.dart';
 import '../services/student_voice_service.dart';
 import '../theme/student_theme.dart';
 import '../utils/tap_or_drag.dart';
+import '../widgets/demo_lock.dart';
 import '../widgets/portal_watermark.dart';
 import '../widgets/student_experience.dart';
 
@@ -50,10 +53,62 @@ class _StudentProblemSolverScreenState extends State<StudentProblemSolverScreen>
   String? _answer;
   String? _error;
 
-  List<LessonContent> get _supportedLessons => widget.lessons
-      .where((lesson) => (lesson.lessonText ?? '').trim().isNotEmpty)
-      .where(_isAvailableToStudent)
-      .toList();
+  List<LessonContent> get _supportedLessons {
+    // ‏الزائر: كلُّ درسٍ في مساره، ولو بلا شرحٍ مكتوب — الجوابُ على الجهاز.
+    if (DemoMode.active) {
+      final selected = widget.academicContext?.selectedLesson;
+      return [
+        if (selected != null && widget.lessons.every((l) => l.id != selected.id)) selected,
+        ...widget.lessons,
+      ];
+    }
+    return widget.lessons
+        .where((lesson) => (lesson.lessonText ?? '').trim().isNotEmpty)
+        .where(_isAvailableToStudent)
+        .toList();
+  }
+
+  /// الزائر: كم سؤالاً سأل من سؤاليه ([DemoMode.solverQuestions]).
+  int _demoAsked = 0;
+
+  @visibleForTesting
+  int get demoAsked => _demoAsked;
+
+  bool get _demoSpent => DemoMode.active && _demoAsked >= DemoMode.solverQuestions;
+
+  /// سؤالُ الزائر: جوابٌ من شرح الدرس على الجهاز، وما بعد سؤاليه مقفل.
+  Future<void> _askDemo(LessonContent lesson, String question, String? photo) async {
+    if (_demoSpent) {
+      StudentSoundService.instance.play(StudentSoundCue.warning);
+      showDemoLocked(context, message: tr('demo.solver.locked'));
+      return;
+    }
+    final voice = _askedByVoice;
+    setState(() {
+      _sending = true;
+      _error = null;
+      _answer = null;
+    });
+    await Future<void>.delayed(const Duration(milliseconds: 900));
+    if (!mounted) return;
+    setState(() {
+      _answer = DemoSolver.answer(
+        question: _questionController.text,
+        lesson: lesson,
+        photo: photo != null,
+        voice: voice,
+      );
+      _demoAsked++;
+      _photo = null;
+      _fromCache = false;
+      _sending = false;
+    });
+    StudentSoundService.instance.playTap();
+    if (voice) {
+      _askedByVoice = false;
+      unawaited(_toggleSpeaking());
+    }
+  }
 
   bool _isAvailableToStudent(LessonContent lesson) {
     final owner = StudentAssessmentRules.ownerId({
@@ -123,6 +178,7 @@ class _StudentProblemSolverScreenState extends State<StudentProblemSolverScreen>
   /// كان العدّاد لا يظهر حتى يسأل الطفل سؤالاً أوّل، فيرى الحدَّ بعد أن
   /// يستهلك منه — وهو أسوأ وقتٍ لمعرفته.
   Future<void> _loadQuota() async {
+    if (DemoMode.active) return;
     final endpoint = _quotaEndpoint;
     if (endpoint == null) return;
     try {
@@ -348,6 +404,10 @@ class _StudentProblemSolverScreenState extends State<StudentProblemSolverScreen>
       setState(() => _error = tr('solver.writeFirst'));
       return;
     }
+    if (DemoMode.active) {
+      await _askDemo(lesson, question, photo);
+      return;
+    }
     if (endpoint == null) {
       setState(() => _error = tr('solver.noService'));
       return;
@@ -560,6 +620,25 @@ class _StudentProblemSolverScreenState extends State<StudentProblemSolverScreen>
                   //
                   // وانتهاءُ الحصّة بطاقةٌ لا شارة: خبرٌ يستحقّ حجمَه،
                   // ونبرةٌ تُهنّئ الطفل على ما فعل. انظر [_QuotaDoneCard].
+                  // ‏الزائر: سؤالان للتجربة، ثم قفلُ الحساب الرسمي.
+                  if (DemoMode.active) ...[
+                    _demoSpent
+                        ? DemoLockedCard(
+                            key: const ValueKey('demo-solver-locked'),
+                            message: tr('demo.solver.locked'),
+                          )
+                        : Align(
+                            alignment: AlignmentDirectional.centerStart,
+                            child: DemoQuotaChip(
+                              key: const ValueKey('demo-solver-quota'),
+                              text: trf('demo.solver.left', {
+                                'n': DemoMode.solverQuestions - _demoAsked,
+                                'total': DemoMode.solverQuestions,
+                              }),
+                            ),
+                          ),
+                    const SizedBox(height: 10),
+                  ],
                   if (_quota != null) ...[
                     if (_quota!.warning)
                       StudentEntrance(child: _QuotaDoneCard(quota: _quota!))

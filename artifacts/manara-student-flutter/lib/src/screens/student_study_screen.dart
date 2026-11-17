@@ -66,7 +66,12 @@ class _StudentStudyScreenState extends State<StudentStudyScreen> {
   }
 
   /// ألعابُ الدرس من الخادم، والمحفوظُ منها يُعرض فوراً.
-  Future<StudyGamesPack> _takeGames() => widget.studyService.fetchGames(lessonId: _lessonId);
+  Future<StudyGamesPack> _takeGames() => widget.studyService.fetchGames(
+        lessonId: _lessonId,
+        subject: widget.academicContext?.subject,
+        lessonName: widget.academicContext?.lesson,
+        grade: widget.academicContext?.grade ?? widget.profile.grade,
+      );
 
   @override
   void dispose() {
@@ -237,6 +242,9 @@ class _StudentStudyScreenState extends State<StudentStudyScreen> {
                   lessonId: _lessonId,
                   type: base.type,
                   exclude: exclude,
+                  subject: widget.academicContext?.subject,
+                  lessonName: widget.academicContext?.lesson,
+                  grade: widget.academicContext?.grade ?? widget.profile.grade,
                 ),
                 seenKey: 'study.seen.${widget.profile.id}.$_lessonId',
                 // ‏مربّعٌ في رفّ ألعاب المادة نفسه، بالغلاف المجسّم وحركته.

@@ -778,7 +778,19 @@ class StudentContentService {
     StudentProfile profile, {
     AcademicContext? academicContext,
   }) async {
-    if (DemoMode.active) return DemoContent.cinema;
+    // ‏الزائر: رفُّ سينما الحساب الرسمي نفسُه (فيديوٌ واحدٌ يعمل والباقي بقفلٍ
+    // ‏ذهبيّ في الشاشة)، أو الرفُّ المدمج إن لم يكن للمنهج الرسمي فيديو.
+    if (DemoMode.active) {
+      final real = DemoCatalog.current;
+      if (real == null) return DemoContent.cinema;
+      final videos = _legacyCinemaFrom(
+        real.videos,
+        real.deletedVideoIds.toSet(),
+        profile,
+        await _teacherIdentities(profile),
+      );
+      return videos.isEmpty ? DemoContent.cinema : videos;
+    }
     int? status;
     var body = const <String, dynamic>{};
     try {
@@ -847,6 +859,15 @@ class StudentContentService {
     final deletedIds = _asList(
       rows[1]?['value'],
     ).map(_text).where((id) => id.isNotEmpty).toSet();
+    return _legacyCinemaFrom(rawVideos, deletedIds, profile, identities);
+  }
+
+  List<LessonVideo> _legacyCinemaFrom(
+    List<Object?> rawVideos,
+    Set<String> deletedIds,
+    StudentProfile profile,
+    Set<String> identities,
+  ) {
     final videos = <LessonVideo>[];
     final seen = <String>{};
     for (final rawVideo in rawVideos) {
