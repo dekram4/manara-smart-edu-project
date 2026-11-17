@@ -186,12 +186,12 @@ class StudentAuthService {
   /// هذه النسخة منشوراً رأى «غير متوفرة على الخادم». فالملفُّ والمحتوى كلُّه
   /// من [DemoContent]، والدخولُ فوريٌّ ولو بلا إنترنت.
   ///
-  /// ‏والمنهجُ منهجُ الحساب الرسمي نفسُه ([DemoCatalog]): الملفُّ يحمل صفَّه
-  /// ‏ومعلّمَه، فتمرّ الشجرةُ والدروسُ في مسار الحساب الرسمي. وإن لم تصل نسخةٌ
-  /// ‏منه قطّ (أوّلُ دخولٍ بلا إنترنت) فالمنهجُ المدمج [DemoContent].
+  /// ‏والمنهجُ منهجُ الحساب الرسمي نفسُه ([DemoCatalog])، من نسخةٍ مدمجةٍ في
+  /// ‏التطبيق لا من الخادم: الملفُّ يحمل صفَّه ومعلّمَه، فتمرّ الشجرةُ والدروسُ في
+  /// ‏مسار الحساب الرسمي. وإن خلت النسخةُ فالمنهجُ المدمج [DemoContent].
   Future<StudentProfile> signInDemo(String track) async {
     final key = track == 'grade4' ? 'grade4' : 'kg';
-    final catalog = await DemoCatalog.load(client, key);
+    final catalog = await DemoCatalog.load(key);
     final profile = DemoContent.profile(key, grade: catalog?.grade, teacherId: catalog?.owner);
     _demoTrack = track;
     _apiSessionToken = null;

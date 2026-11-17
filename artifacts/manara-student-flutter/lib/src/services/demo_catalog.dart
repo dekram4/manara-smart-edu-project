@@ -1,117 +1,47 @@
-/// منهجُ الحساب الرسمي نفسُه لوضع الزائر.
+/// منهجُ الحساب الرسمي نفسُه لوضع الزائر — من نسخةٍ مدمجةٍ في التطبيق.
 ///
-/// كان الزائرُ يرى منهجاً مكتوباً في التطبيق ([DemoContent]): موادَّ ودروساً
-/// بأسماءٍ وأعدادٍ غيرِ ما يراه طالبُ الروضة أو الصف الرابع الحقيقي (لا
-/// «القاعدة النورانية» مثلاً). فصار يقرأ الشجرةَ والدروسَ والاختبارات من
-/// المصدر الذي يقرأ منه الحسابُ الرسمي — `app_kv` و`lesson_configs`
-/// و`created_quizzes`، وكلُّها مقروءةٌ بالمفتاح العام — ويمرّرها في المسار
-/// نفسِه الذي يمرّ فيه الحسابُ الرسمي ([StudentContentService]).
+/// ‏الزائرُ يرى المنهجَ الذي يراه طالبُ الروضة أو الصف الرابع الرسمي: موادَّه
+/// ‏وفصولَه ووحداتِه ودروسَه واختباراتِه (ومنها «القاعدة النورانية»). وهذا
+/// ‏المنهجُ **محلّيٌّ كلُّه**: لا يسأل الزائرُ الخادمَ عن شيءٍ منه، فلا خطأَ
+/// ‏خادمٍ ولا انتظار، ويعمل بلا إنترنت من أوّل دخول.
 ///
-/// ‏والمعلّمُ الذي يُعرض منهجُه: صاحبُ أكبر شجرةٍ لصفّ الزائر — مدخلُ الروضة
-/// الرسمي، أو مدخلُ الصف الرابع.
+/// ‏ومن أين النسخة؟ يكتبها البناءُ نفسُه (`tool/snapshot_demo_catalog.dart`
+/// ‏في خطوةٍ قبل `flutter build apk`) من مصادر الحساب الرسمي — `app_kv`
+/// ‏و`lesson_configs` و`created_quizzes` — ويختار منها مدخلَ الروضة الرسمي
+/// ‏ومدخلَ الصف الرابع ([DemoCatalogBuilder.build]) إلى
+/// ‏`assets/demo/catalog_<track>.json`. فكلُّ APK يحمل منهجَ يومِ بنائه.
 ///
-/// ‏ولا يرى الزائرُ خطأَ خادم: تُحفظ آخرُ نسخةٍ على الجهاز فيدخل بها فوراً
-/// وتتجدّد في الخلفية، وإن لم تصل نسخةٌ قطّ (أوّلُ دخولٍ بلا إنترنت) بقي
-/// المنهجُ المدمج [DemoContent] بديلاً.
+/// ‏وإن خلت النسخةُ (بناءٌ بلا أسرار Supabase) بقي المنهجُ المدمج [DemoContent]
+/// ‏بديلاً. ولا يقرأ الزائرُ جدولَ `cinema_videos` ولا يكتب فيه: سينما المعلم
+/// ‏شأنُ لوحة التحكم والخادم وحدهما.
 library;
 
-import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
-import 'package:shared_preferences/shared_preferences.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:flutter/services.dart';
 
 import '../models/study_games.dart';
-import 'tracing_scope.dart';
+import 'demo_catalog_data.dart';
 
-class DemoCatalogData {
-  const DemoCatalogData({
-    required this.track,
-    required this.grade,
-    required this.owner,
-    required this.hierarchy,
-    required this.lessonRows,
-    this.quizRows = const [],
-    this.legacyQuestions = const [],
-    this.deletedQuizIds = const [],
-    this.videos = const [],
-    this.deletedVideoIds = const [],
-  });
-
-  /// `kg` أو `grade4`.
-  final String track;
-
-  /// اسمُ الصفّ كما في الحساب الرسمي.
-  final String grade;
-
-  /// معرّفُ المعلّم الذي يُعرض منهجُه.
-  final String owner;
-
-  /// إعداداتُ هذا الصفّ من `smartEdu_hierarchicalConfigs`.
-  final List<Object?> hierarchy;
-  final List<Map<String, dynamic>> lessonRows;
-  final List<Map<String, dynamic>> quizRows;
-  final List<Map<String, dynamic>> legacyQuestions;
-  final List<String> deletedQuizIds;
-
-  /// رفُّ «سينما منارة» القديم (`smartEdu_videos`) — ما يقرؤه الحسابُ الرسمي
-  /// حين لا تصله واجهةُ السينما.
-  final List<Map<String, dynamic>> videos;
-  final List<String> deletedVideoIds;
-
-  Map<String, dynamic> toJson() => {
-        'track': track,
-        'grade': grade,
-        'owner': owner,
-        'hierarchy': hierarchy,
-        'lessonRows': lessonRows,
-        'quizRows': quizRows,
-        'legacyQuestions': legacyQuestions,
-        'deletedQuizIds': deletedQuizIds,
-        'videos': videos,
-        'deletedVideoIds': deletedVideoIds,
-      };
-
-  static DemoCatalogData? fromJson(Object? raw) {
-    if (raw is! Map) return null;
-    final grade = '${raw['grade'] ?? ''}'.trim();
-    final owner = '${raw['owner'] ?? ''}'.trim();
-    final hierarchy = raw['hierarchy'];
-    if (grade.isEmpty || owner.isEmpty || hierarchy is! List) return null;
-    return DemoCatalogData(
-      track: '${raw['track'] ?? ''}',
-      grade: grade,
-      owner: owner,
-      hierarchy: hierarchy,
-      lessonRows: _maps(raw['lessonRows']),
-      quizRows: _maps(raw['quizRows']),
-      legacyQuestions: _maps(raw['legacyQuestions']),
-      deletedQuizIds: [for (final id in _list(raw['deletedQuizIds'])) '$id'],
-      videos: _maps(raw['videos']),
-      deletedVideoIds: [for (final id in _list(raw['deletedVideoIds'])) '$id'],
-    );
-  }
-}
+export 'demo_catalog_data.dart';
 
 abstract final class DemoCatalog {
   /// منهجُ الزائر الحالي، أو `null` فيُعرض [DemoContent].
   static DemoCatalogData? current;
 
-  static const _timeout = Duration(seconds: 8);
-  static String _cacheKey(String track) => 'demo.catalog.v2.$track';
+  /// مسارُ النسخة المدمجة لـ[track].
+  static String assetFor(String track) => 'assets/demo/catalog_$track.json';
 
-  /// يحمّل منهجَ [track]: من النسخة المحفوظة فوراً (وتتجدّد في الخلفية)،
-  /// وإلا من الخادم. وإن تعذّر الاثنان بقي `null`.
-  static Future<DemoCatalogData?> load(SupabaseClient client, String track) async {
-    final cached = await _cached(track);
-    if (cached != null) {
-      current = cached;
-      unawaited(_refresh(client, track).then<void>((_) {}, onError: (Object _) {}));
-      return cached;
-    }
+  /// قارئُ الملفّات المدمجة — يُستبدل في الاختبارات.
+  @visibleForTesting
+  static Future<String> Function(String path) readAsset = rootBundle.loadString;
+
+  /// يحمّل منهجَ [track] من النسخة المدمجة وحدها، بلا أيّ طلبٍ للخادم.
+  static Future<DemoCatalogData?> load(String track) async {
     try {
-      return current = await _refresh(client, track);
+      final data = DemoCatalogData.fromJson(jsonDecode(await readAsset(assetFor(track))));
+      return current = data != null && data.track == track ? data : null;
     } catch (_) {
       return current = null;
     }
@@ -119,53 +49,7 @@ abstract final class DemoCatalog {
 
   static void clear() => current = null;
 
-  static Future<DemoCatalogData?> _refresh(SupabaseClient client, String track) async {
-    final results = await Future.wait<Object?>([
-      _kv(client, 'smartEdu_hierarchicalConfigs'),
-      client.from('lesson_configs').select('id,data').limit(500),
-      client.from('created_quizzes').select('id,data,updated_at').limit(300),
-      _kv(client, 'smartEdu_quizQuestions').catchError((Object _) => null),
-      _kv(client, 'smartEdu_deletedQuizzes').catchError((Object _) => null),
-      _kv(client, 'smartEdu_videos').catchError((Object _) => null),
-      _kv(client, 'smartEdu_deletedVideos').catchError((Object _) => null),
-    ]).timeout(_timeout);
-    final data = build(
-      track: track,
-      hierarchy: results[0],
-      lessonRows: results[1],
-      quizRows: results[2],
-      legacyQuestions: results[3],
-      deletedQuizIds: results[4],
-      videos: results[5],
-      deletedVideoIds: results[6],
-    );
-    if (data == null) return null;
-    // ‏جلسةُ الزائر ما زالت على المسار نفسه: تُعرض النسخةُ الجديدة من الطلب التالي.
-    if (current == null || current!.track == track) current = data;
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setString(_cacheKey(track), jsonEncode(data.toJson()));
-    } catch (_) {
-      // ‏بلا نسخةٍ محفوظة: يُطلب من الخادم في الدخول القادم.
-    }
-    return data;
-  }
-
-  static Future<Object?> _kv(SupabaseClient client, String key) async =>
-      (await client.from('app_kv').select('value').eq('key', key).maybeSingle())?['value'];
-
-  static Future<DemoCatalogData?> _cached(String track) async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      final raw = prefs.getString(_cacheKey(track));
-      final data = raw == null ? null : DemoCatalogData.fromJson(jsonDecode(raw));
-      return data != null && data.track == track ? data : null;
-    } catch (_) {
-      return null;
-    }
-  }
-
-  /// يختار من البيانات الخامّ منهجَ صفّ [track] كما يراه طالبُه الرسمي.
+  /// يختار من البيانات الخامّ منهجَ صفّ [track] — انظر [DemoCatalogBuilder.build].
   @visibleForTesting
   static DemoCatalogData? build({
     required String track,
@@ -176,56 +60,19 @@ abstract final class DemoCatalog {
     Object? deletedQuizIds,
     Object? videos,
     Object? deletedVideoIds,
-  }) {
-    final configs = [for (final c in _list(hierarchy)) if (c is Map) Map<String, dynamic>.from(c)];
-    final rows = _maps(lessonRows);
+  }) =>
+      DemoCatalogBuilder.build(
+        track: track,
+        hierarchy: hierarchy,
+        lessonRows: lessonRows,
+        quizRows: quizRows,
+        legacyQuestions: legacyQuestions,
+        deletedQuizIds: deletedQuizIds,
+        videos: videos,
+        deletedVideoIds: deletedVideoIds,
+      );
 
-    // ‏المعلّمُ صاحبُ أكبر منهجٍ لهذا الصف: وحداتُ شجرته ودروسُه المنشورة.
-    final score = <String, int>{};
-    final gradeOf = <String, String>{};
-    for (final config in configs) {
-      final grade = _text(config['grade'] ?? config['class'] ?? config['schoolGrade']);
-      final owner = _owner(config);
-      if (!matchesTrack(grade, track) || owner.isEmpty || _isStaff(owner)) continue;
-      gradeOf.putIfAbsent(_norm(owner), () => grade);
-      score[_norm(owner)] = (score[_norm(owner)] ?? 0) + 1 + _unitCount(config);
-    }
-    for (final row in rows) {
-      final data = _map(row['data']);
-      final owner = _norm(_owner(data));
-      if (score.containsKey(owner) && matchesTrack(_text(data['grade']), track)) score[owner] = score[owner]! + 1;
-    }
-    if (score.isEmpty) return null;
-    final best = score.entries.reduce((a, b) => b.value > a.value ? b : a).key;
-    final owner = _owner(configs.firstWhere((c) => _norm(_owner(c)) == best));
-    final grade = gradeOf[best]!;
-
-    bool mine(Map<String, dynamic> data) {
-      final o = _norm(_owner(data));
-      final g = _text(data['grade'] ?? data['gradeId']);
-      return (o.isEmpty || o == best || _isStaff(o)) && (g.isEmpty || _norm(g) == _norm(grade));
-    }
-
-    return DemoCatalogData(
-      track: track,
-      grade: grade,
-      owner: owner,
-      hierarchy: [for (final c in configs) if (_norm(_owner(c)) == best) c],
-      lessonRows: [for (final r in rows) if (mine(_map(r['data']))) r],
-      quizRows: [for (final r in _maps(quizRows)) if (mine(_map(r['data']))) r],
-      legacyQuestions: [for (final q in _maps(legacyQuestions)) if (mine(q)) q],
-      deletedQuizIds: [for (final id in _list(deletedQuizIds)) if (_text(id).isNotEmpty) _text(id)],
-      videos: [for (final v in _maps(videos)) if (mine(v)) v],
-      deletedVideoIds: [for (final id in _list(deletedVideoIds)) if (_text(id).isNotEmpty) _text(id)],
-    );
-  }
-
-  /// صفُّ الروضة الرسمي، أو أيُّ صفٍّ رابع.
-  static bool matchesTrack(String grade, String track) {
-    if (grade.trim().isEmpty) return false;
-    if (track == 'grade4') return RegExp('الرابع|grade ?4|fourth').hasMatch(_norm(grade));
-    return isKindergartenGrade(grade);
-  }
+  static bool matchesTrack(String grade, String track) => DemoCatalogBuilder.matchesTrack(grade, track);
 
   /// أسئلةُ درسٍ رسمي من اختباراته: `{question, options, answer}`.
   static List<Map<String, dynamic>> questionsFor(String lessonId) {
@@ -276,24 +123,7 @@ abstract final class DemoCatalog {
     });
   }
 
-  static int _unitCount(Map<String, dynamic> config) {
-    var n = 0;
-    final subjects = config['subjects'] ?? config['atrams'];
-    for (final s in _list(subjects)) {
-      final nested = _map(s)['subjects'];
-      for (final subject in nested is List ? nested : [s]) {
-        for (final term in _list(_map(subject)['terms'])) {
-          n += _list(_map(term)['units']).length;
-        }
-      }
-    }
-    return n;
-  }
-
-  static String _owner(Map<String, dynamic> data) =>
-      _text(data['teacherId'] ?? data['teacher_id'] ?? data['createdBy']);
-  static bool _isStaff(String owner) => const {'admin', 'supervisor'}.contains(_norm(owner));
-  static String _norm(Object? v) => _text(v).toLowerCase().replaceAll(RegExp(r'\s+'), ' ');
+  static String _norm(Object? v) => _text(v).toLowerCase().replaceAll(RegExp(r's+'), ' ');
 }
 
 String _text(Object? v) => v == null ? '' : '$v'.trim();
