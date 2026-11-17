@@ -77,6 +77,77 @@ export function isSafeCinemaUrl(value: unknown): boolean {
   }
 }
 
+/**
+ * رابطُ YouTube كما يُلصقه المعلم (watch، youtu.be، shorts، live، m.youtube،
+ * youtube-nocookie) يصير رابطَ تضمين `https://www.youtube.com/embed/ID` —
+ * ووقتُ البدء (`t=90` أو `t=1m30s` أو `start=`) يبقى `?start=`.
+ * وما سواه (ملف MP4 أو مشغّلٌ آخر) يبقى كما هو.
+ */
+export function toEmbedUrl(value: unknown): string {
+  const raw = text(value);
+  let parsed: URL;
+  try {
+    parsed = new URL(raw);
+  } catch {
+    return raw;
+  }
+  const host = parsed.hostname.toLowerCase().replace(/^(www|m|music)\./, "");
+  let id = "";
+  if (host === "youtu.be") {
+    id = parsed.pathname.split("/").filter(Boolean)[0] ?? "";
+  } else if (host === "youtube.com" || host === "youtube-nocookie.com") {
+    id = parsed.searchParams.get("v")
+      || parsed.pathname.match(/^\/(?:embed|shorts|live|v)\/([^/?#]+)/)?.[1]
+      || "";
+  } else {
+    return raw;
+  }
+  if (!/^[A-Za-z0-9_-]{6,20}$/.test(id)) return raw;
+  const t = parsed.searchParams.get("start") || parsed.searchParams.get("t") || "";
+  const m = t.match(/^(?:(\d+)h)?(?:(\d+)m)?(?:(\d+)s?)?$/);
+  const start = m ? Number(m[1] ?? 0) * 3600 + Number(m[2] ?? 0) * 60 + Number(m[3] ?? 0) : 0;
+  return `https://www.youtube.com/embed/${id}${start > 0 ? `?start=${start}` : ""}`;
+}
+
+/** أعمدةُ `cinema_videos` التي لا يُحفظ فيديو بدونها. وما سواها يُرسل إن وُجد. */
+export const CINEMA_CORE_COLUMNS = ["id", "title", "embed_url", "grade_id", "teacher_id", "created_by"] as const;
+
+/** اسمُ العمود الذي قال Supabase إنه غير موجود (PGRST204 أو 42703)، أو "". */
+export function missingColumnOf(body: string): string {
+  return body.match(/Could not find the '([^']+)' column/i)?.[1]
+    ?? body.match(/column "?(?:[\w]+\.)?([\w]+)"? (?:of relation "?\w+"? )?does not exist/i)?.[1]
+    ?? "";
+}
+
+/**
+ * رسالةُ فشلٍ من Supabase مقروءةً: نصُّه ورمزه وتلميحه، وسببٌ بالعربية لما
+ * يتكرّر (RLS، عمودٌ ناقص، نوعُ معرّف).
+ */
+export function describeSupabaseFailure(body: string, status?: number): string {
+  let fields: { message?: unknown; code?: unknown; hint?: unknown; details?: unknown } = {};
+  try {
+    fields = JSON.parse(body) ?? {};
+  } catch {
+    fields = { message: body };
+  }
+  const code = text(fields.code);
+  const message = text(fields.message) || body.slice(0, 300);
+  const why = code === "42501" || /row-level security|permission denied/i.test(message)
+    ? "صلاحيات RLS رفضت العملية — تأكد أن الخادم يستخدم مفتاح service_role (SUPABASE_SERVICE_ROLE_KEY)."
+    : code === "PGRST204" || code === "42703"
+      ? "عمودٌ مطلوب غير موجود في جدول cinema_videos."
+      : code === "22P02"
+        ? "قيمةٌ لا يقبلها نوع العمود (مثل معرّفٍ نصّي في عمود uuid)."
+        : code === "42P01" || code === "PGRST205"
+          ? "جدول cinema_videos غير موجود في Supabase."
+          : "";
+  return [
+    `Supabase${status ? ` ${status}` : ""}${code ? ` [${code}]` : ""}: ${message}`,
+    text(fields.hint) ? `تلميح: ${text(fields.hint)}` : "",
+    why,
+  ].filter(Boolean).join("\n").slice(0, 600);
+}
+
 function sourceTypeOf(value: unknown, url: string): CinemaSourceType {
   if (value === "mp4" || value === "embed") return value;
   return /\.mp4(?:$|[?#])/i.test(url) ? "mp4" : "embed";
@@ -260,7 +331,8 @@ export function buildCinemaVideo(
   },
 ): CinemaValidation {
   const title = text(input.title);
-  const embedUrl = text(input.embedUrl) || text(input.url);
+  // ‏رابطُ YouTube العاديّ يصير رابطَ تضمين، وملفُّ MP4 يبقى كما هو.
+  const embedUrl = toEmbedUrl(text(input.embedUrl) || text(input.url));
   const gradeId = text(input.gradeId);
   let teacherId = text(input.teacherId);
   const description = text(input.description);
@@ -301,6 +373,52 @@ export function buildCinemaVideo(
       legacy: existing?.legacy ?? false,
     },
   };
+}
+
+/** فشلُ طلبٍ إلى Supabase: رمزُ الحالة ونصُّ الردّ كما وصل. */
+export type CinemaWriteFailure = { status: number; body: string };
+
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/**
+ * يكتب الفيديو صفّاً في `cinema_videos` عبر [send]، ويعيده كما حُفظ.
+ *
+ * - عمودٌ إضافيٌّ لا يحمله الجدول (PGRST204/42703) يُسقط من الصفّ، ويُذكر في
+ *   [absentColumns] فلا يُرسل ثانيةً، ويُعاد الطلب.
+ * - فيديو قديمٌ معرّفُه نصٌّ في جدولٍ معرّفُه uuid (22P02) يأخذ معرّفاً جديداً.
+ * - وما سوى ذلك — RLS، أو عمودٌ أساسيٌّ ناقص — يُرمى كما هو.
+ *
+ * [send] يُنادى بالصفّ، وبـ`upsert` للتعديل (لا لفيديو قديمٍ يُنقل).
+ */
+export async function writeCinemaRow(
+  video: CinemaVideo,
+  send: (row: Record<string, unknown>, upsert: boolean) => Promise<void>,
+  options: { absentColumns: Set<string>; newId: () => string; isFailure: (error: unknown) => CinemaWriteFailure | null },
+): Promise<CinemaVideo> {
+  let saved = video;
+  for (let attempt = 0; attempt < 10; attempt++) {
+    const row = Object.fromEntries(
+      Object.entries(toTableRow(saved)).filter(([column]) => !options.absentColumns.has(column)),
+    );
+    try {
+      await send(row, !saved.legacy);
+      return { ...saved, legacy: false };
+    } catch (error) {
+      const failure = options.isFailure(error);
+      if (!failure) throw error;
+      const column = missingColumnOf(failure.body);
+      if (column && !(CINEMA_CORE_COLUMNS as readonly string[]).includes(column) && column in row) {
+        options.absentColumns.add(column);
+        continue;
+      }
+      if (/22P02/.test(failure.body) && !UUID.test(saved.id)) {
+        saved = { ...saved, id: options.newId() };
+        continue;
+      }
+      throw error;
+    }
+  }
+  throw new Error("تعذر حفظ الصف في جدول cinema_videos");
 }
 
 /** ما يُرسل للوحة وللتطبيق: بلا علامة التخزين الداخلية. */

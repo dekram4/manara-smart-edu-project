@@ -8,14 +8,14 @@ import { logger } from "../lib/logger";
 import type { StudentActor } from "../lib/studentAccess";
 import {
   buildCinemaVideo,
+  describeSupabaseFailure,
   fromLegacyRecord,
   fromTableRow,
   isManagedBy,
   isVisibleToStudent,
   mergeCinemaVideos,
   publicCinemaVideo,
-  toLegacyRecord,
-  toTableRow,
+  writeCinemaRow,
   type CinemaVideo,
 } from "../lib/cinema";
 import {
@@ -24,8 +24,8 @@ import {
   readKv,
   rest,
   storeConfig,
+  SupabaseRestError,
   teacherIdentities,
-  withTableFallback,
   writeKv,
   type StoreConfig,
 } from "../lib/supabaseStore";
@@ -34,9 +34,16 @@ import { isCardOpenForStudent } from "./cardPermissions";
 /**
  * سينما منارة: إدارتها من لوحة المعلم والمشرف، وعرضها للطالب.
  *
- * المصدر جدول `cinema_videos`، ومعه فيديوهاتُ `app_kv/smartEdu_videos` القديمة
- * حتى تُعدَّل أو تُحذف. وإن لم يُنشأ الجدول بعد فالمفتاح القديم وحده —
- * انظر `lib/supabaseStore.ts`.
+ * ── الجدولُ وحده للحفظ ──
+ * الإضافةُ والتعديلُ والحذفُ على `public.cinema_videos` مباشرةً. كان الحفظ
+ * يرتدّ بصمتٍ إلى `app_kv/smartEdu_videos` حين يرفض Supabase الصفّ — وكان
+ * يرفضه لأن الكود يرسل أعمدةً (`source_type`، `description`…) ليست في
+ * جدولٍ أُنشئ بأعمدته الأساسية وحدها — فظهر «الجدول لم يُنشأ بعد» والجدولُ
+ * موجود. الآن يُرسل الأعمدةَ الأساسية دائماً والإضافيةَ إن وُجدت، وأيُّ فشلٍ
+ * آخر يصل اللوحةَ برسالة Supabase نفسها.
+ *
+ * والفيديوهات القديمة في `app_kv` تُقرأ (للعرض) حتى تُعدَّل فتنتقل إلى
+ * الجدول، أو تُحذف. ولا يُكتب فيها فيديو جديد.
  */
 const router = Router();
 
@@ -54,10 +61,14 @@ const RATE_LIMIT_SHARED = {
 const cinemaReadLimit = rateLimit({ ...RATE_LIMIT_SHARED, limit: 120 });
 const cinemaWriteLimit = rateLimit({ ...RATE_LIMIT_SHARED, limit: 30 });
 
-/** سببُ الفشل كما قاله Supabase، مختصراً — للمعلم والمشرف وحدهما. */
+/** سببُ الفشل كما قاله Supabase، مقروءاً — للمعلم والمشرف وحدهما. */
 function failureDetail(error: unknown): string {
+  if (error instanceof SupabaseRestError) return describeSupabaseFailure(error.body, error.status);
   return error instanceof Error ? error.message.slice(0, 300) : "";
 }
+
+/** أعمدةٌ إضافية عرفنا أن الجدول لا يحملها: لا تُرسل ثانيةً. */
+const absentColumns = new Set<string>();
 
 function text(value: unknown): string {
   return typeof value === "string" ? value.trim() : "";
@@ -74,22 +85,23 @@ async function readLegacyVideos(config: StoreConfig): Promise<CinemaVideo[]> {
     .filter((video): video is CinemaVideo => Boolean(video));
 }
 
-/** كلُّ فيديوهات السينما: الجدول والمفتاح القديم، بلا المحذوف. */
+/**
+ * كلُّ فيديوهات السينما: صفوفُ `cinema_videos` (SELECT)، ومعها القديمةُ في
+ * `app_kv` حتى تُنقل — بلا المحذوف. وفشلُ قراءة الجدول يُرمى لا يُبتلع.
+ * والترتيبُ هنا لا في الطلب: جدولٌ بلا `created_at` يُقرأ أيضاً.
+ */
 async function loadCinemaVideos(
   config: StoreConfig,
-): Promise<{ videos: CinemaVideo[]; storage: "table" | "kv" }> {
-  const [legacy, deleted, table] = await Promise.all([
-    readLegacyVideos(config),
-    readDeletedIds(config),
-    withTableFallback(
-      TABLE,
-      async () => asRecords(await rest(config, `${TABLE}?select=*&order=created_at.desc&limit=5000`))
-        .map(fromTableRow)
-        .filter((video): video is CinemaVideo => Boolean(video)),
-      async () => [] as CinemaVideo[],
-    ),
+): Promise<{ videos: CinemaVideo[]; storage: "table" }> {
+  const [legacy, deleted, rows] = await Promise.all([
+    readLegacyVideos(config).catch(() => [] as CinemaVideo[]),
+    readDeletedIds(config).catch(() => [] as string[]),
+    rest(config, `${TABLE}?select=*&limit=5000`),
   ]);
-  return { videos: mergeCinemaVideos(table.value, legacy, deleted), storage: table.storage };
+  const table = asRecords(rows)
+    .map(fromTableRow)
+    .filter((video): video is CinemaVideo => Boolean(video));
+  return { videos: mergeCinemaVideos(table, legacy, deleted), storage: "table" };
 }
 
 async function removeFromLegacy(config: StoreConfig, id: string): Promise<void> {
@@ -98,45 +110,56 @@ async function removeFromLegacy(config: StoreConfig, id: string): Promise<void> 
   if (kept.length !== records.length) await writeKv(config, VIDEO_KEY, kept);
 }
 
-async function saveCinemaVideo(config: StoreConfig, video: CinemaVideo): Promise<"table" | "kv"> {
-  const { storage } = await withTableFallback(
-    TABLE,
-    async () => {
-      await rest(config, `${TABLE}?on_conflict=id`, {
-        method: "POST",
-        headers: { Prefer: "resolution=merge-duplicates,return=minimal" },
-        body: JSON.stringify(toTableRow(video)),
-      });
-      // فيديو قديم عُدّل: صار في الجدول، فلا تبقى نسختُه القديمة تُقرأ.
-      if (video.legacy) await removeFromLegacy(config, video.id);
-    },
-    async () => {
-      const records = asRecords(await readKv(config, VIDEO_KEY));
-      const record = toLegacyRecord(video);
-      const index = records.findIndex((item) => text(item.id) === video.id);
-      if (index >= 0) records[index] = record;
-      else records.push(record);
-      await writeKv(config, VIDEO_KEY, records);
-    },
-  );
-  return storage;
-}
-
-async function deleteCinemaVideo(config: StoreConfig, id: string): Promise<void> {
-  await withTableFallback(
-    TABLE,
-    async () => {
-      await rest(config, `${TABLE}?id=eq.${encodeURIComponent(id)}`, {
-        method: "DELETE",
-        headers: { Prefer: "return=minimal" },
-      });
-    },
-    async () => undefined,
-  );
-  await removeFromLegacy(config, id);
-  // شاهدُ الحذف: نسخةُ متصفّحٍ قديمة أو تطبيقٌ قديم لا يُعيد الفيديو.
+/** يضيف شاهدَ حذفٍ لمعرّفٍ قديم: نسخةُ متصفّحٍ أو تطبيقٍ قديم لا تُعيده. */
+async function tombstone(config: StoreConfig, id: string): Promise<void> {
   const deleted = await readDeletedIds(config);
   if (!deleted.includes(id)) await writeKv(config, DELETED_VIDEO_KEY, [...deleted, id]);
+}
+
+/**
+ * يكتب الفيديو صفّاً في `cinema_videos` (INSERT، أو UPDATE لمعرّفٍ موجود)
+ * ويعيده كما حُفظ.
+ *
+ * عمودٌ إضافيٌّ لا يحمله الجدول يُسقط من الصفّ ويُعاد الطلب؛ وفيديو قديمٌ
+ * معرّفُه نصٌّ في جدولٍ معرّفُه uuid يأخذ معرّفاً جديداً. وما سوى ذلك —
+ * صلاحياتُ RLS، أو عمودٌ أساسيٌّ ناقص — يُرمى برسالة Supabase.
+ */
+async function saveCinemaVideo(config: StoreConfig, video: CinemaVideo): Promise<CinemaVideo> {
+  const saved = await writeCinemaRow(
+    video,
+    async (row, upsert) => {
+      await rest(config, upsert ? `${TABLE}?on_conflict=id` : TABLE, {
+        method: "POST",
+        headers: { Prefer: upsert ? "resolution=merge-duplicates,return=minimal" : "return=minimal" },
+        body: JSON.stringify(row),
+      });
+    },
+    {
+      absentColumns,
+      newId: () => crypto.randomUUID(),
+      isFailure: (error) => (error instanceof SupabaseRestError ? { status: error.status, body: error.body } : null),
+    },
+  );
+  // فيديو قديم عُدّل: صار صفّاً في الجدول، فلا تبقى نسختُه القديمة تُقرأ.
+  if (video.legacy) {
+    await removeFromLegacy(config, video.id);
+    if (saved.id !== video.id) await tombstone(config, video.id);
+  }
+  return saved;
+}
+
+/** يحذف الفيديو من `cinema_videos` (DELETE)، أو نسختَه القديمة من `app_kv`. */
+async function deleteCinemaVideo(config: StoreConfig, video: CinemaVideo): Promise<void> {
+  const id = video.id;
+  if (!video.legacy) {
+    await rest(config, `${TABLE}?id=eq.${encodeURIComponent(id)}`, {
+      method: "DELETE",
+      headers: { Prefer: "return=minimal" },
+    });
+  }
+  await removeFromLegacy(config, id);
+  // شاهدُ الحذف: نسخةُ متصفّحٍ قديمة أو تطبيقٌ قديم لا يُعيد الفيديو.
+  await tombstone(config, id);
 }
 
 // ── لوحة المعلم والمشرف ─────────────────────────────────────────────────
@@ -169,7 +192,7 @@ router.get("/cinema/videos", async (req: Request, res: Response) => {
     });
   } catch (error) {
     logger.error({ err: error }, "[cinema] list failed");
-    res.status(502).json({ error: "تعذر تحميل فيديوهات السينما", detail: failureDetail(error) });
+    res.status(502).json({ error: "تعذر قراءة جدول cinema_videos", detail: failureDetail(error) });
   }
 });
 
@@ -208,11 +231,11 @@ router.post("/cinema/videos", cinemaWriteLimit, async (req: Request, res: Respon
       res.status(built.status).json({ error: built.error });
       return;
     }
-    const storage = await saveCinemaVideo(config, built.video);
-    res.status(existing ? 200 : 201).json({ storage, video: publicCinemaVideo(built.video) });
+    const saved = await saveCinemaVideo(config, built.video);
+    res.status(existing ? 200 : 201).json({ storage: "table", video: publicCinemaVideo(saved) });
   } catch (error) {
     logger.error({ err: error }, "[cinema] save failed");
-    res.status(502).json({ error: "تعذر حفظ فيديو السينما", detail: failureDetail(error) });
+    res.status(502).json({ error: "تعذر حفظ فيديو السينما في جدول cinema_videos", detail: failureDetail(error) });
   }
 });
 
@@ -246,11 +269,11 @@ router.delete("/cinema/videos/:id", cinemaWriteLimit, async (req: Request, res: 
       res.status(403).json({ error: "لا يمكن حذف فيديو يخص معلمًا آخر" });
       return;
     }
-    await deleteCinemaVideo(config, id);
+    await deleteCinemaVideo(config, video);
     res.status(204).end();
   } catch (error) {
     logger.error({ err: error }, "[cinema] delete failed");
-    res.status(502).json({ error: "تعذر حذف فيديو السينما", detail: failureDetail(error) });
+    res.status(502).json({ error: "تعذر حذف فيديو السينما من جدول cinema_videos", detail: failureDetail(error) });
   }
 });
 
