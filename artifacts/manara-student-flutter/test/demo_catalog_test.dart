@@ -1,6 +1,5 @@
 import 'dart:convert';
 
-import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -103,7 +102,6 @@ final _quizzes = [
 ];
 
 void main() {
-  TestWidgetsFlutterBinding.ensureInitialized();
   setUp(() {
     SharedPreferences.setMockInitialValues({});
     StudentSettings.resetForTest();
@@ -162,42 +160,18 @@ void main() {
     expect(game.questions, hasLength(4));
   });
 
-  test('دخولُ الزائر من النسخة المدمجة وحدها: صفُّ الحساب الرسمي ومعلّمُه، بلا طلبٍ للخادم', () async {
+  test('دخولُ الزائر بنسخةٍ محفوظة وخادمٍ معطّل: صفُّ الحساب الرسمي ومعلّمُه، بلا خطأ', () async {
     final data = DemoCatalog.build(track: 'kg', hierarchy: _hierarchy, lessonRows: _rows, quizRows: _quizzes)!;
-    final read = <String>[];
-    DemoCatalog.readAsset = (path) async {
-      read.add(path);
-      return jsonEncode(data.toJson());
-    };
-    addTearDown(() => DemoCatalog.readAsset = rootBundle.loadString);
+    SharedPreferences.setMockInitialValues({'demo.catalog.v2.kg': jsonEncode(data.toJson())});
     final auth = StudentAuthService(SupabaseClient(_deadServer, 'k'), apiBaseUrl: _deadServer);
     final profile = await auth.signInDemo('kg');
-    expect(read, ['assets/demo/catalog_kg.json']);
     expect(profile.grade, _kg);
     expect(profile.teacherId, 'teacher_dawood');
     expect(profile.isDemo, isTrue);
-
-    // ‏والشجرةُ والدروسُ والاختبارات من النسخة: الخادمُ معطّلٌ ولا يُنتظر.
-    DemoMode.enterFor(profile);
-    final service = StudentContentService(auth.client, baseUrl: _deadServer, authService: auth);
-    final selection = await service.fetchAcademicSelectionData(profile).timeout(const Duration(seconds: 2));
-    expect(selection.subjectsFor(grade: _kg), contains('القاعدة النورانية'));
     auth.client.auth.stopAutoRefresh();
   });
 
-  test('نسخةٌ مدمجةٌ فارغة (بناءٌ بلا أسرار): المنهجُ المدمج بديلاً، وفيه «القاعدة النورانية»', () async {
-    final auth = StudentAuthService(SupabaseClient(_deadServer, 'k'), apiBaseUrl: _deadServer);
-    final profile = await auth.signInDemo('kg');
-    expect(DemoCatalog.current, isNull);
-    expect(profile.grade, DemoContent.kgGrade);
-    DemoMode.enterFor(profile);
-    final service = StudentContentService(auth.client, baseUrl: _deadServer, authService: auth);
-    final selection = await service.fetchAcademicSelectionData(profile);
-    expect(selection.subjectsFor(grade: DemoContent.kgGrade).take(2), ['القرآن الكريم', 'القاعدة النورانية']);
-    auth.client.auth.stopAutoRefresh();
-  });
-
-  test('أوّلُ دخولٍ بلا إنترنت: الصف الرابع من المنهج المدمج', () async {
+  test('أوّلُ دخولٍ بلا إنترنت ولا نسخة: المنهجُ المدمج بديلاً', () async {
     final auth = StudentAuthService(SupabaseClient(_deadServer, 'k'), apiBaseUrl: _deadServer);
     final profile = await auth.signInDemo('grade4');
     expect(DemoCatalog.current, isNull);

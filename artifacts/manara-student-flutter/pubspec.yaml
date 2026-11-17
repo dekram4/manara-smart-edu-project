@@ -150,8 +150,6 @@ flutter:
     # فيلمُ الترحيب على شاشة الإقلاع (انظر StudentStartupScreen).
     - assets/video/
     - assets/animations/
-    # ‏منهجُ الحساب الرسمي لوضع الزائر، يكتبه البناءُ — انظر DemoCatalog.
-    - assets/demo/
     - assets/sounds/
     - assets/audio/
     # The recorded line each portal says when opened. Listed on its own

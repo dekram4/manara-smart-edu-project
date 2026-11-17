@@ -112,11 +112,11 @@ void main() {
       expect(fresh.questions, hasLength(4));
     });
 
-    test('الروضة: الموادّ السبع، ولكلّ درسٍ مفتوحٍ شرحٌ وأسئلةٌ ولعبة', () {
+    test('الروضة: الموادّ الستّ، ولكلّ درسٍ مفتوحٍ شرحٌ وأسئلةٌ ولعبة', () {
       final profile = DemoContent.profile('kg');
       final selection = DemoContent.selection(profile);
       final subjects = selection.subjectsFor(grade: DemoContent.kgGrade);
-      expect(subjects, hasLength(7));
+      expect(subjects, hasLength(6));
       for (final subject in subjects) {
         final lessons = selection.lessonsFor(
             grade: DemoContent.kgGrade, subject: subject, term: DemoContent.term1, unit: DemoContent.unit1);

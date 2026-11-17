@@ -249,9 +249,7 @@ void main() {
       expect(state.questionIndex, i);
       final shown = questions.firstWhere((q) => find.text('${q['question']}').evaluate().isNotEmpty);
       final option = find.byKey(ValueKey('demo-duel-option-${shown['answer']}'));
-      // ‏في منتصف الشاشة: لا تحت الشريط العلويّ.
-      await Scrollable.ensureVisible(tester.element(option), alignment: 0.5);
-      await tester.pump();
+      await tester.ensureVisible(option);
       await tester.tap(option);
       await tester.pump(const Duration(milliseconds: 1100));
       await tester.pump(const Duration(milliseconds: 1700));
