@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../l10n/student_strings.dart';
+import 'arena_widgets.dart';
 import 'student_avatar_view.dart';
 
 /// شريطُ المقارنة: نقاطي أمام نقاطه، ومن يتقدّم يُرى.
@@ -37,67 +38,162 @@ class DuelVersusBar extends StatelessWidget {
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(22),
         gradient: const LinearGradient(
-          colors: [Color(0xFF4C1D95), Color(0xFF7C3AED)],
+          colors: [Color(0xFF312E81), Color(0xFF6D28D9), Color(0xFF9D174D)],
+          stops: [0.0, 0.55, 1.0],
           begin: AlignmentDirectional.topStart,
           end: AlignmentDirectional.bottomEnd,
         ),
-        boxShadow: const [
-          BoxShadow(
+        border: Border.all(
+            color: ArenaPalette.goldLight.withValues(alpha: 0.7), width: 1.4),
+        boxShadow: [
+          const BoxShadow(
             color: Color(0x33000000),
             blurRadius: 10,
             offset: Offset(0, 4),
           ),
+          BoxShadow(
+            color: ArenaPalette.violet.withValues(alpha: 0.35),
+            blurRadius: 18,
+            spreadRadius: 1,
+          ),
         ],
       ),
-      child: Row(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
         children: [
-          Expanded(
-            child: _Side(
-              name: myName,
-              appearance: myAppearance,
-              points: myPoints,
-              ahead: myPoints > rivalPoints,
-              mirrored: false,
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 6),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Text(
-                  'VS',
-                  style: TextStyle(
-                    fontSize: 15,
-                    fontWeight: FontWeight.w900,
-                    color: Colors.white,
-                    letterSpacing: 1.5,
-                  ),
+          Row(
+            children: [
+              Expanded(
+                child: _Side(
+                  name: myName,
+                  appearance: myAppearance,
+                  points: myPoints,
+                  ahead: myPoints > rivalPoints,
+                  mirrored: false,
                 ),
-                // «يلعب الآن» أثناء النزال، ولا شيءَ في النتيجة: المبارزةُ
-                // حيّةٌ دائماً، و«يلعب لاحقاً» بقيّةُ نمطٍ لم يعد.
-                if (live)
-                  Text(
-                    tr('duel.liveNow'),
-                    style: TextStyle(
-                      fontSize: 9.5,
-                      fontWeight: FontWeight.w800,
-                      color: Colors.white.withValues(alpha: 0.82),
+              ),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 6),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Text(
+                      'VS',
+                      style: TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w900,
+                        color: Colors.white,
+                        letterSpacing: 1.5,
+                      ),
+                    ),
+                    // «يلعب الآن» أثناء النزال، ولا شيءَ في النتيجة: المبارزةُ
+                    // حيّةٌ دائماً، و«يلعب لاحقاً» بقيّةُ نمطٍ لم يعد.
+                    if (live)
+                      Text(
+                        tr('duel.liveNow'),
+                        style: TextStyle(
+                          fontSize: 9.5,
+                          fontWeight: FontWeight.w800,
+                          color: Colors.white.withValues(alpha: 0.82),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+              Expanded(
+                child: _Side(
+                  name: rivalName.isEmpty ? tr('duel.rival') : rivalName,
+                  appearance: rivalAppearance,
+                  points: rivalPoints,
+                  ahead: rivalPoints > myPoints,
+                  mirrored: true,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          DuelMomentumBar(myPoints: myPoints, rivalPoints: rivalPoints),
+        ],
+      ),
+    );
+  }
+}
+
+/// شريطُ الزخم: حصّةُ نقاطي من نقاطنا معاً — أزرقُ من جهتي وورديٌّ من جهته،
+/// والحدُّ بينهما يسير إلى من يتقدّم. في البداية والتعادل في المنتصف.
+///
+/// رقمان يُقرآن، وهذا يُرى بطرف العين: من يسحب الحبلَ الآن.
+class DuelMomentumBar extends StatelessWidget {
+  const DuelMomentumBar(
+      {required this.myPoints, required this.rivalPoints, super.key});
+
+  final int myPoints;
+  final int rivalPoints;
+
+  /// حصّتي من النقاط، ونصفٌ حين لا نقاط.
+  static double shareOf(int mine, int theirs) {
+    final total = mine + theirs;
+    return total <= 0 ? 0.5 : (mine / total).clamp(0.0, 1.0);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return TweenAnimationBuilder<double>(
+      tween: Tween(end: shareOf(myPoints, rivalPoints)),
+      duration: const Duration(milliseconds: 520),
+      curve: Curves.easeOutCubic,
+      builder: (context, share, _) => SizedBox(
+        key: const ValueKey('duel-momentum'),
+        height: 10,
+        child: LayoutBuilder(
+          builder: (context, box) {
+            final split = (box.maxWidth * share).clamp(0.0, box.maxWidth);
+            return Stack(
+              clipBehavior: Clip.none,
+              children: [
+                Positioned.fill(
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(99),
+                      gradient: LinearGradient(
+                        begin: AlignmentDirectional.centerStart,
+                        end: AlignmentDirectional.centerEnd,
+                        colors: const [
+                          ArenaPalette.me,
+                          ArenaPalette.me,
+                          ArenaPalette.rival,
+                          ArenaPalette.rival
+                        ],
+                        stops: [0, share, share, 1],
+                      ),
+                      border: Border.all(
+                          color: Colors.white.withValues(alpha: 0.6)),
                     ),
                   ),
+                ),
+                PositionedDirectional(
+                  start: split - 7,
+                  top: -2,
+                  child: Container(
+                    width: 14,
+                    height: 14,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: ArenaPalette.goldLight,
+                      border: Border.all(color: Colors.white, width: 2),
+                      boxShadow: const [
+                        BoxShadow(
+                            color: Color(0xAAF59E0B),
+                            blurRadius: 8,
+                            spreadRadius: 1)
+                      ],
+                    ),
+                  ),
+                ),
               ],
-            ),
-          ),
-          Expanded(
-            child: _Side(
-              name: rivalName.isEmpty ? tr('duel.rival') : rivalName,
-              appearance: rivalAppearance,
-              points: rivalPoints,
-              ahead: rivalPoints > myPoints,
-              mirrored: true,
-            ),
-          ),
-        ],
+            );
+          },
+        ),
       ),
     );
   }
@@ -134,8 +230,22 @@ class _Side extends StatelessWidget {
         child: Stack(
           alignment: Alignment.bottomCenter,
           children: [
-            StudentAvatarView(
-                size: 36, appearance: appearance, showRing: false),
+            Container(
+              padding: const EdgeInsets.all(2),
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: mirrored ? ArenaPalette.rival : ArenaPalette.me,
+                boxShadow: [
+                  BoxShadow(
+                    color: (mirrored ? ArenaPalette.rival : ArenaPalette.me)
+                        .withValues(alpha: ahead ? 0.8 : 0.4),
+                    blurRadius: ahead ? 12 : 6,
+                  ),
+                ],
+              ),
+              child: StudentAvatarView(
+                  size: 34, appearance: appearance, showRing: false),
+            ),
             if (ahead)
               const Align(
                 alignment: Alignment.topCenter,

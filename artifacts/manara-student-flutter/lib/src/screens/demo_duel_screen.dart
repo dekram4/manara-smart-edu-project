@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../l10n/student_strings.dart';
 import '../services/demo_mode.dart';
@@ -10,9 +11,11 @@ import '../services/duel_voice_recorder.dart';
 import '../services/student_settings.dart';
 import '../services/student_sound_service.dart';
 import '../theme/student_theme.dart';
+import '../widgets/arena_widgets.dart';
 import '../widgets/chat_voice.dart';
 import '../widgets/demo_lock.dart';
 import '../widgets/demo_ui.dart';
+import '../widgets/duel_versus.dart';
 
 /// «تحدَّ زملاءك» للزائر: مباراةٌ مع شخصيةٍ افتراضية («روبوت منارة») على
 /// الجهاز وحده.
@@ -52,6 +55,51 @@ class DemoDuelScreen extends StatefulWidget {
 }
 
 enum DemoDuelPhase { connecting, playing, done }
+
+/// أسئلةُ التحدي التي لعبها الزائرُ اليوم: ثلاثةٌ في اليوم كلِّه
+/// ([DemoMode.duelQuestions]) — لا في كل مباراة.
+///
+/// ‏كانت «تحدٍّ جديد» تبدأ ثلاثةً أخرى بلا نهاية. فصار العدُّ على الجهاز بمفتاح
+/// ‏تاريخ اليوم (`YYYY-MM-DD`): الخروجُ والرجوع لا يُعيدانه، وغداً يبدأ من
+/// ‏جديد. ولا يُقرأ ولا يُكتب إلا في وضع الزائر: الحسابُ الرسمي لا يمرّ بهذه
+/// ‏الشاشة أصلاً، ولا يمسّه هذا.
+abstract final class DemoDuelQuota {
+  static const _prefix = 'demo.duel.asked.';
+
+  static String dayKey([DateTime? now]) {
+    final d = now ?? DateTime.now();
+    String two(int v) => v.toString().padLeft(2, '0');
+    return '${d.year}-${two(d.month)}-${two(d.day)}';
+  }
+
+  /// كم سؤالاً لعب الزائرُ اليوم. صفرٌ لغير الزائر.
+  static Future<int> used({DateTime? now}) async {
+    if (!DemoMode.active) return 0;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      return prefs.getInt('$_prefix${dayKey(now)}') ?? 0;
+    } catch (_) {
+      return 0;
+    }
+  }
+
+  /// يسجّل سؤالاً لُعب اليوم ويعيد العدد بعده، ويمحو ما قبل اليوم.
+  static Future<int> record({DateTime? now}) async {
+    if (!DemoMode.active) return 0;
+    final key = '$_prefix${dayKey(now)}';
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final next = (prefs.getInt(key) ?? 0) + 1;
+      await prefs.setInt(key, next);
+      for (final old in prefs.getKeys().where((k) => k.startsWith(_prefix) && k != key).toList()) {
+        await prefs.remove(old);
+      }
+      return next;
+    } catch (_) {
+      return DemoMode.duelQuestions;
+    }
+  }
+}
 
 class _Q {
   _Q(this.question, this.options, this.answer);
@@ -98,6 +146,9 @@ class DemoDuelScreenState extends State<DemoDuelScreen> {
   int _botScore = 0;
   int _myCorrect = 0;
 
+  /// ما بقي للزائر من أسئلة اليوم ([DemoDuelQuota]).
+  int _leftToday = DemoMode.duelQuestions;
+
   final List<_Msg> _messages = [];
   final List<_Flying> _flying = [];
   int _flyId = 0;
@@ -119,11 +170,16 @@ class DemoDuelScreenState extends State<DemoDuelScreen> {
   int get messageCount => _messages.length;
   @visibleForTesting
   int get flyingCount => _flying.length;
+  @visibleForTesting
+  int get leftToday => _leftToday;
+
+  /// الشخصيتان: الطالبُ بشخصيته المختارة على الجهاز، والروبوتُ بشخصيةٍ من أصول النظام.
+  static const botAppearance = {'avatarId': 'a2'};
 
   @override
   void initState() {
     super.initState();
-    _start();
+    unawaited(_start());
   }
 
   @override
@@ -146,15 +202,18 @@ class DemoDuelScreenState extends State<DemoDuelScreen> {
     _timers.add(t);
   }
 
-  /// ثلاثةُ أسئلةٍ من الدرس بترتيبٍ جديد، ثم البحثُ عن المنافس.
-  void _start() {
+  /// ما بقي من أسئلة اليوم من الدرس بترتيبٍ جديد، ثم البحثُ عن المنافس.
+  Future<void> _start() async {
+    final used = await DemoDuelQuota.used();
+    if (!mounted) return;
+    _leftToday = math.max(0, DemoMode.duelQuestions - used);
     final pool = [
       for (final q in widget.questions)
         if ('${q['question'] ?? ''}'.trim().isNotEmpty && (q['options'] as List?)?.contains(q['answer']) == true)
           _Q('${q['question']}', [for (final o in q['options'] as List) '$o'], '${q['answer']}'),
     ]..shuffle(_random);
     setState(() {
-      _round = pool.take(DemoMode.duelQuestions).toList();
+      _round = pool.take(_leftToday).toList();
       _phase = DemoDuelPhase.connecting;
       _index = 0;
       _myScore = 0;
@@ -172,6 +231,10 @@ class DemoDuelScreenState extends State<DemoDuelScreen> {
   }
 
   void _ask(int i) {
+    // ‏السؤالُ يُعدّ حين يُعرض: الخروجُ في منتصفه لا يعيده.
+    unawaited(DemoDuelQuota.record().then((n) {
+      if (mounted) setState(() => _leftToday = math.max(0, DemoMode.duelQuestions - n));
+    }));
     setState(() {
       _index = i;
       _left = seconds;
@@ -338,12 +401,14 @@ class DemoDuelScreenState extends State<DemoDuelScreen> {
       textDirection: StudentSettings.direction,
       child: Scaffold(
         backgroundColor: StudentSurface.ground(context),
+        extendBodyBehindAppBar: false,
         appBar: AppBar(
           foregroundColor: Colors.white,
           flexibleSpace: Container(decoration: const BoxDecoration(gradient: DemoPalette.violetGradient)),
           title: Text(tr('portal.challenge'), style: const TextStyle(fontWeight: FontWeight.w900)),
         ),
-        body: SafeArea(
+        body: ArenaBackdrop(
+          child: SafeArea(
           child: Stack(children: [
             Center(
               child: ConstrainedBox(
@@ -389,30 +454,8 @@ class DemoDuelScreenState extends State<DemoDuelScreen> {
             ),
           ]),
         ),
-      ),
-    );
-  }
-
-  Widget _player({required String emoji, required String name, required int score, bool right = false, String? badge}) {
-    return Expanded(
-      child: Column(children: [
-        Container(
-          width: 56,
-          height: 56,
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            gradient: right ? DemoPalette.goldGradient : DemoPalette.violetGradient,
-            border: Border.all(color: Colors.white, width: 2.5),
-          ),
-          alignment: Alignment.center,
-          child: Text(emoji, style: const TextStyle(fontSize: 26)),
         ),
-        const SizedBox(height: 6),
-        Text(name, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w900)),
-        Text('$score', style: const TextStyle(color: DemoPalette.goldLight, fontWeight: FontWeight.w900, fontSize: 22)),
-        if (badge != null)
-          Text(badge, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(color: Colors.white70, fontSize: 12, fontWeight: FontWeight.w700)),
-      ]),
+      ),
     );
   }
 
@@ -422,28 +465,37 @@ class DemoDuelScreenState extends State<DemoDuelScreen> {
         : _botAnswered
             ? tr('demo.duel.botAnswered')
             : tr('demo.duel.botThinking');
-    return Container(
+    return Column(
       key: const ValueKey('demo-duel-score'),
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        gradient: DemoPalette.violetGradient,
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: DemoPalette.gold, width: 1.6),
-        boxShadow: [BoxShadow(color: DemoPalette.violet.withValues(alpha: 0.3), blurRadius: 16, offset: const Offset(0, 6))],
-      ),
-      child: Row(children: [
-        _player(emoji: '🧒', name: tr('demo.duel.you'), score: _myScore, right: true),
-        Column(children: [
-          const Text('VS', style: TextStyle(color: DemoPalette.goldLight, fontWeight: FontWeight.w900, fontSize: 22)),
-          if (_phase == DemoDuelPhase.playing)
-            Text(
-              trf('demo.duel.seconds', {'n': _left}),
-              key: const ValueKey('demo-duel-timer'),
-              style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w800),
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        DuelVersusBar(
+          myName: tr('demo.duel.you'),
+          rivalName: tr('demo.duel.botName'),
+          myAppearance: null,
+          rivalAppearance: botAppearance,
+          myPoints: _myScore,
+          rivalPoints: _botScore,
+          live: _phase == DemoDuelPhase.playing,
+        ),
+        const SizedBox(height: 6),
+        Center(
+          child: AnimatedSwitcher(
+            duration: const Duration(milliseconds: 220),
+            child: Container(
+              key: ValueKey(botBadge),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+              decoration: BoxDecoration(
+                color: _botAnswered ? ArenaPalette.rival.withValues(alpha: 0.14) : ArenaPalette.violet.withValues(alpha: 0.10),
+                borderRadius: BorderRadius.circular(99),
+                border: Border.all(color: (_botAnswered ? ArenaPalette.rival : ArenaPalette.violet).withValues(alpha: 0.5)),
+              ),
+              child: Text('🤖 $botBadge',
+                  style: TextStyle(fontWeight: FontWeight.w800, fontSize: 12.5, color: StudentSurface.ink(context))),
             ),
-        ]),
-        _player(emoji: '🤖', name: tr('demo.duel.botName'), score: _botScore, badge: botBadge),
-      ]),
+          ),
+        ),
+      ],
     );
   }
 
@@ -465,17 +517,22 @@ class DemoDuelScreenState extends State<DemoDuelScreen> {
   Widget _connecting(BuildContext context) => _card(
         context,
         key: const ValueKey('demo-duel-connecting'),
-        child: Column(children: [
-          const SizedBox(height: 8),
-          const SizedBox(width: 40, height: 40, child: CircularProgressIndicator(strokeWidth: 3.5, color: DemoPalette.violet)),
-          const SizedBox(height: 14),
-          Text(tr('demo.duel.searching'),
-              textAlign: TextAlign.center,
-              style: TextStyle(fontWeight: FontWeight.w900, fontSize: 17, color: StudentSurface.ink(context))),
-          const SizedBox(height: 6),
-          Text(trf('demo.duel.limit', {'n': DemoMode.duelQuestions}),
-              textAlign: TextAlign.center, style: const TextStyle(color: DemoPalette.goldDeep, fontWeight: FontWeight.w800)),
-        ]),
+        child: ArenaVersus(
+          myName: tr('demo.duel.you'),
+          rivalName: tr('demo.duel.botName'),
+          myAppearance: null,
+          rivalAppearance: botAppearance,
+          rivalPresent: false,
+          footer: Column(children: [
+            const SizedBox(width: 36, height: 36, child: CircularProgressIndicator(strokeWidth: 3.5, color: DemoPalette.violet)),
+            const SizedBox(height: 12),
+            Text(tr('demo.duel.searching'),
+                textAlign: TextAlign.center,
+                style: TextStyle(fontWeight: FontWeight.w900, fontSize: 17, color: StudentSurface.ink(context))),
+            const SizedBox(height: 6),
+            DemoQuotaChip(text: trf('demo.duel.left', {'n': _leftToday, 'total': DemoMode.duelQuestions})),
+          ]),
+        ),
       );
 
   Widget _question(BuildContext context) {
@@ -485,70 +542,74 @@ class DemoDuelScreenState extends State<DemoDuelScreen> {
       key: ValueKey('demo-duel-q-$_index'),
       child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
         Row(children: [
-          DemoQuotaChip(text: trf('demo.duel.questionOf', {'n': _index + 1, 'total': _round.length})),
-          const Spacer(),
-          if ((widget.lessonName ?? '').isNotEmpty)
-            Flexible(
-              child: Text(widget.lessonName!,
-                  maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(color: DemoPalette.violet, fontWeight: FontWeight.w800)),
-            ),
-        ]),
-        const SizedBox(height: 8),
-        ClipRRect(
-          borderRadius: BorderRadius.circular(8),
-          child: LinearProgressIndicator(
-            value: _left / seconds,
-            minHeight: 8,
-            color: _left <= 5 ? const Color(0xFFDC2626) : DemoPalette.gold,
-            backgroundColor: DemoPalette.violet.withValues(alpha: 0.12),
+          Expanded(
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              DemoQuotaChip(text: trf('demo.duel.questionOf', {'n': _index + 1, 'total': _round.length})),
+              if ((widget.lessonName ?? '').isNotEmpty) ...[
+                const SizedBox(height: 6),
+                Text(widget.lessonName!,
+                    maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(color: DemoPalette.violet, fontWeight: FontWeight.w800)),
+              ],
+            ]),
           ),
-        ),
+          // ‏حلقةُ الوقت: خضراءُ ثم ذهبيةٌ ثم حمراءُ متوهّجة في ثوانيها الأخيرة.
+          Semantics(
+            key: const ValueKey('demo-duel-timer'),
+            label: trf('demo.duel.seconds', {'n': _left}),
+            child: ArenaTimerRing(
+              left: Duration(seconds: _left),
+              window: const Duration(seconds: seconds),
+              size: 58,
+            ),
+          ),
+        ]),
         const SizedBox(height: 14),
         Text(q.question,
             textAlign: TextAlign.center,
             style: TextStyle(fontWeight: FontWeight.w900, fontSize: 19, height: 1.5, color: StudentSurface.ink(context))),
         const SizedBox(height: 14),
-        for (final o in q.options) ...[
-          _option(context, q, o),
-          const SizedBox(height: 8),
+        for (var i = 0; i < q.options.length; i++) ...[
+          _option(context, q, i),
+          const SizedBox(height: 10),
         ],
       ]),
     );
   }
 
-  Widget _option(BuildContext context, _Q q, String o) {
+  /// حالُ الخيار: قبل الاختيار مفتوح، وبعده لونُ ما حدث — والصحيحُ يظهر عند الكشف.
+  AnswerTileState _stateOf(_Q q, String o) {
     final chosen = _mine == o;
     final correct = o == q.answer;
-    final Color? fill = !_reveal && !chosen
-        ? null
-        : correct && (_reveal || chosen)
-            ? const Color(0xFF16A34A)
-            : chosen
-                ? const Color(0xFFDC2626)
-                : null;
-    return DemoPressable(
+    if (_reveal) {
+      if (correct) return AnswerTileState.correct;
+      return chosen ? AnswerTileState.wrong : AnswerTileState.dimmed;
+    }
+    if (_mine == null) return AnswerTileState.idle;
+    if (chosen) return correct ? AnswerTileState.correct : AnswerTileState.wrong;
+    return AnswerTileState.dimmed;
+  }
+
+  Widget _option(BuildContext context, _Q q, int index) {
+    final o = q.options[index];
+    final badge = [
+      if (_mine == o) '🧒',
+      if (_reveal && _bot == o) '🤖',
+    ].join();
+    return AnswerTile(
       key: ValueKey('demo-duel-option-$o'),
-      onTap: () => _choose(o),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
-        decoration: BoxDecoration(
-          color: fill ?? DemoPalette.violet.withValues(alpha: 0.08),
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: fill ?? DemoPalette.violet.withValues(alpha: 0.35), width: 1.4),
-        ),
-        child: Row(children: [
-          Expanded(
-            child: Text(o,
-                style: TextStyle(fontWeight: FontWeight.w800, fontSize: 16, color: fill != null ? Colors.white : StudentSurface.ink(context))),
-          ),
-          if (_reveal && _bot == o) const Text('🤖', style: TextStyle(fontSize: 18)),
-          if (chosen) const Padding(padding: EdgeInsetsDirectional.only(start: 6), child: Text('🧒', style: TextStyle(fontSize: 18))),
-        ]),
-      ),
+      index: index,
+      label: o,
+      state: _stateOf(q, o),
+      badge: badge.isEmpty ? null : badge,
+      onPressed: _mine == null && !_reveal ? () => _choose(o) : null,
     );
   }
 
   Widget _result(BuildContext context) {
+    // ‏لعب أسئلةَ اليوم كلَّها قبل أن يفتح: بطاقةُ الترويج وحدها، لا «تعادل» بصفرٍ من صفر.
+    if (_round.isEmpty) {
+      return DemoLockedCard(key: const ValueKey('demo-duel-locked'), message: tr('demo.duel.dailyDone'));
+    }
     final title = _myScore > _botScore
         ? tr('demo.duel.win')
         : _myScore < _botScore
@@ -559,22 +620,38 @@ class DemoDuelScreenState extends State<DemoDuelScreen> {
         context,
         key: const ValueKey('demo-duel-result'),
         child: Column(children: [
+          Stack(clipBehavior: Clip.none, alignment: Alignment.topCenter, children: [
+            ArenaFighter(
+              appearance: _myScore >= _botScore ? null : botAppearance,
+              size: 96,
+              team: _myScore >= _botScore ? ArenaPalette.me : ArenaPalette.rival,
+            ),
+            if (_myScore != _botScore)
+              const Positioned(top: -30, child: Text('👑', style: TextStyle(fontSize: 34))),
+          ]),
+          const SizedBox(height: 12),
           Text(title, textAlign: TextAlign.center, style: TextStyle(fontWeight: FontWeight.w900, fontSize: 22, color: StudentSurface.ink(context))),
           const SizedBox(height: 6),
           Text(trf('demo.duel.correct', {'n': _myCorrect, 'total': _round.length}),
               textAlign: TextAlign.center, style: const TextStyle(color: DemoPalette.violet, fontWeight: FontWeight.w800)),
-          const SizedBox(height: 12),
-          DemoGradientButton(
-            key: const ValueKey('demo-duel-again'),
-            label: tr('demo.duel.again'),
-            icon: Icons.replay_rounded,
-            height: 48,
-            onPressed: _start,
-          ),
+          // ‏«تحدٍّ جديد» لمن بقيت له أسئلةٌ اليوم وحده: لا ثلاثةٌ أخرى كلَّ مرّة.
+          if (_leftToday > 0) ...[
+            const SizedBox(height: 12),
+            DemoGradientButton(
+              key: const ValueKey('demo-duel-again'),
+              label: tr('demo.duel.again'),
+              icon: Icons.replay_rounded,
+              height: 48,
+              onPressed: () => unawaited(_start()),
+            ),
+          ],
         ]),
       ),
       const SizedBox(height: 14),
-      DemoLockedCard(key: const ValueKey('demo-duel-locked'), message: tr('demo.duel.more')),
+      DemoLockedCard(
+        key: const ValueKey('demo-duel-locked'),
+        message: tr(_leftToday > 0 ? 'demo.duel.more' : 'demo.duel.dailyDone'),
+      ),
     ]);
   }
 

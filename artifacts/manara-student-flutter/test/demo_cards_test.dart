@@ -21,6 +21,7 @@ import 'package:manara_student/src/services/student_auth_service.dart';
 import 'package:manara_student/src/services/student_content_service.dart';
 import 'package:manara_student/src/services/student_settings.dart';
 import 'package:manara_student/src/services/student_study_service.dart';
+import 'package:manara_student/src/widgets/arena_widgets.dart';
 
 /// بطاقاتُ الزائر على الجهاز: السينما، والمذاكرة في كلّ مادة، وحلُّ المسائل
 /// بسؤالين، والتحدّي مع «روبوت منارة» بثلاثة أسئلة.
@@ -72,6 +73,12 @@ DemoCatalogData _catalog({List<Map<String, dynamic>> videos = const []}) => Demo
       ],
       videos: videos,
     )!;
+
+/// يضع [finder] في منتصف الشاشة قبل اللمس: لا تحت شريطٍ ولا على حافّتها.
+Future<void> centre(WidgetTester tester, Finder finder) async {
+  await Scrollable.ensureVisible(tester.element(finder), alignment: 0.5);
+  await tester.pump();
+}
 
 void main() {
   setUp(() {
@@ -268,20 +275,23 @@ void main() {
     ));
     final state = tester.state<DemoDuelScreenState>(find.byType(DemoDuelScreen));
     expect(find.byKey(const ValueKey('demo-duel-connecting')), findsOneWidget);
+    expect(find.byType(ArenaVersus), findsOneWidget, reason: 'مشهدُ المواجهة بالشخصيتين');
     await tester.pump(const Duration(milliseconds: 300));
     expect(state.phase, DemoDuelPhase.playing);
     expect(state.roundLength, DemoMode.duelQuestions);
+    expect(find.byType(AnswerTile), findsWidgets);
+    expect(find.byType(ArenaTimerRing), findsOneWidget);
 
     // ‏رمزٌ يطير، وعبارةٌ يردّ عليها المنافس، ومقطعٌ صوتيّ يُسمع.
     await tester.tap(find.byKey(const ValueKey('demo-duel-emoji-🔥')));
     await tester.pump();
     expect(state.flyingCount, greaterThan(0));
     final before = state.messageCount;
-    await tester.ensureVisible(find.byKey(ValueKey('demo-duel-phrase-${tr('demo.duel.phrase1')}')));
+    await centre(tester, find.byKey(ValueKey('demo-duel-phrase-${tr('demo.duel.phrase1')}')));
     await tester.tap(find.byKey(ValueKey('demo-duel-phrase-${tr('demo.duel.phrase1')}')));
     await tester.pump(const Duration(milliseconds: 950));
     expect(state.messageCount, before + 2);
-    await tester.ensureVisible(find.byKey(const ValueKey('demo-duel-voice')));
+    await centre(tester, find.byKey(const ValueKey('demo-duel-voice')));
     await tester.pump();
     await tester.tap(find.byKey(const ValueKey('demo-duel-voice')));
     await tester.pump(const Duration(milliseconds: 500));
@@ -296,7 +306,7 @@ void main() {
       expect(state.questionIndex, i);
       final shown = questions.firstWhere((q) => find.text('${q['question']}').evaluate().isNotEmpty);
       final option = find.byKey(ValueKey('demo-duel-option-${shown['answer']}'));
-      await tester.ensureVisible(option);
+      await centre(tester, option);
       await tester.tap(option);
       await tester.pump(const Duration(milliseconds: 1100));
       await tester.pump(const Duration(milliseconds: 1700));
@@ -305,8 +315,49 @@ void main() {
     expect(state.myScore, greaterThan(30));
     expect(find.byKey(const ValueKey('demo-duel-result')), findsOneWidget);
     expect(find.byKey(const ValueKey('demo-duel-locked')), findsOneWidget);
+    // ‏أسئلةُ اليوم الثلاثة لُعبت: لا «تحدٍّ جديد» بثلاثةٍ أخرى.
+    expect(state.leftToday, 0);
+    expect(find.byKey(const ValueKey('demo-duel-again')), findsNothing);
+    expect(find.text(tr('demo.duel.dailyDone')), findsOneWidget);
+    // ‏وبالواجهة الجديدة: بلاطاتُ الخيارات والحلقةُ والمواجهةُ من قطع الحلبة نفسها.
+    expect(tester.takeException(), isNull);
+
+    // ‏خرج ورجع في اليوم نفسه: بطاقةُ الترويج مباشرةً، بلا سؤال.
+    final prefs = await SharedPreferences.getInstance();
+    expect(prefs.getInt('demo.duel.asked.${DemoDuelQuota.dayKey()}'), DemoMode.duelQuestions);
+    await tester.pumpWidget(const SizedBox());
+    await tester.pumpWidget(MaterialApp(
+      home: DemoDuelScreen(
+        questions: questions,
+        recorder: _Recorder(),
+        random: math.Random(3),
+        botDelay: const Duration(seconds: 1),
+        connectDelay: const Duration(milliseconds: 200),
+      ),
+    ));
+    await tester.pump(const Duration(milliseconds: 300));
+    final again = tester.state<DemoDuelScreenState>(find.byType(DemoDuelScreen));
+    expect(again.roundLength, 0);
+    expect(again.phase, DemoDuelPhase.done);
+    expect(find.byKey(const ValueKey('demo-duel-locked')), findsOneWidget);
+    expect(find.byType(AnswerTile), findsNothing);
     expect(tester.takeException(), isNull);
     await tester.pumpWidget(const SizedBox());
     await tester.pump(const Duration(seconds: 2));
+  });
+
+  test('عدّادُ التحدي اليوميّ: يومٌ جديدٌ يبدأ من صفر، ولا يُكتب شيءٌ لغير الزائر', () async {
+    DemoMode.enterFor(DemoContent.profile('kg'));
+    final today = DateTime(2026, 11, 17, 22);
+    for (var i = 1; i <= 3; i++) {
+      expect(await DemoDuelQuota.record(now: today), i);
+    }
+    expect(await DemoDuelQuota.used(now: today), 3);
+    expect(await DemoDuelQuota.used(now: DateTime(2026, 11, 18, 8)), 0);
+    DemoMode.exit();
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.clear();
+    expect(await DemoDuelQuota.record(now: today), 0);
+    expect(prefs.getKeys(), isEmpty);
   });
 }
