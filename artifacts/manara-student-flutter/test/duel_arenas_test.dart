@@ -159,13 +159,38 @@ void main() {
     expect(byType('_Fruit'), findsNWidgets(10));
   });
 
-  testWidgets('مغامرة الفضاء: النجومُ المجموعة بعدد النقاط', (tester) async {
+  testWidgets('شدّ الحبل بين اثنين: الشخصيتان على الحبل، والرايةُ تسير، والتاجُ للفائز', (tester) async {
     await tester.pumpWidget(arena(DuelGame.tug, mine: 0, theirs: 0));
+    expect(find.byKey(const ValueKey('tug-arena')), findsOneWidget);
+    expect(find.byKey(const ValueKey('duel-tug-me')), findsOneWidget);
+    expect(find.byKey(const ValueKey('duel-tug-rival')), findsOneWidget);
+    expect(find.text('🚀'), findsNothing, reason: 'لا صواريخَ في الحبل');
     await tester.pumpWidget(arena(DuelGame.tug, mine: 2, theirs: 1));
+    await tester.pump(const Duration(milliseconds: 200));
+    expect(find.byKey(const ValueKey('duel-tug-dust-1')), findsOneWidget);
+    await tester.pumpAndSettle();
+    expect(find.text('2/5'), findsOneWidget);
+    await tester.pumpWidget(arena(DuelGame.tug, mine: 4, theirs: 1, finished: true));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('👑'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('شدّ الحبل في غرفةٍ أكبر: مغامرةُ الفضاء بنجومها — الحبلُ طرفان', (tester) async {
+    await tester.pumpWidget(arena(DuelGame.tug, mine: 0, theirs: 0, players: const [
+      ArenaRacer(name: 'أنا', at: 0, me: true),
+      ArenaRacer(name: 'سارة', at: 0),
+      ArenaRacer(name: 'ريم', at: 0),
+    ]));
+    await tester.pumpWidget(arena(DuelGame.tug, mine: 2, theirs: 1, players: const [
+      ArenaRacer(name: 'أنا', at: 2, me: true),
+      ArenaRacer(name: 'سارة', at: 1),
+      ArenaRacer(name: 'ريم', at: 0),
+    ]));
     await tester.pumpAndSettle();
     expect(find.byIcon(Icons.star_rounded), findsNWidgets(3));
-    expect(find.byIcon(Icons.star_border_rounded), findsNWidgets(7));
-    expect(find.text('🚀'), findsNWidgets(2));
+    expect(find.byIcon(Icons.star_border_rounded), findsNWidgets(12));
+    expect(find.text('🚀'), findsNWidgets(3));
   });
 
   testWidgets('أبراج التحدي: مكعّبٌ يسقط في مكانه، والرايةُ عند الاكتمال', (tester) async {

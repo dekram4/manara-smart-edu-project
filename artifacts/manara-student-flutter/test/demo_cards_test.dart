@@ -283,6 +283,7 @@ void main() {
     expect(find.byType(ArenaTimerRing), findsOneWidget);
 
     // ‏رمزٌ يطير، وعبارةٌ يردّ عليها المنافس، ومقطعٌ صوتيّ يُسمع.
+    await centre(tester, find.byKey(const ValueKey('demo-duel-emoji-🔥')));
     await tester.tap(find.byKey(const ValueKey('demo-duel-emoji-🔥')));
     await tester.pump();
     expect(state.flyingCount, greaterThan(0));

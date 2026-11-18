@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:manara_student/src/widgets/arena_widgets.dart';
+import 'package:manara_student/src/widgets/duel_tug_of_war.dart';
 import 'package:manara_student/src/widgets/duel_versus.dart';
 
 /// مؤثّراتُ حلبة «تحدَّ زملاءك»: تنتهي ولا تدور بلا نهاية، ولا تكسر مقاساً،
@@ -104,5 +105,48 @@ void main() {
     expect(find.byType(ArenaCrowd), findsOneWidget);
     expect(find.byType(ArenaVsBadge), findsOneWidget);
     expect(tester.takeException(), isNull);
+  });
+
+  test('شدُّ الحبل: الرايةُ في المنتصف عند التعادل، وتسير إلى المتقدّم حتى خطّ الفوز', () {
+    expect(DuelTugOfWar.shiftOf(0, 0), 0);
+    expect(DuelTugOfWar.shiftOf(30, 10), greaterThan(0));
+    expect(DuelTugOfWar.shiftOf(10, 30), lessThan(0));
+    expect(DuelTugOfWar.shiftOf(40, 0), closeTo(DuelTugOfWar.maxShift, 1e-9));
+  });
+
+  Future<double> flagX(WidgetTester tester) async =>
+      tester.getCenter(find.byKey(const ValueKey('duel-tug-flag'))).dx;
+
+  testWidgets('شدُّ الحبل: الإجابةُ الصحيحة شدّةٌ تجرّ الرايةَ إلى جهتي ثم تسكن', (tester) async {
+    Widget tug(int mine, int theirs) => _host(Directionality(
+          textDirection: TextDirection.rtl,
+          child: DuelTugOfWar(myPoints: mine, rivalPoints: theirs),
+        ));
+    await tester.pumpWidget(tug(0, 0));
+    await tester.pumpAndSettle();
+    final centre = await flagX(tester);
+    expect(find.byKey(const ValueKey('duel-tug-me')), findsOneWidget);
+    expect(find.byKey(const ValueKey('duel-tug-rival')), findsOneWidget);
+
+    await tester.pumpWidget(tug(14, 0));
+    await tester.pump(const Duration(milliseconds: 200));
+    expect(find.byKey(const ValueKey('duel-tug-dust-1')), findsOneWidget, reason: 'غبارُ الشدّة');
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('duel-tug-dust-1')), findsNothing);
+    // جهتي في العربية هي اليمين.
+    expect(await flagX(tester), greaterThan(centre));
+
+    await tester.pumpWidget(tug(14, 40));
+    await tester.pumpAndSettle();
+    expect(await flagX(tester), lessThan(centre));
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('شدُّ الحبل مع «تقليل الحركة»: لا غبارَ ولا شدّة، والرايةُ في موضعها', (tester) async {
+    await tester.pumpWidget(_host(const DuelTugOfWar(myPoints: 0, rivalPoints: 0), still: true));
+    await tester.pumpWidget(_host(const DuelTugOfWar(myPoints: 10, rivalPoints: 0), still: true));
+    await tester.pump();
+    expect(find.byKey(const ValueKey('duel-tug-dust-1')), findsNothing);
+    expect(tester.hasRunningAnimations, isFalse);
   });
 }

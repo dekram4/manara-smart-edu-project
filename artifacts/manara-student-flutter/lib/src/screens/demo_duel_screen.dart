@@ -477,6 +477,7 @@ class DemoDuelScreenState extends State<DemoDuelScreen> {
           myPoints: _myScore,
           rivalPoints: _botScore,
           live: _phase == DemoDuelPhase.playing,
+          showTug: true,
         ),
         const SizedBox(height: 6),
         Center(

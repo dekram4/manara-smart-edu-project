@@ -5,6 +5,7 @@ import '../services/student_duel_service.dart';
 import '../theme/student_theme.dart';
 import 'arena_widgets.dart';
 import 'duel_game_arenas.dart';
+import 'duel_tug_of_war.dart';
 
 export 'duel_game_arenas.dart' show ArenaRacer;
 
@@ -77,6 +78,8 @@ class DuelArena extends StatelessWidget {
         child: switch (game) {
           DuelGame.sprint => HurdleRaceArena(racers: racers, total: total, finished: finished),
           DuelGame.balloons => NumberOrchardArena(racers: racers, total: total, finished: finished),
+          // شدُّ الحبل بين اثنين، وفي غرفةٍ أكبر مغامرةُ الفضاء: الحبلُ طرفان.
+          DuelGame.tug when racers.length == 2 => TugOfWarArena(racers: racers, total: total, finished: finished),
           DuelGame.tug => SpaceVoyageArena(racers: racers, total: total, finished: finished),
           DuelGame.gems => ChallengeTowersArena(racers: racers, total: total, finished: finished),
         },

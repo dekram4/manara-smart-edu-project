@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../l10n/student_strings.dart';
 import 'arena_widgets.dart';
+import 'duel_tug_of_war.dart';
 import 'student_avatar_view.dart';
 
 /// شريطُ المقارنة: نقاطي أمام نقاطه، ومن يتقدّم يُرى.
@@ -20,8 +21,12 @@ class DuelVersusBar extends StatelessWidget {
     required this.myPoints,
     required this.rivalPoints,
     required this.live,
+    this.showTug = false,
     super.key,
   });
+
+  /// شدُّ الحبل بدل شريط الزخم — للزائر أمام الروبوت، حيث لا حلبةَ أخرى.
+  final bool showTug;
 
   final String myName;
   final String rivalName;
@@ -112,7 +117,16 @@ class DuelVersusBar extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 8),
-          DuelMomentumBar(myPoints: myPoints, rivalPoints: rivalPoints),
+          // شدُّ الحبل: الشخصيتان تشدّان، والرايةُ تسير إلى المتقدّم بالنقاط.
+          if (showTug)
+            DuelTugOfWar(
+              myPoints: myPoints,
+              rivalPoints: rivalPoints,
+              myAppearance: myAppearance,
+              rivalAppearance: rivalAppearance,
+            )
+          else
+            DuelMomentumBar(myPoints: myPoints, rivalPoints: rivalPoints),
         ],
       ),
     );
