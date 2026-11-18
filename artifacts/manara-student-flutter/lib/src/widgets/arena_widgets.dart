@@ -309,70 +309,80 @@ class AnswerTile extends StatelessWidget {
       child: LivelyGlow(
         active: state == AnswerTileState.correct,
         child: AnimatedScale(
-          scale: switch (state) {
-            AnswerTileState.correct => 1.04,
-            AnswerTileState.dimmed => 0.97,
-            _ => 1,
-          },
-          duration: const Duration(milliseconds: 200),
-          curve: Curves.easeOutBack,
-          child: TweenAnimationBuilder<Color?>(
-            tween: ColorTween(end: target),
-            duration: const Duration(milliseconds: 260),
-            curve: Curves.easeOut,
-            builder: (context, color, _) => Arena3DButton(
-              color: color ?? target,
-              onPressed: onPressed,
-              greyWhenDisabled: false,
-              radius: 18,
-              glow: glow,
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
-              child: Row(
-                children: [
-                  // ‏شكلُ الموضع في قرصٍ زجاجيّ: يُقرأ قبل النصّ.
-                  Container(
-                    width: 34,
-                    height: 34,
-                    alignment: Alignment.center,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: Colors.white.withValues(alpha: 0.22),
-                      border: Border.all(
-                          color: Colors.white.withValues(alpha: 0.55),
-                          width: 1.4),
-                    ),
-                    child: Icon(shapes[index % shapes.length],
-                        color: Colors.white, size: 20),
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Text(
-                      label,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        fontSize: 17,
-                        height: 1.25,
-                        fontWeight: FontWeight.w900,
-                        shadows: [
-                          Shadow(
-                              color: Color(0x55000000),
-                              blurRadius: 3,
-                              offset: Offset(0, 1))
+            scale: switch (state) {
+              AnswerTileState.correct => 1.04,
+              AnswerTileState.dimmed => 0.97,
+              _ => 1,
+            },
+            duration: const Duration(milliseconds: 200),
+            curve: Curves.easeOutBack,
+            child: Stack(
+              clipBehavior: Clip.none,
+              children: [
+                TweenAnimationBuilder<Color?>(
+                  tween: ColorTween(end: target),
+                  duration: const Duration(milliseconds: 260),
+                  curve: Curves.easeOut,
+                  builder: (context, color, _) => Arena3DButton(
+                    color: color ?? target,
+                    onPressed: onPressed,
+                    greyWhenDisabled: false,
+                    radius: 18,
+                    glow: glow,
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 12, vertical: 14),
+                    child: Row(
+                      children: [
+                        // ‏شكلُ الموضع في قرصٍ زجاجيّ: يُقرأ قبل النصّ.
+                        Container(
+                          width: 34,
+                          height: 34,
+                          alignment: Alignment.center,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: Colors.white.withValues(alpha: 0.22),
+                            border: Border.all(
+                                color: Colors.white.withValues(alpha: 0.55),
+                                width: 1.4),
+                          ),
+                          child: Icon(shapes[index % shapes.length],
+                              color: Colors.white, size: 20),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Text(
+                            label,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              fontSize: 17,
+                              height: 1.25,
+                              fontWeight: FontWeight.w900,
+                              shadows: [
+                                Shadow(
+                                    color: Color(0x55000000),
+                                    blurRadius: 3,
+                                    offset: Offset(0, 1))
+                              ],
+                            ),
+                          ),
+                        ),
+                        if (badge != null) ...[
+                          const SizedBox(width: 6),
+                          Text(badge!, style: const TextStyle(fontSize: 18)),
                         ],
-                      ),
+                        if (trailing != null) ...[
+                          const SizedBox(width: 8),
+                          trailing
+                        ],
+                      ],
                     ),
                   ),
-                  if (badge != null) ...[
-                    const SizedBox(width: 6),
-                    Text(badge!, style: const TextStyle(fontSize: 18)),
-                  ],
-                  if (trailing != null) ...[const SizedBox(width: 8), trailing],
-                ],
-              ),
-            ),
-          ),
-        ),
+                ),
+                if (state == AnswerTileState.correct)
+                  const Positioned.fill(child: ArenaBurst()),
+              ],
+            )),
       ),
     );
   }
@@ -532,8 +542,12 @@ class ArenaVersus extends StatelessWidget {
     required this.rivalAppearance,
     required this.footer,
     this.rivalPresent = true,
+    this.showCrowd = false,
     super.key,
   });
+
+  /// موكبُ الشخصيات تحت المواجهة — زملاءُ الحلبة ينتظرون ([ArenaCrowd]).
+  final bool showCrowd;
 
   final String myName;
   final String rivalName;
@@ -595,6 +609,10 @@ class ArenaVersus extends StatelessWidget {
                     ArenaPalette.rival, rtl ? -1 : 1),
               ],
             ),
+            if (showCrowd) ...[
+              const SizedBox(height: 18),
+              const FittedBox(fit: BoxFit.scaleDown, child: ArenaCrowd()),
+            ],
             const SizedBox(height: 28),
             footer,
           ],
@@ -764,6 +782,222 @@ class ArenaVsBadge extends StatelessWidget {
       ),
     );
   }
+}
+
+/// شريطُ الوقت التنازليّ: يقصر مع الثواني ويتلوّن بلون ما بقي، وينبض في
+/// ثوانيه الأخيرة نبضةً مع كل ثانية — كقلبٍ يدقّ أسرع حين يضيق الوقت.
+///
+/// والنبضةُ حركةٌ واحدةٌ لكل ثانية (مفتاحُها الثانية نفسها)، لا دورةٌ لا تنتهي:
+/// تنتهي بانتهاء ثانيتها، وتبدأ مع التي بعدها.
+class ArenaTimeBar extends StatelessWidget {
+  const ArenaTimeBar({
+    required this.left,
+    required this.window,
+    this.height = 12,
+    super.key,
+  });
+
+  final Duration left;
+  final Duration window;
+  final double height;
+
+  @override
+  Widget build(BuildContext context) {
+    final total = window.inMilliseconds;
+    final share =
+        total <= 0 ? 0.0 : (left.inMilliseconds / total).clamp(0.0, 1.0);
+    final seconds = (left.inMilliseconds / 1000).ceil();
+    final urgent = left.inMilliseconds <= 3000;
+    final color = ArenaTimerRing.colorFor(share, urgent: urgent);
+    final still = MediaQuery.maybeOf(context)?.disableAnimations ?? false;
+    final bar = TweenAnimationBuilder<double>(
+      tween: Tween(end: share),
+      duration: const Duration(milliseconds: 280),
+      builder: (context, value, _) => Container(
+        height: height,
+        decoration: BoxDecoration(
+          color: StudentSurface.track(context),
+          borderRadius: BorderRadius.circular(99),
+        ),
+        alignment: AlignmentDirectional.centerStart,
+        child: FractionallySizedBox(
+          widthFactor: value,
+          heightFactor: 1,
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(99),
+              gradient: LinearGradient(
+                  colors: [Color.lerp(color, Colors.white, 0.35)!, color]),
+              boxShadow: [
+                BoxShadow(
+                    color: color.withValues(alpha: urgent ? 0.7 : 0.4),
+                    blurRadius: urgent ? 12 : 6)
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+    return Semantics(
+      label: '$seconds',
+      child: !urgent || still
+          ? bar
+          : TweenAnimationBuilder<double>(
+              key: ValueKey('arena-beat-$seconds'),
+              tween: Tween(begin: 0, end: 1),
+              duration: const Duration(milliseconds: 420),
+              builder: (context, t, child) => Transform.scale(
+                scaleY: 1 + math.sin(t * math.pi) * 0.45,
+                child: child,
+              ),
+              child: bar,
+            ),
+    );
+  }
+}
+
+/// موكبُ الشخصيات: صورٌ من أصول النظام متراكبةٌ في صفّ، تنبثق واحدةً بعد
+/// أخرى — زملاءُ ينتظرون في الحلبة. دخولٌ واحدٌ ثم سكون.
+class ArenaCrowd extends StatelessWidget {
+  const ArenaCrowd({
+    this.assets = defaultAssets,
+    this.size = 40,
+    super.key,
+  });
+
+  /// الشخصياتُ المرسومة في التطبيق (`assets/images/avatar_*.png`).
+  static const defaultAssets = [
+    'assets/images/avatar_1.png',
+    'assets/images/avatar_3.png',
+    'assets/images/avatar_4.png',
+    'assets/images/avatar_5.png',
+    'assets/images/avatar_6.png',
+    'assets/images/avatar_7.png',
+    'assets/images/avatar_8.png',
+  ];
+
+  static const _rims = [
+    ArenaPalette.me,
+    ArenaPalette.rival,
+    ArenaPalette.gold,
+    Color(0xFF22C55E),
+    Color(0xFFA855F7),
+  ];
+
+  final List<String> assets;
+  final double size;
+
+  @override
+  Widget build(BuildContext context) {
+    final still = MediaQuery.maybeOf(context)?.disableAnimations ?? false;
+    final step = size * 0.68;
+    return SizedBox(
+      key: const ValueKey('arena-crowd'),
+      height: size + 6,
+      width: step * (assets.length - 1) + size,
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          for (var i = 0; i < assets.length; i++)
+            PositionedDirectional(
+              start: step * i,
+              top: 0,
+              width: size,
+              height: size,
+              child: TweenAnimationBuilder<double>(
+                tween: Tween(begin: still ? 1 : 0, end: 1),
+                duration: Duration(milliseconds: 380 + i * 90),
+                curve: Curves.easeOutBack,
+                builder: (context, t, child) => Transform.translate(
+                  offset: Offset(0, (1 - t) * 14),
+                  child:
+                      Transform.scale(scale: t.clamp(0.0, 1.2), child: child),
+                ),
+                child: Container(
+                  padding: const EdgeInsets.all(2),
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: _rims[i % _rims.length],
+                    boxShadow: [
+                      BoxShadow(
+                          color: _rims[i % _rims.length].withValues(alpha: 0.5),
+                          blurRadius: 8),
+                    ],
+                  ),
+                  child: ClipOval(
+                    child: ColoredBox(
+                      color: Colors.white,
+                      child: Image.asset(
+                        assets[i],
+                        fit: BoxFit.contain,
+                        filterQuality: FilterQuality.medium,
+                        errorBuilder: (_, __, ___) => const SizedBox.shrink(),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+/// شراراتٌ تنفجر من الخيار الصحيح لحظةَ يُكشف — مرّةً واحدةً ثم تختفي.
+class ArenaBurst extends StatelessWidget {
+  const ArenaBurst({this.color = const Color(0xFFFDE68A), super.key});
+
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    final still = MediaQuery.maybeOf(context)?.disableAnimations ?? false;
+    if (still) return const SizedBox.shrink();
+    return IgnorePointer(
+      child: TweenAnimationBuilder<double>(
+        key: const ValueKey('arena-burst'),
+        tween: Tween(begin: 0, end: 1),
+        duration: const Duration(milliseconds: 700),
+        curve: Curves.easeOutCubic,
+        builder: (context, t, _) =>
+            CustomPaint(painter: _BurstPainter(t: t, color: color)),
+      ),
+    );
+  }
+}
+
+class _BurstPainter extends CustomPainter {
+  const _BurstPainter({required this.t, required this.color});
+
+  final double t;
+  final Color color;
+
+  static const _rays = 14;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (t >= 1) return;
+    final center = size.center(Offset.zero);
+    final reach = size.longestSide * 0.62;
+    final fade = (1 - t).clamp(0.0, 1.0);
+    for (var i = 0; i < _rays; i++) {
+      final angle = i * math.pi * 2 / _rays + (i.isEven ? 0.12 : -0.08);
+      final dist = reach * (0.35 + t * 0.65) * (i.isEven ? 1 : 0.78);
+      final at = center +
+          Offset(math.cos(angle) * dist, math.sin(angle) * dist * 0.55);
+      final r = (i.isEven ? 4.5 : 3.0) * fade + 0.5;
+      canvas.drawCircle(
+          at,
+          r,
+          Paint()
+            ..color =
+                (i % 3 == 0 ? Colors.white : color).withValues(alpha: fade));
+    }
+  }
+
+  @override
+  bool shouldRepaint(_BurstPainter old) => old.t != t || old.color != color;
 }
 
 /// نقطةٌ خضراء تنبض: متصلٌ الآن.

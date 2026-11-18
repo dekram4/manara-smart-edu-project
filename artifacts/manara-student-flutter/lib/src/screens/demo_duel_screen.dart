@@ -523,6 +523,7 @@ class DemoDuelScreenState extends State<DemoDuelScreen> {
           myAppearance: null,
           rivalAppearance: botAppearance,
           rivalPresent: false,
+          showCrowd: true,
           footer: Column(children: [
             const SizedBox(width: 36, height: 36, child: CircularProgressIndicator(strokeWidth: 3.5, color: DemoPalette.violet)),
             const SizedBox(height: 12),
@@ -563,6 +564,8 @@ class DemoDuelScreenState extends State<DemoDuelScreen> {
             ),
           ),
         ]),
+        const SizedBox(height: 10),
+        ArenaTimeBar(left: Duration(seconds: _left), window: const Duration(seconds: seconds)),
         const SizedBox(height: 14),
         Text(q.question,
             textAlign: TextAlign.center,

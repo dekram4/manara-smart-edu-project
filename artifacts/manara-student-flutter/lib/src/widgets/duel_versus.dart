@@ -289,7 +289,7 @@ class _Side extends StatelessWidget {
 /// ── ولماذا حركةٌ لا قفزة ──
 /// «١٢ ← ٢٧» في إطارٍ واحدٍ لا تُرى، فلا يعرف الطفلُ أنه نال نقاطاً ولا كم.
 /// والصعودُ في نصف ثانيةٍ يقول «زادت» بلا أن يُقرأ الرقمان.
-class DuelPointsCounter extends StatelessWidget {
+class DuelPointsCounter extends StatefulWidget {
   const DuelPointsCounter({
     required this.points,
     this.highlight = false,
@@ -300,20 +300,74 @@ class DuelPointsCounter extends StatelessWidget {
   final bool highlight;
 
   @override
+  State<DuelPointsCounter> createState() => _DuelPointsCounterState();
+}
+
+/// ‏ومع الصعود «+N» ذهبيةٌ تطفو فوق الرقم وتخبو: كم كسب، بنظرةٍ واحدة.
+class _DuelPointsCounterState extends State<DuelPointsCounter> {
+  int _gain = 0;
+  int _pops = 0;
+
+  @override
+  void didUpdateWidget(DuelPointsCounter old) {
+    super.didUpdateWidget(old);
+    if (widget.points > old.points) {
+      _gain = widget.points - old.points;
+      _pops++;
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
-    return TweenAnimationBuilder<double>(
-      tween: Tween<double>(begin: 0, end: points.toDouble()),
+    final still = MediaQuery.maybeOf(context)?.disableAnimations ?? false;
+    final counter = TweenAnimationBuilder<double>(
+      tween: Tween<double>(begin: 0, end: widget.points.toDouble()),
       duration: const Duration(milliseconds: 520),
       curve: Curves.easeOutCubic,
       builder: (context, value, _) => Text(
         '${value.round()}',
         style: TextStyle(
-          fontSize: highlight ? 21 : 19,
+          fontSize: widget.highlight ? 21 : 19,
           fontWeight: FontWeight.w900,
-          color: highlight ? const Color(0xFFFDE68A) : Colors.white,
+          color: widget.highlight ? const Color(0xFFFDE68A) : Colors.white,
           height: 1.1,
         ),
       ),
+    );
+    if (_pops == 0 || still) return counter;
+    return Stack(
+      clipBehavior: Clip.none,
+      children: [
+        counter,
+        PositionedDirectional(
+          start: 0,
+          top: -4,
+          child: IgnorePointer(
+            child: TweenAnimationBuilder<double>(
+              key: ValueKey('duel-gain-$_pops'),
+              tween: Tween(begin: 0, end: 1),
+              duration: const Duration(milliseconds: 950),
+              curve: Curves.easeOutCubic,
+              builder: (context, t, child) => t >= 1
+                  ? const SizedBox.shrink()
+                  : Transform.translate(
+                      offset: Offset(0, -22 * t),
+                      child: Opacity(
+                          opacity: (1 - t).clamp(0.0, 1.0), child: child),
+                    ),
+              child: Text(
+                '+$_gain',
+                style: const TextStyle(
+                  color: Color(0xFFFDE047),
+                  fontSize: 14,
+                  fontWeight: FontWeight.w900,
+                  shadows: [Shadow(color: Color(0xAAF59E0B), blurRadius: 6)],
+                ),
+              ),
+            ),
+          ),
+        ),
+      ],
     );
   }
 }

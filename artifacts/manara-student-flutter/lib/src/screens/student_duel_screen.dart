@@ -659,18 +659,35 @@ class _HeroCard extends StatelessWidget {
         gradient: const LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [Color(0xFF7C3AED), Color(0xFFC026D3)],
+          colors: [Color(0xFF312E81), Color(0xFF7C3AED), Color(0xFFC026D3), Color(0xFFF97316)],
+          stops: [0.0, 0.4, 0.78, 1.0],
         ),
+        border: Border.all(color: ArenaPalette.goldLight.withValues(alpha: 0.75), width: 1.6),
         boxShadow: const [
           BoxShadow(color: Color(0xFF5B21B6), offset: Offset(0, 6)),
           BoxShadow(
               color: Color(0x44000000), blurRadius: 16, offset: Offset(0, 10)),
+          BoxShadow(color: Color(0x557C3AED), blurRadius: 28, spreadRadius: 2),
         ],
       ),
-      child: Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          const StudentAvatarView(size: 72),
-          const SizedBox(width: 14),
+      Row(
+        children: [
+          // ‏البطلُ في حلبته: شخصيةُ الطالب في حلقة فريقه، وشارةُ النزال بجانبها.
+          Stack(
+            clipBehavior: Clip.none,
+            children: [
+              const ArenaFighter(appearance: null, size: 68, team: ArenaPalette.me),
+              PositionedDirectional(
+                end: -14,
+                bottom: -8,
+                child: Transform.scale(scale: 0.42, child: const ArenaVsBadge()),
+              ),
+            ],
+          ),
+          const SizedBox(width: 18),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -710,6 +727,11 @@ class _HeroCard extends StatelessWidget {
               ],
             ),
           ),
+        ],
+      ),
+          // ‏زملاءُ الحلبة: شخصياتُ النظام تنبثق في صفّ — من تتحدّى اليوم؟
+          const SizedBox(height: 12),
+          const Center(child: FittedBox(fit: BoxFit.scaleDown, child: ArenaCrowd(size: 34))),
         ],
       ),
     );

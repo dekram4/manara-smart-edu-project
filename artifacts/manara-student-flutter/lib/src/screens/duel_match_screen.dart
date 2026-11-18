@@ -401,6 +401,8 @@ class _DuelMatchScreenState extends State<DuelMatchScreen>
               myAppearance: widget.profile.appearance,
               rivalAppearance: _leaderLook,
               rivalPresent: rivalPresent,
+              // ‏الزملاءُ في الحلبة ما دام المنافسُ لم يدخل.
+              showCrowd: !rivalPresent,
               footer: footer,
             ),
           ),
@@ -525,6 +527,11 @@ class _DuelMatchScreenState extends State<DuelMatchScreen>
               const SizedBox(width: 58, height: 58),
           ],
         ),
+        // ‏والشريطُ التنازليّ تحته: يُرى بطرف العين وينبض في الثواني الأخيرة.
+        if (_game.phase == DuelPhase.question) ...[
+          const SizedBox(height: 8),
+          ArenaTimeBar(left: _game.timeLeft, window: _game.questionWindow),
+        ],
         const SizedBox(height: 10),
         // بطاقةُ السؤال تقفز إلى مكانها مع كل سؤالٍ جديد (مواصفة الحركة §5.3).
         TweenAnimationBuilder<double>(
