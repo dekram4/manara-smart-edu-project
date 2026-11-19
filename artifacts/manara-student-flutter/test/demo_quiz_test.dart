@@ -102,7 +102,8 @@ void main() {
     expect(find.byKey(const ValueKey('demo-quiz-locked')), findsOneWidget);
     final hidden = written.length - DemoMode.quizQuestions;
     expect(find.text(trf('demo.quiz.lockedCount', {'n': hidden})), findsOneWidget);
-    expect(find.text(tr('demo.quiz.lockedMore')), findsOneWidget);
+    expect(find.text(tr('guest.registeredOnly.title')), findsOneWidget);
+    expect(find.byKey(const ValueKey('guest-contact-whatsapp')), findsOneWidget);
     final seen = <String>{first.question};
     for (var i = 0; i < 2; i++) {
       final q = i == 0 ? first : shown();

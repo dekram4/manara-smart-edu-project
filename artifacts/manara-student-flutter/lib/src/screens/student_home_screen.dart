@@ -62,6 +62,7 @@ import 'student_progress_screen.dart';
 import 'student_quiz_screen.dart';
 import 'student_tutor_screen.dart';
 import '../widgets/demo_ui.dart';
+import '../widgets/guest_contact.dart';
 
 class StudentHomeScreen extends StatefulWidget {
   const StudentHomeScreen({
@@ -380,13 +381,21 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> with RouteAware {
 
   /// «احصل على حساب رسمي»: مقارنةُ الباقات وطلبُ الاشتراك.
   void _openPlans() {
+    // ‏الزائرُ لا يرى الباقات أبداً: يُدلّ على المشرف وحده.
+    if (DemoMode.active) return _contactAdmin();
     StudentSoundService.instance.playTap();
     Navigator.of(context).push(
       StudentPageRoute<void>(builder: (_) => PlansScreen(apiBaseUrl: widget.apiBaseUrl)),
     );
   }
 
-  /// رسالةُ بطاقةٍ مدفوعة للزائر: ما الذي تفعله، ومتى تُفتح.
+  /// الزائر: «مخصص للطلاب المسجلين» وزرّا التواصل مع المشرف — بدل الباقات.
+  void _contactAdmin() {
+    StudentSoundService.instance.playTap();
+    showGuestRegisteredOnly(context);
+  }
+
+  /// رسالةُ بطاقةٍ للحساب الرسمي يراها الزائر: ما الذي تفعله، ولمن هي.
   void _showTeaser(String card) {
     StudentSoundService.instance.play(StudentSoundCue.warning);
     const emojis = {'solver': '🧮', 'meeting': '🎥', 'challenge': '⚔️', 'tutor': '🤖'};
@@ -405,22 +414,17 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> with RouteAware {
             borderRadius: BorderRadius.circular(14),
             border: Border.all(color: DemoPalette.gold.withValues(alpha: 0.6)),
           ),
-          child: Text(tr('demo.teaser.after'),
-              textAlign: TextAlign.center,
-              style: const TextStyle(fontWeight: FontWeight.w900, color: DemoPalette.goldDeep)),
+          child: Column(children: [
+            Text(tr('guest.registeredOnly.title'),
+                textAlign: TextAlign.center,
+                style: const TextStyle(fontWeight: FontWeight.w900, color: DemoPalette.goldDeep)),
+            const SizedBox(height: 4),
+            Text(tr('guest.registeredOnly.body'), textAlign: TextAlign.center, style: const TextStyle(fontSize: 14)),
+          ]),
         ),
       ]),
       actions: [
-        DemoGradientButton(
-          key: const ValueKey('demo-teaser-get-account'),
-          label: tr('demo.getAccount'),
-          icon: Icons.workspace_premium_rounded,
-          shimmer: true,
-          onPressed: () {
-            Navigator.pop(context);
-            _openPlans();
-          },
-        ),
+        const GuestContactButtons(key: ValueKey('demo-teaser-contact')),
         TextButton(onPressed: () => Navigator.pop(context), child: Text(tr('demo.ok'))),
       ],
     );
@@ -683,7 +687,7 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> with RouteAware {
       Navigator.of(context).push(
         StudentPageRoute<void>(
           immersive: true,
-          builder: (_) => DemoChatScreen(onGetAccount: _openPlans),
+          builder: (_) => DemoChatScreen(onGetAccount: _contactAdmin),
         ),
       );
       return;
@@ -790,7 +794,7 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> with RouteAware {
               grade: academic?.grade ?? widget.profile.grade,
             ),
             lessonName: academic?.lesson,
-            onGetAccount: _openPlans,
+            onGetAccount: _contactAdmin,
           ),
         ),
       );
@@ -1208,7 +1212,8 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> with RouteAware {
                       key: _headerKey,
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        // ‏الزائر: زرٌّ ذهبيّ بارزٌ أعلى الواجهة إلى الحساب الرسمي.
+                        // ‏الزائر: زرٌّ ذهبيّ بارزٌ أعلى الواجهة: تفعيلُ الحساب الرسمي
+                        // عبر المشرف — لا باقاتٌ ولا اشتراك.
                         if (DemoMode.active)
                           Padding(
                             padding: const EdgeInsets.fromLTRB(14, 4, 14, 8),
@@ -1219,10 +1224,10 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> with RouteAware {
                                 child: DemoGradientButton(
                                   key: const ValueKey('demo-get-account'),
                                   label: tr('demo.getAccount'),
-                                  icon: Icons.workspace_premium_rounded,
+                                  icon: Icons.support_agent_rounded,
                                   shimmer: true,
                                   height: 52,
-                                  onPressed: _openPlans,
+                                  onPressed: _contactAdmin,
                                 ),
                               ),
                             ),

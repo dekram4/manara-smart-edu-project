@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'package:manara_student/src/l10n/student_strings.dart';
 import 'package:manara_student/src/models/academic_context.dart';
 import 'package:manara_student/src/services/demo_content.dart';
 import 'package:manara_student/src/services/demo_mode.dart';
@@ -93,7 +94,10 @@ void main() {
       await tester.tap(find.byKey(const ValueKey('tracing-lock-4')));
       await _frames(tester, 3);
       expect(find.byKey(const ValueKey('demo-locked')), findsOneWidget);
+      expect(find.byKey(const ValueKey('guest-contact-whatsapp')), findsOneWidget);
       expect(find.byKey(const ValueKey('tracing-back-to-grid')), findsNothing);
+      await tester.tap(find.text(tr('demo.ok')));
+      await _frames(tester, 10);
       await tester.tap(find.byKey(const ValueKey('tracing-tile-0')));
       await _frames(tester, 3);
       expect(find.byKey(const ValueKey('tracing-back-to-grid')), findsOneWidget);
@@ -169,6 +173,8 @@ void main() {
     await _frames(tester, 3);
     expect(find.byKey(const ValueKey('demo-locked')), findsOneWidget);
     expect(find.byKey(const ValueKey('game-intro-start')), findsNothing);
+    await tester.tap(find.text(tr('demo.ok')));
+    await _frames(tester, 10);
 
     // ‏المقلاعُ يُفتح.
     await tester.ensureVisible(find.byKey(const ValueKey('arcade-slingshot')));
@@ -179,13 +185,13 @@ void main() {
     expect(find.byKey(const ValueKey('target-0')), findsOneWidget);
 
     // ‏ومن داخل اللعبة: لمسُ القطار في الشريط رسالةُ قفلٍ، واللعبةُ كما هي.
-    ScaffoldMessenger.of(tester.element(find.byKey(const ValueKey('target-0')))).hideCurrentSnackBar();
-    await _frames(tester, 5);
     await tester.tap(find.byKey(const ValueKey('switch-train')));
     await _frames(tester, 5);
     expect(find.byKey(const ValueKey('demo-locked')), findsOneWidget);
     expect(find.byKey(const ValueKey('target-0')), findsOneWidget);
     expect(find.byKey(const ValueKey('wagon-0')), findsNothing);
+    await tester.tap(find.text(tr('demo.ok')));
+    await _frames(tester, 10);
     expect(tester.takeException(), isNull);
     await _frames(tester, 60);
   });

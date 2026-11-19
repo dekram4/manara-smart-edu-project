@@ -1,46 +1,17 @@
 import 'package:flutter/material.dart';
 
 import '../l10n/student_strings.dart';
-import '../screens/plans_screen.dart';
-import '../services/demo_mode.dart';
 import '../services/student_sound_service.dart';
 import 'demo_ui.dart';
+import 'guest_contact.dart';
 
-/// رسالةُ ما أُغلق في وضع الزائر: يُفتح كلُّه في الحساب الرسمي — وزرُّها
-/// يفتح مقارنةَ الباقات وطلبَ الاشتراك مباشرةً.
+/// ما أُغلق في وضع الزائر: نافذةُ «مخصص للطلاب المسجلين» وزرّا التواصل مع
+/// المشرف — لا باقاتٌ ولا اشتراكٌ ولا دفع (سياساتُ Google Play وApp Store).
 ///
-/// ‏[message]: نصُّ القفل لهذا الموضع، وإلا «يُفتح في الحساب الرسمي».
+/// ‏[message]: سطرٌ يقول ما انتهى في هذا الموضع، فوق النصّ الإداريّ.
 void showDemoLocked(BuildContext context, {String? message}) {
   StudentSoundService.instance.play(StudentSoundCue.warning);
-  // ‏يُلتقط الآن: لمسةُ الزرّ قد تأتي بعد أن تُغلق الشاشةُ التي أظهرت الرسالة.
-  final navigator = Navigator.maybeOf(context);
-  ScaffoldMessenger.maybeOf(context)
-    ?..hideCurrentSnackBar()
-    ..showSnackBar(SnackBar(
-      key: const ValueKey('demo-locked'),
-      behavior: SnackBarBehavior.floating,
-      duration: const Duration(seconds: 5),
-      action: navigator == null
-          ? null
-          : SnackBarAction(
-              key: const ValueKey('demo-locked-get-account'),
-              label: tr('demo.getAccount'),
-              textColor: DemoPalette.goldLight,
-              onPressed: () => navigator.push(
-                MaterialPageRoute<void>(builder: (_) => PlansScreen(apiBaseUrl: DemoMode.plansBaseUrl)),
-              ),
-            ),
-      backgroundColor: DemoPalette.violetDeep,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16),
-        side: const BorderSide(color: DemoPalette.gold, width: 1.5),
-      ),
-      content: Row(children: [
-        const Icon(Icons.lock_rounded, color: Color(0xFFFDE68A)),
-        const SizedBox(width: 10),
-        Expanded(child: Text(message ?? tr('demo.lockedInDemo'), style: const TextStyle(fontWeight: FontWeight.w800))),
-      ]),
-    ));
+  showGuestRegisteredOnly(context, note: message, key: const ValueKey('demo-locked'));
 }
 
 /// عنصرٌ مقفلٌ في وضع الزائر: باهتٌ وعليه قفلٌ ذهبيّ، ولمستُه تقول لماذا.
@@ -81,8 +52,8 @@ class DemoLocked extends StatelessWidget {
   }
 }
 
-/// أسئلةُ الاختبار المحجوبة عن الزائر: يرى عددها مقفلاً، ورسالةً ذهبية تدعوه
-/// إلى الحساب الرسمي لإكمالها وفتح المنهج كاملاً.
+/// أسئلةُ الاختبار المحجوبة عن الزائر: يرى عددها مقفلاً، ثم «مخصص للطلاب
+/// المسجلين» وزرّا التواصل مع المشرف.
 class DemoLockedQuestions extends StatelessWidget {
   const DemoLockedQuestions({super.key, required this.count, required this.shown});
 
@@ -92,7 +63,6 @@ class DemoLockedQuestions extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final navigator = Navigator.maybeOf(context);
     return Container(
       key: const ValueKey('demo-quiz-locked'),
       padding: const EdgeInsets.all(2),
@@ -149,24 +119,7 @@ class DemoLockedQuestions extends StatelessWidget {
               ),
           ]),
           const SizedBox(height: 12),
-          Text(
-            tr('demo.quiz.lockedMore'),
-            textAlign: TextAlign.center,
-            style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w800, height: 1.5),
-          ),
-          const SizedBox(height: 12),
-          DemoGradientButton(
-            key: const ValueKey('demo-quiz-get-account'),
-            label: tr('demo.getAccount'),
-            icon: Icons.workspace_premium_rounded,
-            shimmer: true,
-            height: 50,
-            onPressed: navigator == null
-                ? null
-                : () => navigator.push(
-                      MaterialPageRoute<void>(builder: (_) => PlansScreen(apiBaseUrl: DemoMode.plansBaseUrl)),
-                    ),
-          ),
+          const GuestContactPanel(),
         ]),
       ),
     );
@@ -200,7 +153,7 @@ class DemoQuotaChip extends StatelessWidget {
 }
 
 /// انتهت تجربةُ الزائر في هذا الموضع: بطاقةٌ بنفسجيةٌ بإطارٍ ذهبيّ، ورسالتُها،
-/// وزرٌّ إلى الباقات وطلب الاشتراك.
+/// ثم «مخصص للطلاب المسجلين» وزرّا التواصل مع المشرف.
 class DemoLockedCard extends StatelessWidget {
   const DemoLockedCard({super.key, required this.message});
 
@@ -208,7 +161,6 @@ class DemoLockedCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final navigator = Navigator.maybeOf(context);
     return Container(
       padding: const EdgeInsets.all(2),
       decoration: BoxDecoration(
@@ -239,18 +191,8 @@ class DemoLockedCard extends StatelessWidget {
               ),
             ),
           ]),
-          const SizedBox(height: 12),
-          DemoGradientButton(
-            label: tr('demo.getAccount'),
-            icon: Icons.workspace_premium_rounded,
-            shimmer: true,
-            height: 50,
-            onPressed: navigator == null
-                ? null
-                : () => navigator.push(
-                      MaterialPageRoute<void>(builder: (_) => PlansScreen(apiBaseUrl: DemoMode.plansBaseUrl)),
-                    ),
-          ),
+          const SizedBox(height: 14),
+          const GuestContactPanel(),
         ]),
       ),
     );

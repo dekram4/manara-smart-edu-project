@@ -84,5 +84,19 @@
         <intent>
             <action android:name="android.speech.RecognitionService"/>
         </intent>
+
+        <!-- التواصلُ مع المشرف من وضع الزائر: واتساب (رابط https) والاتصال الهاتفي. -->
+        <intent>
+            <action android:name="android.intent.action.VIEW"/>
+            <data android:scheme="https"/>
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.DIAL"/>
+            <data android:scheme="tel"/>
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.VIEW"/>
+            <data android:scheme="tel"/>
+        </intent>
     </queries>
 </manifest>

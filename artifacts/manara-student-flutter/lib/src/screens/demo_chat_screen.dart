@@ -11,6 +11,7 @@ import '../services/student_settings.dart';
 import '../services/student_sound_service.dart';
 import '../theme/student_theme.dart';
 import '../widgets/demo_ui.dart';
+import '../widgets/guest_contact.dart';
 import '../widgets/chat_voice.dart';
 
 /// دردشةُ الزائر: محادثةٌ مع حسابٍ افتراضيّ («منار») على الجهاز وحده.
@@ -201,18 +202,13 @@ class DemoChatScreenState extends State<DemoChatScreen> {
       key: const ValueKey('demo-chat-images-closed'),
       emoji: '🖼️',
       title: tr('demo.chat.imagesTitle'),
-      body: Text(tr('demo.chat.imagesBody'), textAlign: TextAlign.center),
+      body: Column(mainAxisSize: MainAxisSize.min, children: [
+        Text(tr('demo.chat.imagesBody'), textAlign: TextAlign.center, style: const TextStyle(fontWeight: FontWeight.w900)),
+        const SizedBox(height: 8),
+        Text(tr('guest.registeredOnly.body'), textAlign: TextAlign.center),
+      ]),
       actions: [
-        if (widget.onGetAccount != null)
-          DemoGradientButton(
-            label: tr('demo.getAccount'),
-            icon: Icons.workspace_premium_rounded,
-            shimmer: true,
-            onPressed: () {
-              Navigator.pop(context);
-              widget.onGetAccount!();
-            },
-          ),
+        const GuestContactButtons(),
         TextButton(onPressed: () => Navigator.pop(context), child: Text(tr('demo.ok'))),
       ],
     );
