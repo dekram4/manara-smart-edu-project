@@ -10,7 +10,7 @@ name: Build Student APK (preview branch)
 # ‏على main كما هو.
 on:
   push:
-    branches: [ student-app-1.1.63 ]
+    branches: [ student-app-1.1.63, updates/guest-store-compliance ]
 
 # ‏قراءةٌ فقط: هذا البناءُ لا يكتب في المستودع ولا يُنشئ إصداراً.
 permissions:
