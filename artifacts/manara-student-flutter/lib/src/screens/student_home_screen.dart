@@ -389,7 +389,7 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> with RouteAware {
     );
   }
 
-  /// الزائر: «مخصص للطلاب المسجلين» وزرّا التواصل مع المشرف — بدل الباقات.
+  /// الزائر: «صلاحيات الحساب غير مفعّلة» وزرّا التواصل مع المشرف — بدل الباقات.
   void _contactAdmin() {
     StudentSoundService.instance.playTap();
     showGuestRegisteredOnly(context);

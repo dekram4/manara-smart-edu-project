@@ -218,6 +218,8 @@ void main() {
     await tester.pump(const Duration(milliseconds: 300));
     expect(find.byKey(const ValueKey('demo-solver-locked')), findsOneWidget, reason: 'رجع إلى البطاقة في اليوم نفسه');
     final reopened = tester.state(find.byType(StudentProblemSolverScreen)) as dynamic;
+    // ‏بطاقةُ القفل بنصّها الإداريّ تطول: الحقلُ تحتها يُبلغ بالتمرير.
+    await tester.scrollUntilVisible(find.byType(TextField), 200, scrollable: find.byType(Scrollable).first);
     await tester.enterText(find.byType(TextField), 'سؤال بعد الرجوع');
     await tester.ensureVisible(find.text(tr('solver.ask')).first);
     await tester.tap(find.text(tr('solver.ask')).first);

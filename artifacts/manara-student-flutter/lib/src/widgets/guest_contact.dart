@@ -72,7 +72,7 @@ class GuestContactButtons extends StatelessWidget {
   }
 }
 
-/// «مخصص للطلاب المسجلين»: العنوان والوصف الإداريّ وزرّا التواصل، على خلفيةٍ
+/// «صلاحيات الحساب غير مفعّلة»: العنوان والوصف الإداريّ وزرّا التواصل، على خلفيةٍ
 /// داكنة (داخل بطاقات الزائر البنفسجية).
 class GuestContactPanel extends StatelessWidget {
   const GuestContactPanel({super.key, this.showTitle = true});
@@ -105,7 +105,7 @@ class GuestContactPanel extends StatelessWidget {
   }
 }
 
-/// نافذةُ «مخصص للطلاب المسجلين»: ما يراه الزائر حين يلمس خدمةً مقفلة أو
+/// نافذةُ «صلاحيات الحساب غير مفعّلة»: ما يراه الزائر حين يلمس خدمةً مقفلة أو
 /// يتجاوز حدّه. و[note] سطرٌ اختياريّ يقول ما انتهى هنا («انتهى سؤالا اليوم»).
 Future<void> showGuestRegisteredOnly(BuildContext context, {String? note, Key? key}) {
   return showDemoDialog<void>(

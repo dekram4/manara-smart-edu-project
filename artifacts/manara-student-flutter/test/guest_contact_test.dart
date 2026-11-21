@@ -5,7 +5,7 @@ import 'package:manara_student/src/l10n/student_strings.dart';
 import 'package:manara_student/src/widgets/demo_lock.dart';
 import 'package:manara_student/src/widgets/guest_contact.dart';
 
-/// وضعُ الزائر متوافقٌ مع المتجرين: «مخصص للطلاب المسجلين» وزرّا التواصل مع
+/// وضعُ الزائر متوافقٌ مع المتجرين: «صلاحيات الحساب غير مفعّلة» وزرّا التواصل مع
 /// المشرف بالرقم المعتمد — ولا باقةٌ ولا سعرٌ ولا دفع.
 void main() {
   final forbidden = RegExp(r'اشتراك|باقة|الباقات|سعر|أسعار|ريال|دفع|تحويل|subscri|plan|price|pay', caseSensitive: false);
@@ -21,10 +21,10 @@ void main() {
   });
 
   test('النصوصُ الإدارية كما اعتُمدت، وبلا إشارةٍ إلى دفع', () {
-    expect(tr('guest.registeredOnly.title'), 'مخصص للطلاب المسجلين');
+    expect(tr('guest.registeredOnly.title'), 'صلاحيات الحساب غير مفعّلة');
     expect(
       tr('guest.registeredOnly.body'),
-      'هذه الخدمة متاحة للحسابات الرسمية المفعّلة. لتفعيل حسابك الرسمي أو الحصول على بيانات الدخول، يرجى التواصل مع المشرف أو الإدارة.',
+      'هذه الخدمة تتطلب تفعيل الصلاحيات وامتلاك حساب رسمي لابنك أو ابنتك، علماً أن المحتوى المتاح حالياً عام لجميع الصفوف. يرجى التواصل مع المشرف لتحديد الصف والمواد والدروس المطلوبة، وإنشاء الحساب ومنح الصلاحيات اللازمة للوصول إلى جميع الدروس التي يحتاجها ابنك أو ابنتك.',
     );
     expect(tr('guest.contact.whatsapp'), 'التواصل مع المشرف عبر واتساب');
     expect(tr('guest.contact.call'), 'اتصال هاتفي بالإدارة');
@@ -47,7 +47,7 @@ void main() {
     }
   });
 
-  testWidgets('لمسُ المقفل: نافذةُ «مخصص للطلاب المسجلين» بزرّي واتساب والاتصال', (tester) async {
+  testWidgets('لمسُ المقفل: نافذةُ «صلاحيات الحساب غير مفعّلة» بزرّي واتساب والاتصال', (tester) async {
     await tester.pumpWidget(MaterialApp(
       home: Scaffold(
         body: Builder(
@@ -61,7 +61,7 @@ void main() {
     await tester.tap(find.text('open'));
     await tester.pumpAndSettle();
     expect(find.byKey(const ValueKey('demo-locked')), findsOneWidget);
-    expect(find.text('مخصص للطلاب المسجلين'), findsOneWidget);
+    expect(find.text('صلاحيات الحساب غير مفعّلة'), findsOneWidget);
     expect(find.text(tr('guest.registeredOnly.body')), findsOneWidget);
     expect(find.text(tr('demo.solver.locked')), findsOneWidget);
     expect(find.byKey(const ValueKey('guest-contact-whatsapp')), findsOneWidget);
@@ -76,7 +76,7 @@ void main() {
       ),
     ));
     expect(find.byKey(const ValueKey('guest-contact-panel')), findsOneWidget);
-    expect(find.text('مخصص للطلاب المسجلين'), findsOneWidget);
+    expect(find.text('صلاحيات الحساب غير مفعّلة'), findsOneWidget);
     expect(find.text('التواصل مع المشرف عبر واتساب'), findsOneWidget);
     expect(find.text('اتصال هاتفي بالإدارة'), findsOneWidget);
     expect(tester.takeException(), isNull);

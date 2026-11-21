@@ -5,7 +5,7 @@ import '../services/student_sound_service.dart';
 import 'demo_ui.dart';
 import 'guest_contact.dart';
 
-/// ما أُغلق في وضع الزائر: نافذةُ «مخصص للطلاب المسجلين» وزرّا التواصل مع
+/// ما أُغلق في وضع الزائر: نافذةُ «صلاحيات الحساب غير مفعّلة» وزرّا التواصل مع
 /// المشرف — لا باقاتٌ ولا اشتراكٌ ولا دفع (سياساتُ Google Play وApp Store).
 ///
 /// ‏[message]: سطرٌ يقول ما انتهى في هذا الموضع، فوق النصّ الإداريّ.
@@ -52,8 +52,8 @@ class DemoLocked extends StatelessWidget {
   }
 }
 
-/// أسئلةُ الاختبار المحجوبة عن الزائر: يرى عددها مقفلاً، ثم «مخصص للطلاب
-/// المسجلين» وزرّا التواصل مع المشرف.
+/// أسئلةُ الاختبار المحجوبة عن الزائر: يرى عددها مقفلاً، ثم «صلاحيات الحساب
+/// غير مفعّلة» وزرّا التواصل مع المشرف.
 class DemoLockedQuestions extends StatelessWidget {
   const DemoLockedQuestions({super.key, required this.count, required this.shown});
 
@@ -153,7 +153,7 @@ class DemoQuotaChip extends StatelessWidget {
 }
 
 /// انتهت تجربةُ الزائر في هذا الموضع: بطاقةٌ بنفسجيةٌ بإطارٍ ذهبيّ، ورسالتُها،
-/// ثم «مخصص للطلاب المسجلين» وزرّا التواصل مع المشرف.
+/// ثم «صلاحيات الحساب غير مفعّلة» وزرّا التواصل مع المشرف.
 class DemoLockedCard extends StatelessWidget {
   const DemoLockedCard({super.key, required this.message});
 
