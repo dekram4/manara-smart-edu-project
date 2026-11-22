@@ -176,6 +176,23 @@ function shuffled<T>(items: readonly T[], next: () => number): T[] {
 const YES_NO = ["نعم", "لا"];
 
 /**
+ * لبُّ الجواب كما يُقال: بلا «ال» ولا حرفِ جرٍّ قبله — «في الماء» و«الماء» لبٌّ واحد.
+ *
+ * والجوابُ بالصوت يُقبل بمعناه لا بحرفه، فمشتّتٌ لبُّه لبُّ الجواب يجعل من قال
+ * «الماء» لسؤال «أين تعيش الأسماك؟» مخطئاً وهو مصيب. فلا يُعرض معه.
+ */
+export function answerCore(answer: string): string {
+  return answer
+    .replace(/[ً-ٰٟ]/g, "")
+    .replace(/[أإآ]/g, "ا")
+    .replace(/ة/g, "ه")
+    .split(/\s+/)
+    .filter((word) => word && !["في", "على", "مع", "من"].includes(word))
+    .map((word) => word.replace(/^ال/, ""))
+    .join(" ");
+}
+
+/**
  * خياراتُ سؤال: جوابُه وثلاثةُ مشتّتاتٍ من أجوبة بابه (ثم من غيره إن قلّت).
  * وسؤالُ «نعم/لا» خياراه «نعم» و«لا» وحدهما.
  */
@@ -186,7 +203,10 @@ function optionsFor(question: KgQuestion, next: () => number): string[] {
       [...new Set(KG_QUESTIONS
         .filter((q) => (q.category === question.category) === same)
         .map((q) => q.answer))]
-        .filter((answer) => answer !== question.answer && !YES_NO.includes(answer)),
+        .filter((answer) =>
+          answer !== question.answer &&
+          answerCore(answer) !== answerCore(question.answer) &&
+          !YES_NO.includes(answer)),
       next,
     );
   const distractors = [...pool(true), ...pool(false)].slice(0, 3);

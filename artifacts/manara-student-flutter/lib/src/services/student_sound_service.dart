@@ -994,6 +994,24 @@ class StudentSoundService with WidgetsBindingObserver {
   }
 
   /// Silences any portal line still being spoken.
+  /// يُسكت كلَّ ما يُشغَّل قبل أن يُفتح المايكُ لجوابٍ بالصوت.
+  ///
+  /// ── لماذا على التابلت خاصّةً ──
+  /// مقطعُ السؤال ومؤثّرُ ظهوره ورسالةُ زميلٍ صوتية تُشغَّل على المكبّر، والمايكُ
+  /// يُفتح بعدها في اللحظة نفسها. وأجهزةٌ كثيرة — التابلت أوّلُها، بمكبّرها
+  /// الكبير ومايكها القريب منه — لا تبدأ التعرّفَ ومخرجُ الصوت مفتوح، أو تكتم
+  /// المايكَ بمُلغي الصدى فلا يصل صوتُ الطفل. ودخولُ الصوت يعمل لأنه يوقف
+  /// صوتَه وينتظر انتهاءه قبل المايك؛ وهذا الشيءُ نفسُه لأيّ شاشة.
+  Future<void> quietForMic() async {
+    _voiceClip = null;
+    _duckAmbient(false);
+    for (final player in [_voicePlayer, _effectsPlayer, _dealPlayer, _gamePlayer, _clapPlayer, _trainPlayer]) {
+      try {
+        await player.stop().timeout(const Duration(milliseconds: 600));
+      } catch (_) {}
+    }
+  }
+
   Future<void> stopSpeaking() async {
     _voiceClip = null;
     _duckAmbient(false);

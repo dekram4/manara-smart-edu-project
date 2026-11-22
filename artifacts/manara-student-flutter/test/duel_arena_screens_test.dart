@@ -195,6 +195,9 @@ class FakeDuel implements StudentDuelService {
   /// حزمةٌ بعينها (أسئلةُ الروضة المسموعة) بدل [questions].
   List<DuelQuestion>? pack;
 
+  /// ما اختاره اللاعبُ لكلّ سؤال، بترتيبه.
+  final choices = <int>[];
+
   @override
   Future<List<DuelQuestion>?> claimPack(String matchId, {bool kindergarten = false}) async => pack ?? questions;
 
@@ -204,6 +207,7 @@ class FakeDuel implements StudentDuelService {
     required int index,
     required int choice,
   }) async {
+    choices.add(choice);
     final correct = choice == questions[index].answerAt;
     final win = correct && won.add(index);
     return DuelAnswerResult(
@@ -962,6 +966,164 @@ void kindergartenDuel() {
         answerAt: 0,
       ),
   ];
+
+  /// شاشةُ نزالِ روضةٍ بمايكٍ مزيّف: يُسجَّل ما يُطلب منه، والاختبارُ يقول الكلام.
+  Future<({FakeDuel duel, List<Duration> windows, List<ValueChanged<String>> results, List<ValueChanged<String>?> partials, List<int> stops})>
+      openKg(WidgetTester tester, Size size) async {
+    SharedPreferences.setMockInitialValues({});
+    StudentSettings.resetForTest();
+    tester.view.physicalSize = size;
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    final duel = FakeDuel()..pack = kgPack;
+    addTearDown(duel.events.close);
+    final windows = <Duration>[];
+    final results = <ValueChanged<String>>[];
+    final partials = <ValueChanged<String>?>[];
+    final stops = <int>[];
+    await tester.pumpWidget(
+      MaterialApp(
+        home: DuelMatchScreen(
+          profile: const StudentProfile(
+            id: 'me',
+            username: 'me',
+            name: 'أنا',
+            role: 'student',
+            teacherId: 't1',
+            grade: 'روضة منارة المعرفة',
+          ),
+          duelService: duel,
+          matchId: 'm1',
+          rivalId: 'r1',
+          rivalName: 'سارة',
+          isHost: true,
+          transport: ServiceDuelTransport(duel, kindergarten: true),
+          ensureMic: (_) async => true,
+          quietForMic: () async {},
+          voiceStop: () => stops.add(1),
+          voiceListen: ({required onResult, onPartial, required window}) async {
+            windows.add(window);
+            results.add(onResult);
+            partials.add(onPartial);
+            return true;
+          },
+        ),
+      ),
+    );
+    for (var i = 0; i < 3; i++) {
+      await tester.pump(const Duration(milliseconds: 100));
+    }
+    duel.rivalJoined = true;
+    // ‏العدُّ ثم مقطعُ السؤال (مهلةُ بدئه في الاختبار أربعُ ثوانٍ) ثم يظهر المايك.
+    for (var i = 0; i < 100; i++) {
+      await tester.pump(const Duration(milliseconds: 100));
+      if (find.byKey(const ValueKey('duel-kg-mic')).evaluate().isNotEmpty) break;
+    }
+    return (duel: duel, windows: windows, results: results, partials: partials, stops: stops);
+  }
+
+  Future<void> closeKg(WidgetTester tester) async {
+    await tester.pumpWidget(const SizedBox());
+    for (var i = 0; i < 40; i++) {
+      await tester.pump(const Duration(milliseconds: 200));
+    }
+  }
+
+  testWidgets('الروضة: «أجب بصوتك» يسمع، و«بسّة» تختار «القطة» في لحظتها', (tester) async {
+    final kg = await openKg(tester, const Size(360, 780));
+    final mic = find.byKey(const ValueKey('duel-kg-mic'));
+    await Scrollable.ensureVisible(tester.element(mic), alignment: 0.3);
+    await tester.pump();
+    expect(find.text(tr('duel.kg.mic')), findsOneWidget);
+    await tester.tap(mic);
+    for (var i = 0; i < 6; i++) {
+      await tester.pump(const Duration(milliseconds: 100));
+    }
+    expect(kg.windows, hasLength(1), reason: 'فُتح المايكُ بعد الإذن وإسكاتِ الأصوات');
+    expect(kg.windows.single.inSeconds, inInclusiveRange(3, 12));
+    expect(find.text(tr('duel.kg.listening')), findsOneWidget, reason: 'حالُ الاستماع ظاهرة');
+    // ‏كلامٌ لم يكتمل: يُكتب تحت الزرّ ولا يُختار شيء.
+    kg.partials.single!('ال');
+    await tester.pump();
+    expect(kg.duel.choices, isEmpty);
+    // ‏«بسّة» — لا «القطة» حرفاً — تكفي.
+    kg.partials.single!('بسة');
+    for (var i = 0; i < 4; i++) {
+      await tester.pump(const Duration(milliseconds: 100));
+    }
+    expect(kg.duel.choices, [0]);
+    expect(kg.stops, isNotEmpty, reason: 'أُغلق المايكُ حين كفى الكلام');
+    expect(find.byKey(const ValueKey('duel-kg-mic')), findsNothing, reason: 'أجاب: لا مايك');
+    expect(tester.takeException(), isNull);
+    await closeKg(tester);
+  });
+
+  testWidgets('الروضة: كلامٌ لم يُفهم يُقال للطفل، والزرُّ يعود «جرّب مرة أخرى»', (tester) async {
+    final kg = await openKg(tester, const Size(360, 780));
+    final mic = find.byKey(const ValueKey('duel-kg-mic'));
+    await Scrollable.ensureVisible(tester.element(mic), alignment: 0.3);
+    await tester.pump();
+    await tester.tap(mic);
+    for (var i = 0; i < 6; i++) {
+      await tester.pump(const Duration(milliseconds: 100));
+    }
+    kg.results.single('سيارة');
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(kg.duel.choices, isEmpty);
+    expect(find.text(tr('duel.kg.again')), findsOneWidget);
+    expect(find.byKey(const ValueKey('duel-kg-notice')), findsOneWidget);
+    // ‏ويُعاد: «الفيل» هذه المرّة.
+    await tester.tap(find.byKey(const ValueKey('duel-kg-mic')));
+    for (var i = 0; i < 6; i++) {
+      await tester.pump(const Duration(milliseconds: 100));
+    }
+    expect(kg.results, hasLength(2));
+    kg.results.last('افيال');
+    for (var i = 0; i < 4; i++) {
+      await tester.pump(const Duration(milliseconds: 100));
+    }
+    expect(kg.duel.choices, [3]);
+    await closeKg(tester);
+  });
+
+  testWidgets('التابلت: عمودان مرتّبان، وزرُّ الجواب فوق الخيارات، والرسالةُ الصوتية في «دردشة الزملاء» ولا تسجّل والمايكُ يسمع الجواب',
+      (tester) async {
+    final kg = await openKg(tester, const Size(1280, 800));
+    expect(find.byKey(const ValueKey('duel-question-wide')), findsOneWidget);
+    final mic = find.byKey(const ValueKey('duel-kg-mic'));
+    final choice = find.text('القطة').first;
+    final chat = find.byKey(const ValueKey('duel-chat-section'));
+    expect(mic, findsOneWidget);
+    expect(chat, findsOneWidget);
+    expect(tester.getCenter(mic).dy, lessThan(tester.getCenter(choice).dy), reason: 'زرُّ الجواب قبل الخيارات');
+    expect(tester.getCenter(chat).dy, greaterThan(tester.getCenter(choice).dy), reason: 'الدردشةُ بعدها، في بطاقتها');
+    expect(find.descendant(of: chat, matching: find.byType(DuelVoiceButton)), findsOneWidget);
+    expect(find.descendant(of: chat, matching: mic), findsNothing);
+    expect(tester.takeException(), isNull, reason: 'لا فيضانَ في العرض العريض');
+
+    await tester.tap(mic);
+    for (var i = 0; i < 6; i++) {
+      await tester.pump(const Duration(milliseconds: 100));
+    }
+    expect(kg.windows, hasLength(1));
+    // ‏ضغطٌ مطوّلٌ على الرسالة الصوتية والمايكُ يسمع الجواب: لا تسجيل، ويُقال لماذا.
+    final gesture = await tester.startGesture(tester.getCenter(find.byType(DuelVoiceButton)));
+    await tester.pump(const Duration(milliseconds: 300));
+    await gesture.up();
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(find.text(tr('duel.voice.busyAnswer')), findsOneWidget);
+    // ‏لمسةٌ ثانيةٌ على زرّ الجواب تُنهي الاستماع.
+    await tester.tap(mic);
+    await tester.pump();
+    expect(kg.stops, isNotEmpty);
+    kg.results.single('');
+    for (var i = 0; i < 12; i++) {
+      await tester.pump(const Duration(milliseconds: 100));
+    }
+    expect(find.text(tr('duel.kg.notHeard')), findsOneWidget);
+    await closeKg(tester);
+  });
 
   for (final kg in [true, false]) {
     testWidgets(kg ? 'الروضة: مقطعُ السؤال ثم المايكُ، و«أحسنت يا بطل» للأسرع' : 'الرابع: لا مايكَ ولا مقطع — كما كان',
