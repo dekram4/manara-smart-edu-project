@@ -54,6 +54,10 @@ class PeerChallengeCard extends StatefulWidget {
   static const challengerAsset = 'assets/images/avatar_9.png';
   static const rivalAsset = 'assets/images/avatar_2.png';
 
+  /// جمهورُ الحلبة: شخصيتان أخريان من الأصول نفسها، خافتتان خلف المتواجهَين —
+  /// فتبدو البطاقةُ ساحةً يتفرّج عليها الزملاء لا صورةً لاثنين.
+  static const crowdAssets = ['assets/images/avatar_5.png', 'assets/images/avatar_7.png'];
+
   @override
   State<PeerChallengeCard> createState() => _PeerChallengeCardState();
 }
@@ -225,6 +229,61 @@ class _Face extends StatelessWidget {
                 ),
               ),
             ),
+            // ── أشعّةُ الحلبة: ضوءٌ يدور ببطءٍ خلف الشعار ──
+            IgnorePointer(
+              child: AnimatedBuilder(
+                animation: loop,
+                builder: (context, _) => CustomPaint(
+                  key: const ValueKey('peer-card-rays'),
+                  painter: _RaysPainter(
+                    turn: still ? 0 : loop.value,
+                    center: Offset(0.5, (topBand + (h - topBand - bottomBand) / 2) / h),
+                    strength: 0.10 + lift * 0.10,
+                  ),
+                ),
+              ),
+            ),
+            // ── هالتا الفريقين: أزرقُ خلف المتحدّي وورديٌّ ناريٌّ خلف خصمه ──
+            IgnorePointer(
+              child: AnimatedBuilder(
+                animation: loop,
+                builder: (context, _) {
+                  final beat = still ? 0.5 : (math.sin(loop.value * math.pi * 2) + 1) / 2;
+                  Widget aura(Alignment at, Color color, double strength) => DecoratedBox(
+                        decoration: BoxDecoration(
+                          gradient: RadialGradient(
+                            center: at,
+                            radius: 0.55,
+                            colors: [color.withValues(alpha: strength), color.withValues(alpha: 0)],
+                          ),
+                        ),
+                      );
+                  return Stack(fit: StackFit.expand, children: [
+                    aura(const Alignment(-0.75, 0.05), const Color(0xFF38BDF8), 0.30 + beat * 0.18 + lift * 0.12),
+                    aura(const Alignment(0.75, 0.05), const Color(0xFFF43F5E), 0.30 + (1 - beat) * 0.18 + lift * 0.12),
+                  ]);
+                },
+              ),
+            ),
+            // ── الجمهور: خافتٌ صغيرٌ خلف المتواجهَين ──
+            Positioned(
+              left: w * 0.18,
+              bottom: bottomBand * 0.55,
+              height: characterHeight * 0.55,
+              child: Opacity(
+                opacity: 0.38,
+                child: _Character(asset: PeerChallengeCard.crowdAssets[0]),
+              ),
+            ),
+            Positioned(
+              right: w * 0.18,
+              bottom: bottomBand * 0.55,
+              height: characterHeight * 0.52,
+              child: Opacity(
+                opacity: 0.38,
+                child: _Character(asset: PeerChallengeCard.crowdAssets[1]),
+              ),
+            ),
             // ── الشخصيتان ──
             // بارتفاعٍ وحده، فيُحسب العرضُ من نسبة الصورة: لا تُمطّ ولا تُقصّ.
             // وتنزلان خلف شريط العنوان قليلاً، فتقفان على أرضٍ لا تطفوان.
@@ -250,6 +309,16 @@ class _Face extends StatelessWidget {
               height: emblem,
               child: _Emblem(loop: loop, lift: lift, still: still),
             ),
+            // ── شراراتٌ تلمع حول الشعار ──
+            if (!still)
+              IgnorePointer(
+                child: AnimatedBuilder(
+                  animation: loop,
+                  builder: (context, _) => CustomPaint(
+                    painter: _SparksPainter(t: loop.value),
+                  ),
+                ),
+              ),
             // ── الإضاءة العلوية: لمعانُ السطح المجسّم ──
             IgnorePointer(
               child: DecoratedBox(
@@ -608,4 +677,83 @@ class _Sheen extends StatelessWidget {
       ),
     );
   }
+}
+
+/// أشعّةٌ تنطلق من الشعار وتدور ببطء — ضوءُ حلبةٍ خلف النزال.
+class _RaysPainter extends CustomPainter {
+  const _RaysPainter({required this.turn, required this.center, required this.strength});
+
+  /// دورةٌ كاملةٌ من صفرٍ إلى واحد.
+  final double turn;
+
+  /// موضعُ الشعار نسبةً إلى البطاقة.
+  final Offset center;
+  final double strength;
+
+  static const rays = 12;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final origin = Offset(size.width * center.dx, size.height * center.dy);
+    final reach = size.longestSide;
+    final paint = Paint()
+      ..shader = RadialGradient(
+        colors: [
+          const Color(0xFFFDE68A).withValues(alpha: strength),
+          const Color(0xFFFDE68A).withValues(alpha: 0),
+        ],
+      ).createShader(Rect.fromCircle(center: origin, radius: reach * 0.7));
+    const width = math.pi / rays * 0.55;
+    for (var i = 0; i < rays; i++) {
+      final angle = turn * math.pi * 2 / 3 + i * math.pi * 2 / rays;
+      final path = Path()
+        ..moveTo(origin.dx, origin.dy)
+        ..lineTo(origin.dx + math.cos(angle - width) * reach, origin.dy + math.sin(angle - width) * reach)
+        ..lineTo(origin.dx + math.cos(angle + width) * reach, origin.dy + math.sin(angle + width) * reach)
+        ..close();
+      canvas.drawPath(path, paint);
+    }
+  }
+
+  @override
+  bool shouldRepaint(_RaysPainter old) =>
+      old.turn != turn || old.center != center || old.strength != strength;
+}
+
+/// شراراتٌ صغيرةٌ تلمع وتخبو في مواضعَ ثابتة، كلٌّ في لحظتها من الدورة.
+class _SparksPainter extends CustomPainter {
+  const _SparksPainter({required this.t});
+
+  final double t;
+
+  static const _spots = [
+    (0.30, 0.30, 0.0),
+    (0.70, 0.26, 0.2),
+    (0.42, 0.18, 0.45),
+    (0.60, 0.48, 0.65),
+    (0.36, 0.52, 0.82),
+    (0.55, 0.12, 0.33),
+  ];
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    for (final (x, y, phase) in _spots) {
+      final local = ((t - phase) % 1 + 1) % 1;
+      if (local > 0.3) continue;
+      final glow = math.sin(local / 0.3 * math.pi);
+      final c = Offset(size.width * x, size.height * y);
+      final r = 1.2 + glow * 2.6;
+      final paint = Paint()..color = Colors.white.withValues(alpha: 0.85 * glow);
+      canvas.drawCircle(c, r * 0.55, paint);
+      final line = Paint()
+        ..color = const Color(0xFFFDE68A).withValues(alpha: 0.9 * glow)
+        ..strokeWidth = 1.2
+        ..strokeCap = StrokeCap.round;
+      canvas.drawLine(c.translate(-r * 2, 0), c.translate(r * 2, 0), line);
+      canvas.drawLine(c.translate(0, -r * 2), c.translate(0, r * 2), line);
+    }
+  }
+
+  @override
+  bool shouldRepaint(_SparksPainter old) => old.t != t;
 }

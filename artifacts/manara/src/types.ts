@@ -116,6 +116,8 @@ export interface StudentInfo {
   createdBy?: string;
   createdByName?: string;
   permissionPackageId?: string;
+  /** باقةُ الاشتراك: الحالةُ الابتدائية لبطاقاته، و«صلاحيات البطاقات» تغلبها. */
+  subscriptionPlan?: string;
   quizResults?: QuizResult[]; // نتائج الاختبارات
   // للتوافقية مع الكود القديم
   grade?: string;

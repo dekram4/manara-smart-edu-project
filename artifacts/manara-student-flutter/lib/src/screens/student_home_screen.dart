@@ -12,13 +12,16 @@ import '../models/cinema_unlock.dart';
 import '../models/student_content.dart';
 import '../models/student_profile.dart';
 import '../models/student_gamification.dart';
+import '../services/coloring_cloud.dart';
 import '../services/student_auth_service.dart';
 import '../services/student_path_memory.dart';
 import '../services/student_challenge_service.dart';
 import 'academic_selection_screen.dart';
 import 'home_layout.dart';
 import 'kindergarten_card_screens.dart';
+import 'kg_world_screen.dart';
 import '../services/quran_recitation.dart';
+import '../services/kindergarten_voice_quiz.dart';
 import '../services/tracing_scope.dart';
 import '../services/student_study_service.dart';
 import '../services/student_duel_service.dart';
@@ -40,8 +43,15 @@ import '../l10n/student_strings.dart';
 import '../theme/student_theme.dart';
 import '../utils/student_route_observer.dart';
 import '../widgets/bouncy_text.dart';
+import '../widgets/student_welcome_banner.dart';
+import '../services/demo_mode.dart';
+import '../services/subscription_plans.dart';
+import 'demo_chat_screen.dart';
+import 'plans_screen.dart';
 import 'login_screen.dart';
 import 'student_cinema_screen.dart';
+import 'demo_duel_screen.dart';
+import '../services/demo_content.dart';
 import 'student_chat_screen.dart';
 import 'student_content_screen.dart';
 import 'student_duel_screen.dart';
@@ -51,6 +61,8 @@ import 'student_problem_solver_screen.dart';
 import 'student_progress_screen.dart';
 import 'student_quiz_screen.dart';
 import 'student_tutor_screen.dart';
+import '../widgets/demo_ui.dart';
+import '../widgets/guest_contact.dart';
 
 class StudentHomeScreen extends StatefulWidget {
   const StudentHomeScreen({
@@ -347,6 +359,10 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> with RouteAware {
           grade: context?.grade,
           subject: context?.subject,
         ),
+      kgWorldModule => kgVoiceGamesAllowedFor(
+          grade: context?.grade,
+          subject: context?.subject,
+        ),
       _ => true,
     };
   }
@@ -354,7 +370,78 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> with RouteAware {
   bool _isCardLocked(int index) =>
       index >= 0 &&
       index < _homeSections.length &&
-      _cardAccess[_cardIdOf(_homeSections[index])] == false;
+      (_cardAccess[_cardIdOf(_homeSections[index])] == false || _isTeaser(index));
+
+  /// بطاقةٌ يعرّفها وضعُ الزائر برسالةٍ ولا يفتحها.
+  bool _isTeaser(int index) =>
+      DemoMode.active &&
+      index >= 0 &&
+      index < _homeSections.length &&
+      DemoMode.teaserCards.contains(_cardIdOf(_homeSections[index]));
+
+  /// «احصل على حساب رسمي»: مقارنةُ الباقات وطلبُ الاشتراك.
+  void _openPlans() {
+    // ‏الزائرُ لا يرى الباقات أبداً: يُدلّ على المشرف وحده.
+    if (DemoMode.active) return _contactAdmin();
+    StudentSoundService.instance.playTap();
+    Navigator.of(context).push(
+      StudentPageRoute<void>(builder: (_) => PlansScreen(apiBaseUrl: widget.apiBaseUrl)),
+    );
+  }
+
+  /// الزائر: «صلاحيات الحساب غير مفعّلة» وزرّا التواصل مع المشرف — بدل الباقات.
+  void _contactAdmin() {
+    StudentSoundService.instance.playTap();
+    showGuestRegisteredOnly(context);
+  }
+
+  /// رسالةُ بطاقةٍ للحساب الرسمي يراها الزائر: ما الذي تفعله، ولمن هي.
+  void _showTeaser(String card) {
+    StudentSoundService.instance.play(StudentSoundCue.warning);
+    const emojis = {'solver': '🧮', 'meeting': '🎥', 'challenge': '⚔️', 'tutor': '🤖'};
+    showDemoDialog<void>(
+      context: context,
+      key: ValueKey('demo-teaser-$card'),
+      emoji: emojis[card] ?? '🔒',
+      title: tr('portal.$card'),
+      body: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        Text(tr('demo.teaser.$card'), textAlign: TextAlign.center),
+        const SizedBox(height: 12),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          decoration: BoxDecoration(
+            color: DemoPalette.gold.withValues(alpha: 0.14),
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: DemoPalette.gold.withValues(alpha: 0.6)),
+          ),
+          child: Column(children: [
+            Text(tr('guest.registeredOnly.title'),
+                textAlign: TextAlign.center,
+                style: const TextStyle(fontWeight: FontWeight.w900, color: DemoPalette.goldDeep)),
+            const SizedBox(height: 4),
+            Text(tr('guest.registeredOnly.body'), textAlign: TextAlign.center, style: const TextStyle(fontSize: 14)),
+          ]),
+        ),
+      ]),
+      actions: [
+        const GuestContactButtons(key: ValueKey('demo-teaser-contact')),
+        TextButton(onPressed: () => Navigator.pop(context), child: Text(tr('demo.ok'))),
+      ],
+    );
+  }
+
+  void _showPlanLocked() {
+    StudentSoundService.instance.play(StudentSoundCue.warning);
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(SnackBar(
+        key: const ValueKey('plan-locked'),
+        behavior: SnackBarBehavior.floating,
+        backgroundColor: const Color(0xFF92400E),
+        content: Text(tr('plans.cardNotIncluded'), style: const TextStyle(fontWeight: FontWeight.w800)),
+        action: SnackBarAction(label: tr('plans.view'), textColor: const Color(0xFFFDE68A), onPressed: _openPlans),
+      ));
+  }
 
   void _showCardLocked() {
     StudentSoundService.instance.play(StudentSoundCue.warning);
@@ -393,7 +480,17 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> with RouteAware {
   /// بعدها، فبطاقةٌ أغلقها المعلمُ للتوّ لا تُفتح من اللمسة التالية.
   Future<void> _openCard(int index) async {
     unawaited(_loadCardAccess());
+    if (_isTeaser(index)) {
+      _showTeaser(_cardIdOf(_homeSections[index]));
+      return;
+    }
     if (_isCardLocked(index)) {
+      final card = _cardIdOf(_homeSections[index]);
+      // ‏بطاقةٌ لا تشملها باقةُ الطالب: تُقال الباقةُ لا «أغلقها معلّمك».
+      if (!planAllowsCard(widget.profile.subscriptionPlan, card)) {
+        _showPlanLocked();
+        return;
+      }
       _showCardLocked();
       return;
     }
@@ -401,6 +498,8 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> with RouteAware {
   }
 
   Future<void> _loadGamification() async {
+    // ‏الزائرُ: جواهرُه ومستواه ومكافآتُه أصفارٌ دائماً.
+    if (DemoMode.active) return;
     final previous = _gamification;
     StudentGamification? updated;
     try {
@@ -473,9 +572,11 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> with RouteAware {
   Future<void> _signOut() async {
     StudentSoundService.instance.playTap();
     try {
-      await widget.authService.client.auth.signOut();
+      // ‏الزائرُ لم يدخل الخادمَ أصلاً: لا جلسةَ تُغلق هناك.
+      if (!DemoMode.active) await widget.authService.client.auth.signOut();
     } catch (_) {}
     widget.authService.clearApiSession();
+    DemoMode.exit();
     if (!mounted) return;
     await Navigator.of(context).pushAndRemoveUntil(
       StudentPageRoute<void>(
@@ -582,6 +683,16 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> with RouteAware {
       return;
     }
 
+    if (index == 8 && DemoMode.active) {
+      Navigator.of(context).push(
+        StudentPageRoute<void>(
+          immersive: true,
+          builder: (_) => DemoChatScreen(onGetAccount: _contactAdmin),
+        ),
+      );
+      return;
+    }
+
     if (index == 8) {
       Navigator.of(context).push(
         StudentPageRoute<void>(
@@ -593,6 +704,24 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> with RouteAware {
           ),
         ),
       );
+      return;
+    }
+
+    if (index == kgWorldModule) {
+      Navigator.of(context)
+          .push(
+            StudentPageRoute<void>(
+              immersive: true,
+              builder: (_) => KgWorldScreen(
+                // ‏لوحاتُ الطفل باسمه وحده على التابلت، وفي سحابته.
+                account: ColoringAccount(
+                  studentId: widget.profile.id,
+                  cloud: DemoMode.active ? null : ColoringCloud(baseUrl: widget.apiBaseUrl, authService: widget.authService),
+                ),
+              ),
+            ),
+          )
+          .then((_) => _loadGamification());
       return;
     }
 
@@ -651,6 +780,27 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> with RouteAware {
     // ومفتاحُ العنوان `portal.challenge` كما كان — لا `portal.duel` — فيبقى
     // لها مقطعُها الصوتيُّ `challenge_ar.mp3` وخلفيّتُها وصورتُها. والنصُّ
     // وحده تغيّر.
+    // ‏الزائر: مباراةٌ مع «روبوت منارة» على الجهاز، بثلاثة أسئلةٍ من درسه.
+    if (index == 9 && DemoMode.active) {
+      final academic = _academicContext;
+      Navigator.of(context).push(
+        StudentPageRoute<void>(
+          immersive: true,
+          builder: (_) => DemoDuelScreen(
+            questions: DemoContent.lessonQuestions(
+              lessonId: academic?.lessonId ?? '',
+              subject: academic?.subject,
+              lessonName: academic?.lesson,
+              grade: academic?.grade ?? widget.profile.grade,
+            ),
+            lessonName: academic?.lesson,
+            onGetAccount: _contactAdmin,
+          ),
+        ),
+      );
+      return;
+    }
+
     if (index == 9) {
       Navigator.of(context)
           .push(
@@ -1062,8 +1212,36 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> with RouteAware {
                       key: _headerKey,
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        // ‏بلا عبارة ترحيب: الواجهةُ تبدأ بالمسار ثم البطاقات،
-                        // ‏وشخصيةُ الطالب في الشريط العلويّ.
+                        // ‏الزائر: زرٌّ ذهبيّ بارزٌ أعلى الواجهة: تفعيلُ الحساب الرسمي
+                        // عبر المشرف — لا باقاتٌ ولا اشتراك.
+                        if (DemoMode.active)
+                          Padding(
+                            padding: const EdgeInsets.fromLTRB(14, 4, 14, 8),
+                            child: Center(
+                              // ‏يمتدّ حتى ٤٢٠ ويصغر نصُّه على الجوال الضيّق بدل أن يُقصّ.
+                              child: ConstrainedBox(
+                                constraints: const BoxConstraints(maxWidth: 420),
+                                child: DemoGradientButton(
+                                  key: const ValueKey('demo-get-account'),
+                                  label: tr('demo.getAccount'),
+                                  icon: Icons.support_agent_rounded,
+                                  shimmer: true,
+                                  height: 52,
+                                  onPressed: _contactAdmin,
+                                ),
+                              ),
+                            ),
+                          ),
+                        // ‏شريطُ الترحيب: اسمُ الطالب وصفُّه، ثم المسارُ ثم البطاقات.
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(14, 4, 14, 12),
+                          child: StudentWelcomeBanner(
+                            name: widget.profile.name,
+                            grade: (_academicContext?.grade.trim().isNotEmpty ?? false)
+                                ? _academicContext!.grade
+                                : widget.profile.grade,
+                          ),
+                        ),
                         if (_academicContext != null) ...[
                           Padding(
                             padding: const EdgeInsets.symmetric(horizontal: 18),
@@ -1321,6 +1499,18 @@ const _homeSections = <_HomeSection>[
     image: 'assets/images/icon_writing.png',
     colors: [Color(0xFF1D4ED8), Color(0xFF38BDF8)],
     accent: Color(0xFFBAE6FD),
+    ownsVoice: true,
+  ),
+  // Index 13 — «عالم الحكايات والمغامرات»: ألعابُ الروضة في «الثقافة العامة»
+  // كلُّها في بطاقةٍ واحدة — الألوان والأشكال والحساب وأسئلةُ الروضة، و«لوحة
+  // الألوان السحرية». شاشتُها تشغّل أصواتَ ألعابها بنفسها.
+  _HomeSection(
+    titleKey: 'portal.kgworld',
+    subtitleKey: 'portal.kgworld.sub',
+    descriptionKey: 'portal.kgworld.desc',
+    image: 'assets/images/kg_general.png',
+    colors: [Color(0xFF7C3AED), Color(0xFFEC4899)],
+    accent: Color(0xFFFBCFE8),
     ownsVoice: true,
   ),
 ];
@@ -2010,13 +2200,32 @@ class _LighthouseBackdrop extends StatelessWidget {
   /// تحت الرأس قصيرةٌ عريضة، و`contain` فيها صغّر المنارةَ إلى ثلث العرض؛
   /// فيُكبَّر الرسمُ هناك ويُرفع قليلاً حتى تلامس قمّتُه حافّةَ المساحة،
   /// ويُقصّ أسفلُه (الألعابُ عند القاعدة) — المنارةُ هي ما يُرى.
-  static Rect _towerSquare(Size area) {
+  ///
+  /// و[full] ارتفاعُ الصفحة كلِّها: في الأفقيّ يأخذ الشريطُ والملخّصُ أكثرَ ما
+  /// تحت الرأس، فكانت المنارةُ تُقاس بالباقي فتصغر. فتُقاس بالصفحة كلِّها،
+  /// وقمّتُها تحت الرأس كما كانت، وما زاد يُقصّ من أسفلها.
+  ///
+  /// والجوّالُ أفقيّاً (صفحةٌ قصيرةٌ دون [shortPage]) لا يتّسع تحت رأسه لمنارةٍ
+  /// تُرى: فتبدأ من أعلى الصفحة ([top] هو ارتفاعُ الرأس فوق المساحة) على
+  /// جانب نهاية القراءة — بجوار شريط الترحيب لا خلفه — بارتفاع الصفحة ونصف.
+  /// صفحةٌ أقصرُ من هذا (جوّالٌ أفقيّاً) تُرسم فيها المنارةُ على جانبها.
+  static const double shortPage = 520;
+
+  static Rect towerSquare(Size area, {double full = 0, double top = 0, bool rtl = true}) {
     final w = area.width, h = area.height;
     if (w <= h) {
       final side = math.min(w, h);
       return Rect.fromLTWH((w - side) / 2, 0, side, side);
     }
-    final side = math.max(h, math.min(w * 0.62, h * 1.45));
+    if (full > 0 && full < shortPage) {
+      final side = math.min(w * 0.55, full * 1.5);
+      final centerX = rtl ? w * 0.15 : w * 0.85;
+      return Rect.fromLTWH(centerX - side / 2, -top + 4 - side * 0.015, side, side);
+    }
+    final side = math.min(
+      w * 0.7,
+      math.max(math.max(h, full * 0.95), math.min(w * 0.62, h * 1.45)),
+    );
     // ‏قمّةُ البرج على نحو ٢٪ من أعلى الرسم: تُرفع إلى حافّة المساحة.
     return Rect.fromLTWH((w - side) / 2, -side * 0.015, side, side);
   }
@@ -2030,7 +2239,7 @@ class _LighthouseBackdrop extends StatelessWidget {
     // artwork in the dark rather than a bright panel.
     final night = StudentSurface.isDark(context);
     return IgnorePointer(
-      child: Stack(
+      child: LayoutBuilder(builder: (context, page) => Stack(
         fit: StackFit.expand,
         children: [
           DecoratedBox(
@@ -2060,7 +2269,12 @@ class _LighthouseBackdrop extends StatelessWidget {
             ),
             // الرسمُ والإضاءةُ في مربّعٍ واحد، أعلى المساحة تحت الرأس.
             child: LayoutBuilder(builder: (context, box) {
-              final square = _towerSquare(box.biggest);
+              final square = towerSquare(
+                box.biggest,
+                full: page.maxHeight,
+                top: artTop.value,
+                rtl: Directionality.of(context) == TextDirection.rtl,
+              );
               return Stack(
                 fit: StackFit.expand,
                 clipBehavior: Clip.none,
@@ -2097,7 +2311,7 @@ class _LighthouseBackdrop extends StatelessWidget {
             }),
           ),
         ],
-      ),
+      )),
     );
   }
 }

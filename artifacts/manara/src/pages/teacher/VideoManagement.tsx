@@ -19,8 +19,18 @@ import { managementRequest } from '../../utils/managementApi';
  * كان الدرس الذي يتصفّحونه.
  *
  * والحفظ عبر `/api/cinema/videos` لا عبر التخزين المحلي: الخادم يتحقّق من
- * الصفّ والمعلم والرابط، ويكتب في جدول `cinema_videos`.
+ * الصفّ والمعلم والرابط، ويكتب في جدول `cinema_videos` وحده (إضافةً وتعديلاً
+ * وحذفاً) — ورابطُ YouTube العاديّ يصير هناك رابطَ تضمين. وإن رفض Supabase
+ * العملية (صلاحيات RLS مثلاً) ظهرت رسالتُه هنا وفي الـ Console، ولا يُحفظ
+ * الفيديو في مكانٍ آخر بصمت.
  */
+
+/** رسالةُ فشلٍ من الخادم: تُكتب في الـ Console كاملةً وتُعرض للمعلم. */
+const reportCinemaFailure = (action: string, error: unknown, fallback: string) => {
+  const message = error instanceof Error ? error.message : fallback;
+  console.error(`[cinema_videos] ${action}:`, message, error);
+  alert(message);
+};
 
 interface CinemaVideo {
   id: string;
@@ -44,7 +54,6 @@ interface CinemaVideoDraft {
 }
 
 interface CinemaListResponse {
-  storage: 'table' | 'kv';
   teachers: Array<{ id: string; name: string }>;
   videos: CinemaVideo[];
 }
@@ -78,7 +87,6 @@ const readStringArray = (key: string): string[] => {
 const VideoManagement: React.FC<VideoManagementProps> = ({ teacherId, teacherName, permissionPackageId, isAdmin = false }) => {
   const [videos, setVideos] = useState<CinemaVideo[]>([]);
   const [teachers, setTeachers] = useState<Array<{ id: string; name: string }>>([]);
-  const [storage, setStorage] = useState<'table' | 'kv' | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState('');
   const [saving, setSaving] = useState(false);
@@ -98,8 +106,8 @@ const VideoManagement: React.FC<VideoManagementProps> = ({ teacherId, teacherNam
       const data = await managementRequest<CinemaListResponse>('/api/cinema/videos');
       setVideos(Array.isArray(data.videos) ? data.videos : []);
       setTeachers(Array.isArray(data.teachers) ? data.teachers : []);
-      setStorage(data.storage ?? null);
     } catch (error) {
+      console.error('[cinema_videos] SELECT:', error);
       setLoadError(error instanceof Error ? error.message : 'تعذر تحميل فيديوهات السينما');
     } finally {
       setLoading(false);
@@ -339,7 +347,7 @@ const VideoManagement: React.FC<VideoManagementProps> = ({ teacherId, teacherNam
       await loadVideos();
       playLamsaSound('success');
     } catch (error) {
-      alert(`${error instanceof Error ? error.message : 'تعذر حفظ فيديو السينما'}`);
+      reportCinemaFailure(editingVideo ? 'UPDATE' : 'INSERT', error, 'تعذر حفظ فيديو السينما');
     } finally {
       setSaving(false);
     }
@@ -357,7 +365,7 @@ const VideoManagement: React.FC<VideoManagementProps> = ({ teacherId, teacherNam
       await loadVideos();
       playLamsaSound('pop');
     } catch (error) {
-      alert(`${error instanceof Error ? error.message : 'تعذر حذف الفيديو'}`);
+      reportCinemaFailure('DELETE', error, 'تعذر حذف الفيديو');
     }
   };
 
@@ -398,13 +406,6 @@ const VideoManagement: React.FC<VideoManagementProps> = ({ teacherId, teacherNam
           {showForm ? 'إلغاء' : 'فيديو جديد'}
         </button>
       </div>
-
-      {storage === 'kv' && (
-        <div className="rounded-2xl border-2 border-amber-300 bg-amber-50 p-3 text-sm font-bold text-amber-900">
-          ℹ️ جدول <code>cinema_videos</code> لم يُنشأ بعد في Supabase، فتُحفظ الفيديوهات مؤقتاً في التخزين المشترك القديم وتعمل كاملةً.
-          شغّل ملف <code>cinema-and-card-permissions.sql</code> في محرّر SQL لنقلها إلى الجدول.
-        </div>
-      )}
 
        <div className="dashboard-filter-surface border-amber-200 bg-amber-50/80">
          <div className="mb-3 flex flex-col items-stretch gap-3 sm:flex-row sm:items-center sm:justify-between">

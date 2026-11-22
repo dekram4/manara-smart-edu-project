@@ -17,6 +17,11 @@ export type StudentActor = {
   /** المواد المسندة إليه. فارغة = كل مواد معلّمه. */
   assignedSubjects: string[];
   canAccessChat: boolean;
+  /** باقةُ الاشتراك (`subscriptionPlan`)، أو `null` لحسابٍ قبل نظام الباقات. */
+  plan?: string | null;
+  /** من أنشأ السجلّ — معلّمُه في السجلّات الأقدم التي لا `teacherId` فيها. */
+  createdBy?: string;
+  parentId?: string;
 };
 
 export type StudentSupabaseConfig = { url: string; key: string };
@@ -36,6 +41,11 @@ function text(value: unknown): string {
  * فتُوحَّد صور الألف والياء والتاء المربوطة، وتُسقط الحركات والتطويل،
  * وتُردّ الأرقام العربية إلى نظيراتها، وتُجمع المسافات المتتابعة في واحدة.
  */
+/** معرّفُ نطاقٍ (معلّمٍ أو صفّ) كما يُقارن به في كل مكان — لمن هو خارج هذا الملفّ. */
+export function normalizeScopeId(value: unknown): string {
+  return normalize(value);
+}
+
 function normalize(value: unknown): string {
   return text(value)
     .toLowerCase()
@@ -102,6 +112,9 @@ function fromRow(row: { id?: unknown; data?: unknown }): StudentActor | null {
     unit: text(data.unit),
     assignedSubjects: nameList(data.assignedSubjects),
     canAccessChat: data.canAccessChat !== false && data.can_access_chat !== false,
+    plan: text(data.subscriptionPlan) || text(data.subscription_plan) || null,
+    createdBy: text(data.createdBy) || text(data.created_by),
+    parentId: text(data.parentId) || text(data.parent_id),
   };
 }
 

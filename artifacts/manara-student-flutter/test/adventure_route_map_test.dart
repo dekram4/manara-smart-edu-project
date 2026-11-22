@@ -14,6 +14,7 @@ import 'package:manara_student/src/models/student_profile.dart';
 import 'package:manara_student/src/screens/academic_selection_screen.dart';
 import 'package:manara_student/src/services/student_auth_service.dart';
 import 'package:manara_student/src/services/student_settings.dart';
+import 'package:manara_student/src/services/student_voice_service.dart';
 import 'package:manara_student/src/widgets/adventure_route_map.dart';
 import 'package:manara_student/src/widgets/student_avatar_view.dart';
 
@@ -512,13 +513,17 @@ void main() {
         (call) async => call.method == 'requestPermissions' ? {7: 0} : 0,
       );
       await pumpVoice(tester, const []);
-      // ‏pumpVoice يمنح الإذن؛ يُعاد هنا إلى «غير مسموح» قبل أن يُسأل.
+      // ‏pumpVoice يمنح الإذن؛ يُعاد هنا إلى «غير مسموح» قبل أن يُسأل — وتُنسى
+      // ‏حالتُه المشتركة، كأنّ التطبيقَ بدأ لتوّه.
       tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
         const MethodChannel('flutter.baseflow.com/permissions/methods'),
         (call) async => call.method == 'requestPermissions' ? {7: 0} : 0,
       );
+      await tester.pump();
+      StudentVoiceService.instance.forgetMicForTest();
       await tester.tap(find.byKey(const ValueKey('path-voice')));
-      await tester.pump(const Duration(milliseconds: 300));
+      // ‏ويُسأل محرّكُ التعرّف أيضاً، بمهلةٍ (ثانية) — ولا محرّكَ في الاختبار.
+      await tester.pump(const Duration(milliseconds: 1300));
       expect(find.byKey(const ValueKey('voice-mic-permission')), findsOneWidget);
       expect(find.text(tr('voice.micAllow')), findsOneWidget);
       await tester.tap(find.text(tr('voice.micLater')));

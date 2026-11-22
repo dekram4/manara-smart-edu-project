@@ -9,14 +9,21 @@ import '../models/academic_context.dart';
 import '../models/student_gamification.dart';
 import '../models/study_games.dart';
 import '../models/student_profile.dart';
+import '../services/coloring_canvas.dart';
+import '../services/coloring_drawings.dart';
+import '../services/coloring_cloud.dart';
+import '../services/demo_mode.dart';
 import '../services/student_content_service.dart';
 import '../services/student_settings.dart';
 import '../services/student_sound_service.dart';
 import '../services/student_study_service.dart';
 import '../theme/student_theme.dart';
 import '../widgets/portal_watermark.dart';
+import '../services/tracing_scope.dart' show isKindergartenGrade;
 import '../widgets/study_games.dart';
 import '../widgets/student_experience.dart';
+import 'drawing_studio_screen.dart';
+import 'magic_coloring_screen.dart';
 
 /// «مغامرة الأذكياء ومهمة المذاكرة»: ألعابُ الدرس وحدها.
 ///
@@ -59,7 +66,12 @@ class _StudentStudyScreenState extends State<StudentStudyScreen> {
   }
 
   /// ألعابُ الدرس من الخادم، والمحفوظُ منها يُعرض فوراً.
-  Future<StudyGamesPack> _takeGames() => widget.studyService.fetchGames(lessonId: _lessonId);
+  Future<StudyGamesPack> _takeGames() => widget.studyService.fetchGames(
+        lessonId: _lessonId,
+        subject: widget.academicContext?.subject,
+        lessonName: widget.academicContext?.lesson,
+        grade: widget.academicContext?.grade ?? widget.profile.grade,
+      );
 
   @override
   void dispose() {
@@ -122,10 +134,64 @@ class _StudentStudyScreenState extends State<StudentStudyScreen> {
     );
   }
 
+  /// ‏«لوحة الألوان السحرية» في بطاقة المذاكرة للصفوف كلِّها إلا الروضة: للروضة
+  /// بطاقتُها في «عالم الحكايات والمغامرات» كما هي.
+  bool get _showsColoring =>
+      !isKindergartenGrade(widget.academicContext?.grade ?? widget.profile.grade);
+
+  /// لوحاتُ الطالب باسمه وحده على الجهاز، وسحابتُه إن كانت له جلسةٌ على الخادم.
+  ColoringAccount get _coloringAccount {
+    final auth = widget.contentService.authService;
+    return ColoringAccount(
+      studentId: widget.profile.id,
+      cloud: auth == null || DemoMode.active ? null : ColoringCloud(baseUrl: widget.contentService.baseUrl, authService: auth),
+    );
+  }
+
+  StudyShelfExtra get _coloringExtra => StudyShelfExtra(
+        key: const ValueKey('study-coloring'),
+        emoji: '🎨',
+        title: tr('study.coloring.title'),
+        hint: tr('study.coloring.hint'),
+        colors: const [Color(0xFFEC4899), Color(0xFF8B5CF6)],
+        art: const _ColoringCoverArt(),
+        onTap: _openColoring,
+      );
+
+  StudyShelfExtra get _studioExtra => StudyShelfExtra(
+        key: const ValueKey('study-studio'),
+        emoji: '🖌️',
+        title: tr('studio.title'),
+        hint: tr('studio.sub'),
+        colors: const [Color(0xFF0EA5E9), Color(0xFF8B5CF6)],
+        art: const Text('🖌️', style: TextStyle(fontSize: 64)),
+        onTap: _openStudio,
+      );
+
+  void _openStudio() {
+    StudentSoundService.instance.playTap();
+    Navigator.of(context).push(
+      StudentPageRoute<void>(
+        immersive: true,
+        builder: (_) => DrawingStudioScreen(account: _coloringAccount),
+      ),
+    );
+  }
+
+  void _openColoring() {
+    StudentSoundService.instance.playTap();
+    Navigator.of(context).push(
+      StudentPageRoute<void>(
+        immersive: true,
+        builder: (_) => MagicColoringScreen(account: _coloringAccount),
+      ),
+    );
+  }
+
   Widget _body(BuildContext context) {
     if (_lessonId.isEmpty) {
       return Center(
-        child: Padding(
+        child: SingleChildScrollView(
           padding: const EdgeInsets.all(24),
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -137,6 +203,13 @@ class _StudentStudyScreenState extends State<StudentStudyScreen> {
                 textAlign: TextAlign.center,
                 style: TextStyle(fontSize: 15, height: 1.6, fontWeight: FontWeight.w800, color: StudentSurface.ink(context)),
               ),
+              // ‏بلا درسٍ لا ألعابَ للدرس — والتلوينُ لا يحتاج درساً.
+              if (_showsColoring) ...[
+                const SizedBox(height: 40),
+                StudyShelfTile(extra: _coloringExtra),
+                const SizedBox(height: 16),
+                StudyShelfTile(extra: _studioExtra),
+              ],
             ],
           ),
         ),
@@ -169,8 +242,13 @@ class _StudentStudyScreenState extends State<StudentStudyScreen> {
                   lessonId: _lessonId,
                   type: base.type,
                   exclude: exclude,
+                  subject: widget.academicContext?.subject,
+                  lessonName: widget.academicContext?.lesson,
+                  grade: widget.academicContext?.grade ?? widget.profile.grade,
                 ),
                 seenKey: 'study.seen.${widget.profile.id}.$_lessonId',
+                // ‏مربّعٌ في رفّ ألعاب المادة نفسه، بالغلاف المجسّم وحركته.
+                extras: [if (_showsColoring) ...[_coloringExtra, _studioExtra]],
               ),
             ],
           ),
@@ -449,4 +527,72 @@ class _SkyPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(_SkyPainter old) => old.dark != dark;
+}
+
+/// بطلُ غلاف «لوحة الألوان السحرية»: فراشةٌ ملوّنةٌ من رسومات اللعبة نفسها.
+class _ColoringCoverArt extends StatelessWidget {
+  const _ColoringCoverArt();
+
+  static final ColoringController _butterfly = () {
+    final c = ColoringController(handDrawnDrawings['butterfly']!());
+    const colors = [
+      Color(0xFFF472B6),
+      Color(0xFF60A5FA),
+      Color(0xFFFACC15),
+      Color(0xFF34D399),
+      Color(0xFFA78BFA),
+      Color(0xFFF97316),
+    ];
+    for (var i = 0; i < c.drawing.regions.length; i++) {
+      c.fillAt(c.drawing.regions[i].getBounds().center, colors[i % colors.length]);
+    }
+    return c;
+  }();
+
+  @override
+  Widget build(BuildContext context) => Center(
+        child: AspectRatio(
+          aspectRatio: 1,
+          child: CustomPaint(painter: _CoverPainter(_butterfly)),
+        ),
+      );
+}
+
+/// اللوحةُ بلا ورقها الأبيض: الفراشةُ وحدها تطفو فوق الغلاف.
+class _CoverPainter extends CustomPainter {
+  _CoverPainter(this.controller);
+
+  final ColoringController controller;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    canvas.saveLayer(Offset.zero & size, Paint());
+    ColoringPainter(controller, outline: 4).paint(canvas, size);
+    // ‏يمحو الأبيضَ حول الفراشة: الخلفيةُ منطقةُ «-1» التي لم تُلوَّن.
+    final scale = size.shortestSide / coloringCanvasSize;
+    final shape = controller.drawing.regions
+        .map((r) => r.transform(Matrix4.diagonal3Values(scale, scale, 1).storage))
+        .reduce((a, b) => Path.combine(PathOperation.union, a, b));
+    // ‏حدُّ الرسمة نفسُه يبقى: يُمحى ما خارج الشكل بعد هامشٍ بعرض الخطّ.
+    final outside = Path.combine(
+      PathOperation.difference,
+      Path()..addRect(Offset.zero & size),
+      shape,
+    );
+    canvas.drawPath(
+      outside,
+      Paint()..blendMode = BlendMode.dstOut,
+    );
+    canvas.drawPath(
+      shape,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 4 * scale
+        ..color = ColoringPainter.ink,
+    );
+    canvas.restore();
+  }
+
+  @override
+  bool shouldRepaint(_CoverPainter old) => false;
 }

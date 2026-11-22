@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { apiSupabaseConfig, matchesStudentScope, type StudentActor } from "../lib/studentAccess";
+import { isDemoStudent } from "../lib/subscriptionPlans";
 import { parseStudyGameActivityId, rewardOf } from "../lib/studyGames";
 import {
   TRACING_GAME_ID,
@@ -545,6 +546,16 @@ async function studyGameReward(
 // ── المسارات ─────────────────────────────────────────────────────────────
 
 router.use("/student/progress", requireStudentSession, progressRateLimit);
+
+// ‏حسابُ الزائر مشتركٌ بين كلّ الزوّار: لا يُكتب فيه شيء — جواهرُه ومستواه
+// ‏ومكافآتُه أصفارٌ دائماً، وشخصيتُه ومسارُه لا يرثهما زائرٌ بعده.
+router.use("/student/progress", (req, res, next) => {
+  if (req.method !== "GET" && isDemoStudent(activeStudent(res))) {
+    res.status(403).json({ error: "وضع الزائر لا يحفظ المكافآت ولا التقدّم", code: "demo" });
+    return;
+  }
+  next();
+});
 
 /** مكافأة نشاط واحد. الجسد يصف ما جرى؛ الخادم وحده يقرّر ما يستحقّه. */
 router.post("/student/progress/reward", async (req, res) => {

@@ -124,6 +124,7 @@ StudyGame? writingGameFor({required String? grade, required String? subject}) {
   if (!tracingAllowedFor(grade: grade, subject: subject)) return null;
   final set = alphabetSetOf(subject);
   if (set == null) return null;
+  // ‏الزائر: كلُّ الحروف والأرقام ظاهرة، والمقفلُ منها في اللوحة (`DemoMode.allowsTracing`).
   final items = alphabetItems(set);
   final en = items.first.lang == 'en';
   return StudyGame(

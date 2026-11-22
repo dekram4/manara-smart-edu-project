@@ -11,6 +11,10 @@ import '../models/student_assessment.dart';
 import '../models/student_content.dart';
 import '../l10n/student_strings.dart';
 import '../models/student_profile.dart';
+import 'subscription_plans.dart';
+import 'demo_catalog.dart';
+import 'demo_content.dart';
+import 'demo_mode.dart';
 import '../models/student_gamification.dart';
 import 'student_auth_service.dart';
 
@@ -79,6 +83,8 @@ class StudentContentService {
     String route,
     Map<String, dynamic> body,
   ) async {
+    // ‏الزائرُ لا يُحفظ له شيء، ولا يُسأل الخادم: مكافأتُه صفر.
+    if (DemoMode.active) return const <String, dynamic>{};
     final auth = authService;
     if (auth == null) throw StateError(tr('svc.noSession'));
 
@@ -190,25 +196,41 @@ class StudentContentService {
   ///
   /// `null` إن تعذّر الطريقان معاً، فيُبقي المستدعي آخر ما عرفه.
   Future<Map<String, bool>?> fetchCardPermissions(StudentProfile profile) async {
+    // ‏الزائر: البطاقاتُ كلُّها ظاهرة، وما يُقفل فيها يقرّره [DemoMode].
+    if (DemoMode.active) return const {};
     try {
       final (status, body) = await _apiGet('/api/student/card-permissions');
       if (status >= 200 && status < 300) {
         final cards = _asMap(body['cards']);
         if (cards.isNotEmpty) {
-          return {
+          final access = {
             for (final entry in cards.entries)
               if (entry.value is bool) entry.key: entry.value as bool,
           };
+          // ‏خادمٌ يعرف الباقات طبّقها وقواعدَ المشرف فوقها؛ وخادمٌ أقدم لا —
+          // ‏فتُطبَّق الباقةُ هنا على ما فتحه.
+          return body['planApplied'] == true ? access : _withPlan(access, profile);
         }
       }
     } catch (_) {
       // يُجرَّب الطريق الثاني.
     }
     try {
-      return await _cardPermissionsFromSupabase(profile);
+      return _withPlan(await _cardPermissionsFromSupabase(profile), profile);
     } catch (_) {
       return null;
     }
+  }
+
+  /// يغلق ما لا تشمله باقةُ الطالب، ويُبقي ما أغلقته القواعد مغلقاً.
+  static Map<String, bool> _withPlan(Map<String, bool> access, StudentProfile profile) {
+    final plan = profile.subscriptionPlan;
+    if (plan == null || plan == 'demo') return access;
+    return {
+      ...access,
+      for (final card in const ['lesson', 'cinema', 'games', 'personality', 'tutor', 'quiz', 'solver', 'meeting', 'chat', 'challenge', 'study'])
+        if (!planAllowsCard(plan, card)) card: false,
+    };
   }
 
   Future<Map<String, bool>> _cardPermissionsFromSupabase(
@@ -261,6 +283,7 @@ class StudentContentService {
   }
 
   Future<StudentGamification> fetchGamification(StudentProfile profile) async {
+    if (DemoMode.active) return const StudentGamification();
     // ‏من الخادم بجلسة الطالب، لا من جدول `students` بالمفتاح العام.
     final me = await _studentMe(fresh: true);
     if (me == null) throw StateError(tr('auth.serviceUnreachable'));
@@ -335,27 +358,36 @@ class StudentContentService {
   Future<AcademicSelectionData> fetchAcademicSelectionData(
     StudentProfile profile,
   ) async {
+    // ‏الزائر: شجرةُ الحساب الرسمي ودروسُه ([DemoCatalog]) في المسار نفسِه،
+    // ‏أو المنهجُ المدمج ([DemoContent]) إن لم تصل نسخةٌ منها قطّ.
+    final real = DemoMode.active ? DemoCatalog.current : null;
+    if (DemoMode.active && real == null) return DemoContent.selection(profile);
     Object? hierarchyValue;
     var hierarchyUnavailable = false;
 
-    try {
-      final row = await client
-          .from('app_kv')
-          .select('value')
-          .eq('key', 'smartEdu_hierarchicalConfigs')
-          .maybeSingle();
-      hierarchyValue = row?['value'];
-    } catch (_) {
-      hierarchyUnavailable = true;
+    if (real != null) {
+      hierarchyValue = real.hierarchy;
+    } else {
+      try {
+        final row = await client
+            .from('app_kv')
+            .select('value')
+            .eq('key', 'smartEdu_hierarchicalConfigs')
+            .maybeSingle();
+        hierarchyValue = row?['value'];
+      } catch (_) {
+        hierarchyUnavailable = true;
+      }
     }
 
     final identities = await _teacherIdentities(profile);
 
-    final response = await client
-        .from('lesson_configs')
-        .select('id,data')
-        .limit(500)
-        .timeout(_requestTimeout);
+    final response = real?.lessonRows ??
+        await client
+            .from('lesson_configs')
+            .select('id,data')
+            .limit(500)
+            .timeout(_requestTimeout);
     final matchingLessons = response
         .whereType<Map>()
         .map(
@@ -479,11 +511,14 @@ class StudentContentService {
     StudentProfile profile, {
     AcademicContext? academicContext,
   }) async {
-    final response = await client
-        .from('lesson_configs')
-        .select('id,data')
-        .limit(500)
-        .timeout(_requestTimeout);
+    final real = DemoMode.active ? DemoCatalog.current : null;
+    if (DemoMode.active && real == null) return DemoContent.lessonsFor(profile, academicContext);
+    final response = real?.lessonRows ??
+        await client
+            .from('lesson_configs')
+            .select('id,data')
+            .limit(500)
+            .timeout(_requestTimeout);
 
     final lessons = response
         .whereType<Map>()
@@ -525,6 +560,9 @@ class StudentContentService {
     required AcademicContext? academicContext,
     required TutorExperienceType type,
   }) async {
+    if (DemoMode.active) {
+      return TutorExperienceSelection(type: type, status: TutorExperienceStatus.unavailable);
+    }
     if (academicContext == null || !academicContext.hasCompletePath) {
       return TutorExperienceSelection(
         type: type,
@@ -656,9 +694,11 @@ class StudentContentService {
   /// ألعابُ معلّم الطالب تصل من [fetchTeacherGames] وحدها. والنسخةُ المدمجة
   /// تبقى لتطبيقٍ بلا خادمٍ مُعدّ (التطوير والاختبار) فقط.
   Future<List<HtmlGame>> fetchGameCatalog() =>
-      _remember('gameCatalog|$baseUrl', _fetchGameCatalog());
+      _remember('gameCatalog|$baseUrl|${DemoMode.active}', _fetchGameCatalog());
 
   Future<List<HtmlGame>> _fetchGameCatalog() async {
+    // ‏الزائر: الفهرسُ المدمج كاملاً بلا سؤال الخادم — الأولى تعمل والباقي بقفله.
+    if (DemoMode.active) return _embeddedGameCatalog('');
     final base = baseUrl.trim().replaceFirst(RegExp(r'/$'), '');
     if (base.isEmpty) return _embeddedGameCatalog('');
 
@@ -684,6 +724,7 @@ class StudentContentService {
       _remember('teacherGames|$baseUrl', _fetchTeacherGames());
 
   Future<List<HtmlGame>> _fetchTeacherGames() async {
+    if (DemoMode.active) return const [];
     final base = baseUrl.trim().replaceFirst(RegExp(r'/$'), '');
     if (base.isEmpty) return const [];
     final (status, body) = await _apiGet('/api/student/entertainment');
@@ -737,6 +778,19 @@ class StudentContentService {
     StudentProfile profile, {
     AcademicContext? academicContext,
   }) async {
+    // ‏الزائر: رفُّ سينما الحساب الرسمي نفسُه (فيديوٌ واحدٌ يعمل والباقي بقفلٍ
+    // ‏ذهبيّ في الشاشة)، أو الرفُّ المدمج إن لم يكن للمنهج الرسمي فيديو.
+    if (DemoMode.active) {
+      final real = DemoCatalog.current;
+      if (real == null) return DemoContent.cinema;
+      final videos = _legacyCinemaFrom(
+        real.videos,
+        real.deletedVideoIds.toSet(),
+        profile,
+        await _teacherIdentities(profile),
+      );
+      return videos.isEmpty ? DemoContent.cinema : videos;
+    }
     int? status;
     var body = const <String, dynamic>{};
     try {
@@ -805,6 +859,15 @@ class StudentContentService {
     final deletedIds = _asList(
       rows[1]?['value'],
     ).map(_text).where((id) => id.isNotEmpty).toSet();
+    return _legacyCinemaFrom(rawVideos, deletedIds, profile, identities);
+  }
+
+  List<LessonVideo> _legacyCinemaFrom(
+    List<Object?> rawVideos,
+    Set<String> deletedIds,
+    StudentProfile profile,
+    Set<String> identities,
+  ) {
     final videos = <LessonVideo>[];
     final seen = <String>{};
     for (final rawVideo in rawVideos) {
@@ -854,11 +917,14 @@ class StudentContentService {
     StudentProfile profile, {
     AcademicContext? academicContext,
   }) async {
-    final response = await client
-        .from('created_quizzes')
-        .select('id,data,updated_at')
-        .limit(300)
-        .timeout(_requestTimeout);
+    final real = DemoMode.active ? DemoCatalog.current : null;
+    if (DemoMode.active && real == null) return DemoContent.quizzes(profile, academicContext);
+    final response = real?.quizRows ??
+        await client
+            .from('created_quizzes')
+            .select('id,data,updated_at')
+            .limit(300)
+            .timeout(_requestTimeout);
 
     final createdQuizzes = <Map<String, dynamic>>[];
     for (final row in response.whereType<Map>()) {
@@ -874,10 +940,12 @@ class StudentContentService {
       });
     }
 
-    final quizMetadata = await Future.wait([
-      _fetchLegacyQuizQuestions(),
-      _fetchDeletedQuizIds(),
-    ]);
+    final quizMetadata = real != null
+        ? <Object>[real.legacyQuestions, real.deletedQuizIds.toSet()]
+        : await Future.wait([
+            _fetchLegacyQuizQuestions(),
+            _fetchDeletedQuizIds(),
+          ]);
     return StudentAssessmentRules.selectAvailableQuizzes(
       createdQuizzes: createdQuizzes,
       legacyQuestions: quizMetadata[0] as List<Map<String, dynamic>>,
@@ -894,6 +962,8 @@ class StudentContentService {
   Future<List<Map<String, dynamic>>> _fetchQuizResults(
     StudentProfile profile,
   ) async {
+    // ‏الزائر: نتائجُ هذه الجلسة على الجهاز وحده.
+    if (DemoMode.active) return List.of(_demoResults);
     // ‏من الخادم بجلسة الطالب: نتائجُه وحده. كان الجدولُ يُقرأ بالمفتاح العام،
     // ‏فكانت نتائجُ الطلاب كلِّهم مقروءةً لكل من يملكه.
     final (status, body) = await _apiGet('/api/student/quiz-results');
@@ -922,6 +992,11 @@ class StudentContentService {
     if (id.isEmpty) {
       throw ArgumentError(tr('svc.noResultId'));
     }
+    if (DemoMode.active) {
+      final saved = <String, dynamic>{...result, 'id': id};
+      _demoResults.insert(0, saved);
+      return saved;
+    }
     final payload = await _postProgress('quiz-result', {
       'result': <String, dynamic>{
         ...result,
@@ -932,6 +1007,9 @@ class StudentContentService {
     });
     return _asMap(payload['result']);
   }
+
+  /// نتائجُ الزائر في جلسته — تُمحى بخروجه من التطبيق.
+  static final List<Map<String, dynamic>> _demoResults = [];
 
   Future<void> saveAppearance({
     required StudentProfile profile,
@@ -949,6 +1027,7 @@ class StudentContentService {
   Future<List<Map<String, dynamic>>> loadTutorHistory(
     StudentProfile profile,
   ) async {
+    if (DemoMode.active) return const [];
     // ‏من الخادم بجلسة الطالب، لا من جدول `interactions` بالمفتاح العام.
     final (status, body) = await _apiGet('/api/student/tutor-history');
     if (status < 200 || status >= 300) return const [];
@@ -1038,6 +1117,8 @@ class StudentContentService {
   Future<Set<String>> _teacherIdentities(StudentProfile profile) {
     final stored = _normalize(profile.teacherId);
     if (stored.isEmpty) return Future.value(const <String>{});
+    // ‏الزائر: معلّمُ المنهج الرسمي المعروض وحده — بلا جلسةٍ يُسأل بها الخادم.
+    if (DemoMode.active) return Future.value(<String>{stored});
     return _identities ??= () async {
       final identities = <String>{stored};
       // ‏يحسبها الخادم من جدول المعلمين ويعيدها مع ملفّ الطالب: الجدولُ نفسه

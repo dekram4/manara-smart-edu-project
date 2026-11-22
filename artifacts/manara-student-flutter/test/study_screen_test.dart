@@ -18,7 +18,8 @@ class FakeStudy implements StudentStudyService {
   int packs = 0;
 
   @override
-  Future<StudyGamesPack> fetchGames({required String lessonId}) async => StudyGamesPack.fromMap({
+  Future<StudyGamesPack> fetchGames({required String lessonId, String? subject, String? lessonName, String? grade}) async =>
+      StudyGamesPack.fromMap({
         'lessonId': lessonId,
         'games': [
           {
@@ -108,7 +109,7 @@ void main() {
     StudentSettings.resetForTest();
   });
 
-  Future<FakeStudy> pump(WidgetTester tester, {Size size = const Size(390, 844)}) async {
+  Future<FakeStudy> pump(WidgetTester tester, {Size size = const Size(390, 844), AcademicContext? academic}) async {
     tester.view.physicalSize = size;
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.reset);
@@ -119,7 +120,7 @@ void main() {
           profile: profile,
           studyService: study,
           contentService: FakeContent(),
-          academicContext: context,
+          academicContext: academic ?? context,
         ),
       ),
     );
@@ -149,5 +150,28 @@ void main() {
       expect(tester.takeException(), isNull, reason: '$size');
       await tester.pumpWidget(const SizedBox());
     }
+  });
+
+  testWidgets('«لوحة الألوان السحرية» في بطاقة المذاكرة للصفوف، لا للروضة', (tester) async {
+    await pump(tester);
+    await tester.scrollUntilVisible(find.byKey(const ValueKey('study-coloring')), 200,
+        scrollable: find.byType(Scrollable).first);
+    expect(find.byKey(const ValueKey('study-coloring')), findsOneWidget);
+    // ‏مربّعٌ في رفّ ألعاب المادة نفسه، بحجم أغلفتها.
+    final coloring = tester.getSize(find.byKey(const ValueKey('study-coloring')));
+    final balloons = tester.getSize(find.byKey(const ValueKey('arcade-balloons'), skipOffstage: false));
+    expect(coloring.width, closeTo(balloons.width, 0.5));
+    expect(coloring.height, closeTo(balloons.height, 0.5));
+
+    await tester.pumpWidget(const SizedBox());
+    // ‏الروضةُ تلوّن في «عالم الحكايات والمغامرات» كما كانت.
+    await pump(tester, academic: AcademicContext(
+      grade: 'روضة منارة المعرفة',
+      subject: context.subject,
+      term: context.term,
+      unit: context.unit,
+      selectedLesson: context.selectedLesson,
+    ));
+    expect(find.byKey(const ValueKey('study-coloring'), skipOffstage: false), findsNothing);
   });
 }

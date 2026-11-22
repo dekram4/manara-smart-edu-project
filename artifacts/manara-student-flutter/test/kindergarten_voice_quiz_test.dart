@@ -1,0 +1,222 @@
+import 'dart:io';
+import 'dart:math' as math;
+
+import 'package:flutter_test/flutter_test.dart';
+import 'package:manara_student/src/services/kindergarten_voice_quiz.dart';
+
+void main() {
+  group('متى تظهر الألعاب', () {
+    test('في «الثقافة العامة» بالروضة وحدها — بأيّ همزةٍ أو تاءٍ كُتبت', () {
+      for (final subject in ['الثقافة العامة', 'الثقافه العامه', 'ثقافة عامة', 'General Knowledge']) {
+        expect(kgVoiceGamesAllowedFor(grade: 'روضة منارة المعرفة', subject: subject), isTrue, reason: subject);
+      }
+      expect(kgVoiceGamesAllowedFor(grade: 'الصف الأول', subject: 'الثقافة العامة'), isFalse);
+      expect(kgVoiceGamesAllowedFor(grade: 'روضة منارة المعرفة', subject: 'الحروف العربية'), isFalse);
+      expect(kgVoiceGamesAllowedFor(grade: null, subject: null), isFalse);
+    });
+  });
+
+  group('الجولة: عشرةُ أسئلةٍ عشوائية', () {
+    for (final kind in KgVoiceGameKind.values) {
+      test('$kind: عشرة، بلا سؤالين متتاليين متطابقين، ومتغيّرةٌ بين جولة وأخرى', () {
+        final rounds = <String>{};
+        for (var seed = 0; seed < 20; seed++) {
+          final round = buildKgVoiceRound(kind, math.Random(seed));
+          expect(round, hasLength(kgVoiceRoundLength));
+          for (var i = 1; i < round.length; i++) {
+            final a = round[i - 1];
+            final b = round[i];
+            final same = a.answer.id == b.answer.id && a.story == null && b.story == null;
+            expect(same, isFalse, reason: 'سؤالان متتاليان: ${a.answer.label}');
+          }
+          rounds.add(round.map((q) => q.answer.id).join(','));
+        }
+        expect(rounds.length, greaterThan(15), reason: 'الجولاتُ تتغيّر');
+      });
+    }
+
+    test('الألوانُ الإحدى عشرة كلُّها تُسأل', () {
+      final asked = <String>{};
+      for (var seed = 0; seed < 10; seed++) {
+        asked.addAll(buildKgVoiceRound(KgVoiceGameKind.colors, math.Random(seed)).map((q) => q.answer.id));
+      }
+      expect(asked, hasLength(11));
+    });
+
+    test('الأشكالُ السبعة كلُّها في كل جولة', () {
+      final round = buildKgVoiceRound(KgVoiceGameKind.shapes, math.Random(3));
+      expect(round.map((q) => q.shape).toSet(), KgShape.values.toSet());
+    });
+
+    test('الحساب: مسألتان مصوّرتان لكل عملية، وسؤالان عن العلامة، بأعدادٍ لطفل الروضة', () {
+      for (var seed = 0; seed < 40; seed++) {
+        final round = buildKgVoiceRound(KgVoiceGameKind.math, math.Random(seed));
+        expect(round.where((q) => q.sign != null), hasLength(2));
+        final stories = [for (final q in round) if (q.story != null) q.story!];
+        expect(stories, hasLength(8));
+        for (final sign in KgSign.values) {
+          expect(stories.where((s) => s.sign == sign), hasLength(2), reason: '$sign');
+        }
+        for (final s in stories) {
+          switch (s.sign) {
+            case KgSign.plus:
+              expect(s.result, inInclusiveRange(2, 8));
+            case KgSign.minus:
+              expect(s.a, lessThanOrEqualTo(6));
+              expect(s.result, greaterThanOrEqualTo(1));
+            case KgSign.times:
+              expect(s.a, inInclusiveRange(2, 3), reason: 'صحنان أو ثلاثة');
+              expect(s.result, lessThanOrEqualTo(9));
+            case KgSign.divide:
+              expect(s.a % s.b, 0, reason: 'يُوزَّع بالتساوي');
+              expect(s.result, inInclusiveRange(1, 3));
+          }
+        }
+        for (final q in round.where((q) => q.story != null)) {
+          expect(q.promptClip, kgQuestionResultClip);
+          // ‏ثم المعادلةُ مقروءة: «ثلاثة زائد اثنين، كم يساوي؟».
+          expect(q.followUpClips, [
+            kgNumberClip(q.story!.a),
+            kgOperatorClips[q.story!.sign],
+            kgNumberClip(q.story!.b),
+            kgHowMuchClip,
+          ]);
+        }
+        for (final q in round.where((q) => q.sign != null)) {
+          expect(q.promptClip, kgQuestionSignClip);
+        }
+      }
+    });
+
+    test('أسئلةُ الروضة: خمسةُ موضوعاتٍ متعاقبة، بلا سؤالٍ مكرّر، ولكلٍّ مقطعُه وثلاثةُ خيارات', () {
+      expect(kgGeneralQuestions.map((q) => q.id).toSet(), hasLength(kgGeneralQuestions.length));
+      for (final q in kgGeneralQuestions) {
+        expect(File('assets/${q.clip}').existsSync(), isTrue, reason: q.clip);
+        expect(q.others, hasLength(3), reason: q.id);
+        expect(q.others.map((o) => o.id), isNot(contains(q.answer.id)), reason: q.id);
+      }
+      for (var seed = 0; seed < 30; seed++) {
+        final round = buildKgVoiceRound(KgVoiceGameKind.general, math.Random(seed));
+        expect(round.map((q) => q.general!.id).toSet(), hasLength(kgVoiceRoundLength), reason: 'لا يتكرّر سؤال');
+        expect(round.map((q) => q.general!.topic).toSet(), KgTopic.values.toSet());
+        for (var i = 1; i < round.length; i++) {
+          expect(round[i].general!.topic, isNot(round[i - 1].general!.topic));
+        }
+        for (final q in round) {
+          expect(q.promptClip, q.general!.clip);
+        }
+      }
+    });
+
+    test('مقاطعُ المعادلة كلُّها في assets/', () {
+      for (final clip in [...kgOperatorClips.values, kgHowMuchClip, for (var n = 0; n <= 10; n++) kgNumberClip(n)]) {
+        expect(File('assets/$clip').existsSync(), isTrue, reason: clip);
+      }
+    });
+
+    test('كلُّ سؤالٍ بمقطعه المسجّل، والمقاطعُ في assets/', () {
+      expect(buildKgVoiceRound(KgVoiceGameKind.colors, math.Random(1)).first.promptClip, kgQuestionColorClip);
+      expect(buildKgVoiceRound(KgVoiceGameKind.shapes, math.Random(1)).first.promptClip, kgQuestionShapeClip);
+      for (final clip in [
+        kgQuestionColorClip,
+        kgQuestionShapeClip,
+        kgQuestionSignClip,
+        kgQuestionResultClip,
+        kgWrongAnswerClip,
+      ]) {
+        expect(File('assets/$clip').existsSync(), isTrue, reason: clip);
+      }
+    });
+  });
+
+  group('الحكمُ على ما قاله الطفل', () {
+    KgVoiceQuestion colorQuestion(String id) => buildKgVoiceRound(KgVoiceGameKind.colors, math.Random(0), count: 40)
+        .firstWhere((q) => q.answer.id == id);
+    KgVoiceQuestion shapeQuestion(KgShape shape) =>
+        buildKgVoiceRound(KgVoiceGameKind.shapes, math.Random(0), count: KgShape.values.length).firstWhere((q) => q.shape == shape);
+
+    test('الألوان بكل صيغها', () {
+      final red = colorQuestion('red');
+      for (final said in ['أحمر', 'احمر', 'الأحمر', 'حمراء', 'اللون الأحمر', 'هذا أحمر', 'red']) {
+        expect(red.judge(said), isTrue, reason: said);
+      }
+      expect(red.judge('أزرق'), isFalse);
+      expect(red.judge('أحمر وأزرق'), isFalse, reason: 'لونان: لا يُقبل');
+      expect(red.judge(''), isFalse);
+      expect(colorQuestion('pink').judge('زهري'), isTrue);
+      expect(colorQuestion('gray').judge('رصاصي'), isTrue);
+      expect(colorQuestion('white').judge('أبيض'), isTrue);
+      expect(colorQuestion('orange').judge('برتقالي'), isTrue);
+      expect(colorQuestion('purple').judge('بنفسجي'), isTrue);
+      expect(colorQuestion('brown').judge('بني'), isTrue);
+    });
+
+    test('الأشكال', () {
+      expect(shapeQuestion(KgShape.circle).judge('دائرة'), isTrue);
+      expect(shapeQuestion(KgShape.circle).judge('الدايره'), isTrue);
+      expect(shapeQuestion(KgShape.parallelogram).judge('متوازي الأضلاع'), isTrue);
+      expect(shapeQuestion(KgShape.sphere).judge('كرة'), isTrue);
+      expect(shapeQuestion(KgShape.sphere).judge('كورة'), isTrue);
+      expect(shapeQuestion(KgShape.cube).judge('مكعب'), isTrue);
+      expect(shapeQuestion(KgShape.pyramid).judge('هرم'), isTrue);
+      expect(shapeQuestion(KgShape.square).judge('مستطيل'), isFalse);
+      expect(shapeQuestion(KgShape.rectangle).judge('مستطيل'), isTrue);
+      expect(shapeQuestion(KgShape.triangle).judge('مثلث'), isTrue);
+      expect(shapeQuestion(KgShape.star).judge('نجمة'), isTrue);
+      expect(shapeQuestion(KgShape.heart).judge('قلب'), isTrue);
+    });
+
+    test('العلامات والمسائل', () {
+      final round = buildKgVoiceRound(KgVoiceGameKind.math, math.Random(5));
+      final plus = round.firstWhere((q) => q.sign == KgSign.plus, orElse: () => round.firstWhere((q) => q.sign != null));
+      final words = {
+        KgSign.plus: 'زائد',
+        KgSign.minus: 'ناقص',
+        KgSign.times: 'ضرب',
+        KgSign.divide: 'قسمة',
+      };
+      expect(plus.judge(words[plus.sign]!), isTrue);
+      final story = round.firstWhere((q) => q.story != null);
+      final n = story.story!.result;
+      expect(story.judge('$n'), isTrue);
+      expect(story.judge('٠١٢٣٤٥٦٧٨٩'[n == 10 ? 1 : n] + (n == 10 ? '٠' : '')), isTrue);
+      expect(story.judge('${story.story!.a} زائد ${story.story!.b} يساوي $n'), isTrue, reason: 'آخرُ عددٍ هو الجواب');
+      expect(story.judge('${(n + 1) % 11}'), isFalse);
+    });
+
+    test('أسئلةُ الروضة العامة', () {
+      KgVoiceQuestion general(String id) => KgVoiceQuestion.generalForTest(
+            kgGeneralQuestions.firstWhere((q) => q.id == id),
+          );
+      final winter = general('season_winter');
+      for (final said in ['الشتاء', 'شتاء', 'فصل الشتاء', 'الشتا', 'winter']) {
+        expect(winter.judge(said), isTrue, reason: said);
+      }
+      expect(winter.judge('الصيف'), isFalse);
+      expect(winter.judge('الشتاء والصيف'), isFalse, reason: 'فصلان: لا يُقبل');
+      expect(general('animal_meow').judge('القطة'), isTrue);
+      expect(general('animal_meow').judge('بسة'), isTrue);
+      expect(general('animal_milk').judge('البقرة'), isTrue);
+      expect(general('days_week').judge('سبعة'), isTrue);
+      expect(general('days_week').judge('7'), isTrue);
+      expect(general('days_week').judge('ستة'), isFalse);
+      expect(general('days_after_saturday').judge('الأحد'), isTrue);
+      expect(general('days_before_tuesday').judge('يوم الاثنين'), isTrue);
+      expect(general('days_before_tuesday').judge('الأربعاء'), isFalse);
+      expect(general('color_banana').judge('أصفر'), isTrue);
+      expect(general('env_trash').judge('في سلة المهملات'), isTrue);
+      expect(general('env_tap').judge('الحنفية'), isTrue);
+      expect(general('env_fire').judge('رجل الإطفاء'), isTrue);
+      expect(general('env_night').judge('في الليل'), isTrue);
+    });
+
+    test('الأعدادُ كلماتٍ بعاميّتها', () {
+      expect(kgNumbersIn('تلاتة'), [3]);
+      expect(kgNumbersIn('خمسة'), [5]);
+      expect(kgNumbersIn('اتنين'), [2]);
+      expect(kgNumbersIn('عشرة'), [10]);
+      expect(kgNumbersIn('صفر'), [0]);
+      expect(kgNumbersIn('٧'), [7]);
+    });
+  });
+}

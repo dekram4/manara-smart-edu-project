@@ -30,13 +30,16 @@ abstract class DuelLiveTransport {
 
 /// الخدمةُ الحقيقية.
 class ServiceDuelTransport implements DuelLiveTransport {
-  const ServiceDuelTransport(this.service);
+  const ServiceDuelTransport(this.service, {this.kindergarten = false});
 
   final StudentDuelService service;
 
+  /// صفُّ «روضة منارة المعرفة»: حزمتُه أسئلتُه المسموعة. انظر [StudentDuelService.claimPack].
+  final bool kindergarten;
+
   @override
   Future<List<DuelQuestion>?> claimPack(String matchId) =>
-      service.claimPack(matchId);
+      service.claimPack(matchId, kindergarten: kindergarten);
 
   @override
   Future<DuelAnswerResult> answer({
@@ -144,6 +147,7 @@ class DuelLiveController extends ChangeNotifier {
     this.revealHold = const Duration(milliseconds: 1600),
     this.rivalWait = const Duration(seconds: 32),
     this.pointsPerQuestion = 10,
+    this.beforeTimer,
   }) : _rivals = [
           ...(rivalIds ?? [rivalId])
         ];
@@ -166,6 +170,21 @@ class DuelLiveController extends ChangeNotifier {
   String? _hostId;
   final bool isHost;
   final Duration questionWindow;
+
+  /// ما يُسمع قبل أن يبدأ عدّادُ السؤال — سؤالُ الروضة المسموع. يُفتح السؤالُ
+  /// ولا يُجاب حتى ينتهي ([hearing])، ثم يبدأ العدّاد من أوّله. وله حدٌّ
+  /// ([_hearingLimit]) فلا يُحبس السؤالُ على مقطعٍ لا ينتهي.
+  ///
+  /// وغيابُه — كلُّ صفٍّ غيرِ الروضة — هو العدّادُ فورَ فتح السؤال كما كان.
+  final Future<void> Function(int index)? beforeTimer;
+
+  static const _hearingLimit = Duration(seconds: 15);
+
+  bool _hearing = false;
+  Timer? _hearTimer;
+
+  /// السؤالُ مفتوحٌ ومقطعُه يُسمع: لا عدّادَ ولا جوابَ بعد.
+  bool get hearing => _hearing && _phase == DuelPhase.question;
   final Duration revealHold;
   final Duration rivalWait;
   final int pointsPerQuestion;
@@ -252,6 +271,7 @@ class DuelLiveController extends ChangeNotifier {
 
   DateTime? _deadline;
   Duration get timeLeft {
+    if (hearing) return questionWindow;
     final deadline = _deadline;
     if (deadline == null || _phase != DuelPhase.question) return Duration.zero;
     final left = deadline.difference(clock.now());
@@ -439,6 +459,29 @@ class DuelLiveController extends ChangeNotifier {
     _winner = QuestionWinner.none;
     _winnerId = null;
     _answered.clear();
+    final intro = beforeTimer;
+    if (intro == null) {
+      _startClock();
+      return;
+    }
+    _hearing = true;
+    _deadline = null;
+    _tick?.cancel();
+    _set(DuelPhase.question);
+    // ‏ينتهي المقطع، أو يبلغ حدَّه، أو يتعذّر: يبدأ العدّادُ على كل حال.
+    void heard() {
+      if (_disposed || at != _index || !hearing) return;
+      _startClock();
+    }
+    _hearTimer?.cancel();
+    _hearTimer = Timer(_hearingLimit, heard);
+    unawaited(Future<void>.sync(() => intro(at)).then((_) => heard(), onError: (Object _) => heard()));
+  }
+
+  /// يبدأ عدّادُ السؤال المفتوح من أوّله.
+  void _startClock() {
+    _hearTimer?.cancel();
+    _hearing = false;
     _deadline = clock.now().add(questionWindow);
     _set(DuelPhase.question);
     _tick?.cancel();
@@ -454,7 +497,7 @@ class DuelLiveController extends ChangeNotifier {
 
   /// يختار الطالبُ جواباً. محاولةٌ واحدةٌ لكل سؤال.
   Future<void> pick(int choice) async {
-    if (_phase != DuelPhase.question || _picked != null || _submitting) return;
+    if (_phase != DuelPhase.question || _picked != null || _submitting || _hearing) return;
     final at = _index;
     _picked = choice;
     _submitting = true;
@@ -514,6 +557,8 @@ class DuelLiveController extends ChangeNotifier {
 
   void _reveal() {
     if (_phase != DuelPhase.question) return;
+    _hearing = false;
+    _hearTimer?.cancel();
     _tick?.cancel();
     _set(DuelPhase.reveal);
     final at = _index;
@@ -616,6 +661,7 @@ class DuelLiveController extends ChangeNotifier {
     _rivalTimeout?.cancel();
     _hold?.cancel();
     _fallback?.cancel();
+    _hearTimer?.cancel();
     super.dispose();
   }
 }

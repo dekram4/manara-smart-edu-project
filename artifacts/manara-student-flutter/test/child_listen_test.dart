@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_tts/flutter_tts.dart';
+import 'package:speech_to_text/speech_recognition_error.dart';
 import 'package:speech_to_text/speech_recognition_result.dart';
 import 'package:speech_to_text/speech_to_text.dart';
 
@@ -9,7 +10,17 @@ import 'package:manara_student/src/services/student_voice_service.dart';
 /// Android — كلماتٌ جزئية، و«انتهى».
 class _FakeSpeech implements SpeechToText {
   void Function(String)? status;
+  SpeechErrorListener? error;
   final sessions = <SpeechListenOptions>[];
+
+  /// جلسةٌ مفتوحةٌ من شاشةٍ سابقة.
+  var stale = false;
+  var cancels = 0;
+
+  /// يرمي المحرّكُ عند الاستماع على الجهاز (لا تعرّفَ محلّيّ).
+  var refuseOnDevice = false;
+  var refuseCloud = false;
+  var permitted = true;
   final pauses = <Duration>[];
   SpeechResultListener? onWords;
   var stops = 0;
@@ -23,8 +34,21 @@ class _FakeSpeech implements SpeechToText {
     List<SpeechConfigOption>? options,
   }) async {
     status = onStatus;
-    return true;
+    error = onError;
+    return permitted;
   }
+
+  @override
+  bool get isListening => stale;
+
+  @override
+  Future<void> cancel() async {
+    cancels++;
+    stale = false;
+  }
+
+  @override
+  Future<bool> get hasPermission async => permitted;
 
   @override
   Future<void> listen({
@@ -40,6 +64,9 @@ class _FakeSpeech implements SpeechToText {
     dynamic listenMode,
     dynamic sampleRate,
   }) async {
+    if (stale) throw StateError('already listening');
+    if (refuseOnDevice && listenOptions!.onDevice) throw StateError('no on-device recognizer');
+    if (refuseCloud && !listenOptions!.onDevice) throw StateError('no recognition service');
     sessions.add(listenOptions!);
     onWords = onResult;
   }
@@ -129,6 +156,53 @@ void main() {
     expect(results, ['']);
   });
 
+  group('المايكُ نفسُه في كل الشاشات', () {
+    test('الطفلُ يُسمع بالخدمة العادية؛ والتعرّفُ على الجهاز إن رفضها المحرّكُ من أوّلها وحده', () async {
+      expect(await voice.listenForChild(onResult: (_) {}), isTrue);
+      expect(speech.sessions.single.onDevice, isFalse);
+
+      final cloudless = _FakeSpeech()..refuseCloud = true;
+      final voice2 = StudentVoiceService(speech: cloudless, tts: _QuietTts());
+      expect(await voice2.listenForChild(onResult: (_) {}), isTrue);
+      expect(cloudless.sessions.single.onDevice, isTrue);
+      expect(voice2.lastProblem, contains('no recognition service'));
+    });
+
+    test('لا يُلغى استماعٌ «قديم» قبل الجديد: إلغاؤه يُنهي الجديدَ فلا يسمع المايكُ أبداً', () async {
+      speech.stale = false;
+      await voice.listenForChild(onResult: (_) {});
+      await voice.listenLive(onWords: (_) {}, onEnd: () {});
+      expect(speech.cancels, 0);
+    });
+
+    test('التسميع: أيُّ خطأٍ على الجهاز — حتى «لم يُفهم شيء» — يردّ إلى الخدمة العادية', () async {
+      // ‏محرّكٌ محلّيٌّ بلا نموذجٍ عربيّ يقول «لم يُفهم شيء» لكل كلمة؛ استثناؤه
+      // ‏مرّةً أبقى التطبيقَ كلَّه عليه، فتعطّل المايكُ في كل شاشة.
+      var ends = 0;
+      await voice.listenLive(onWords: (_) {}, onEnd: () => ends++);
+      expect(speech.sessions.single.onDevice, isTrue);
+      speech.error!(SpeechRecognitionError('error_no_match', false));
+      expect(ends, 1);
+      expect(voice.lastProblem, 'error_no_match');
+      await voice.listenLive(onWords: (_) {}, onEnd: () {});
+      expect(speech.sessions.map((s) => s.onDevice), [true, false]);
+    });
+
+    test('الإذنُ حالةٌ واحدة: ما ثبت بالمحرّك يكفي كلَّ شاشة', () async {
+      expect(voice.micGranted, isFalse);
+      expect(await voice.prepare(), isTrue);
+      expect(voice.micGranted, isTrue, reason: 'المحرّكُ لا يتهيّأ إلا بالإذن');
+
+      final denied = _FakeSpeech()..permitted = false;
+      final voice2 = StudentVoiceService(speech: denied, tts: _QuietTts());
+      expect(await voice2.hasMicPermission(), isFalse);
+      expect(await voice2.listenForChild(onResult: (_) {}), isFalse);
+      denied.permitted = true;
+      expect(await voice2.hasMicPermission(), isTrue);
+      expect(voice2.micGranted, isTrue);
+    });
+  });
+
   test('كلُّ ظنون المحرّك تُضمّ: الصحيحُ في الظنّ الثاني يكفي', () {
     final result = SpeechRecognitionResult.init([
       const SpeechRecognitionWords('سادة داود', null, 0.6),
@@ -136,5 +210,49 @@ void main() {
       const SpeechRecognitionWords('سادة داود', null, 0.1),
     ], ResultType.partial);
     expect(StudentVoiceService.childWords(result), 'سادة داود سادن داود');
+  });
+
+  group('إملاءُ سؤال «حل المسائل»', () {
+    test('وقفةٌ في منتصف السؤال لا تقطعه: يُفتح المايكُ ثانيةً ويُضاف ما بعدها', () async {
+      final results = <String>[];
+      final partials = <String>[];
+      await voice.listenDictation(onResult: results.add, onPartial: partials.add);
+      expect(speech.sessions.single.listenMode, ListenMode.dictation);
+      expect(speech.sessions.single.partialResults, isTrue);
+      expect(speech.sessions.single.listenFor!.inSeconds, greaterThanOrEqualTo(59));
+      speech.say('ما منزلة الرقم 7');
+      speech.say('ما منزلة الرقم 7', last: true);
+      speech.status!(SpeechToText.doneStatus);
+      await _wait(300);
+      expect(results, isEmpty, reason: 'وقفةٌ قصيرة لا تُنهي السؤال');
+      expect(speech.sessions, hasLength(2));
+      speech.say('في العدد 4752');
+      expect(partials.last, 'ما منزلة الرقم 7 في العدد 4752');
+      speech.say('في العدد 4752', last: true);
+      expect(results, isEmpty);
+      // ‏«توقّف»: يُكتب ما قيل كلُّه.
+      voice.finishDictation();
+      expect(results, ['ما منزلة الرقم 7 في العدد 4752']);
+      expect(voice.dictating, isFalse);
+    });
+
+    test('صمتٌ كامل بعد آخر كلمة يُنهي الإملاءَ وحده بالسؤال كاملاً', () async {
+      final results = <String>[];
+      await voice.listenDictation(onResult: results.add, endSilence: const Duration(milliseconds: 300));
+      speech.say('كم عدد الألوان الأساسية');
+      await _wait(400);
+      speech.say('كم عدد الألوان الأساسية', last: true);
+      expect(results, ['كم عدد الألوان الأساسية']);
+      expect(speech.sessions, hasLength(1));
+    });
+  });
+
+  test('«اسمع الإجابة»: الإجابةُ الطويلة مقاطعُ جُمليّة كلُّها، لا يُسقط منها حرف', () {
+    final answer = List.generate(40, (i) => 'الخطوة ${i + 1}: نضرب العدد في عشرة ثم نجمع الناتج.').join(' ');
+    final chunks = StudentVoiceService.answerChunks(answer);
+    expect(chunks.length, greaterThan(1));
+    expect(chunks.every((c) => c.length <= StudentVoiceService.answerChunk), isTrue);
+    expect(chunks.join(' ').replaceAll(RegExp(r's+'), ' '), answer.replaceAll(RegExp(r's+'), ' '));
+    expect(StudentVoiceService.answerChunks('جملةٌ قصيرة.'), ['جملةٌ قصيرة.']);
   });
 }

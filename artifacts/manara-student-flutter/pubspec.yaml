@@ -1,7 +1,7 @@
 name: manara_student
 description: تطبيق منارة المعرفة المخصص للطلاب.
 publish_to: "none"
-version: 1.1.62+64
+version: 1.1.64+69
 
 environment:
   sdk: ">=3.5.0 <4.0.0"
@@ -86,6 +86,23 @@ dependencies:
   # الميغابايتات، وهذا بناءٌ يجب أن يبقى أخضر وخفيفاً على جهاز طفل.
   #
   record: ^5.1.2
+  # ── حفظُ صور الدردشة في استوديو الجهاز ──
+  #
+  # `gal` يكتب الصورةَ في الصور (iOS) أو المعرض (أندرويد، عبر MediaStore) ويطلب
+  # الإذنَ بنفسه. ويبني بـ Java 11 وأدنى أندرويد 24 — وهو أدنى التطبيق أصلاً —
+  # و`compileSdk` من Flutter نفسه، فلا يرفع شيئاً ممّا قُيّد أعلاه. وإذنُ الكتابة
+  # في AndroidManifest لأندرويد 10 فما دونه وحده، ومفتاحُ
+  # NSPhotoLibraryAddUsageDescription في Info.plist.
+  gal: ^3.0.0
+
+  # ── ضغطُ الصور قبل رفعها (الدردشة، والحفظ السحابيّ للّوحات) ──
+  #
+  # بلغة Dart وحدها: لا مكتبةَ أصليّة تُضاف إلى بناء أندرويد. وهو محلولٌ في
+  # الشجرة أصلاً (عبر flutter_launcher_icons) بالنسخة نفسها.
+  image: ^4.5.0
+
+  # ‏ملفّاتُ الدردشة: اختيارُ مستندٍ من الجهاز، وحفظُ ما وصل «حفظ باسم».
+  file_picker: ^8.3.7
 
 # ── تجاوزٌ واحد، وسببُه بناءٌ سقط ──
 #
@@ -142,6 +159,11 @@ flutter:
     # أسماءُ الحروف العربية بأصواتٍ مسجّلة (ElevenLabs) للعبة «تتبّع واكتب» —
     # انظر arabicLetterClips في tracing_glyphs.dart.
     - assets/audio/ar/
+    # ‏والأعدادُ ٠–١٠٠ بالعربية والإنجليزية، والحروفُ الإنجليزية، بتسجيلاتها —
+    # ‏انظر recordedClipFor وtool/build_tracing_voices.py.
+    - assets/audio/numbers_ar/
+    - assets/audio/numbers_en/
+    - assets/audio/letters_en/
     # عباراتُ التشجيع المسجّلة، يتبعها التصفيق — انظر
     # StudentSoundService.encouragementClips.
     - assets/audio/encouragement/
@@ -165,6 +187,14 @@ flutter:
     - assets/images/games/
     # فقعُ البالون وصافرةُ القطار — انظر StudentSoundService.playGameEffect.
     - assets/audio/games/
+    # ‏ألعابُ الروضة الصوتية في «الثقافة العامة» (الألوان، الأشكال، الحساب):
+    # ‏سؤالُ كل لعبةٍ وصوتُ الإجابة الخاطئة، منسوخةً بأسماءٍ لاتينية — انظر
+    # ‏kindergarten_voice_games.dart.
+    - assets/audio/kg_games/
+    - assets/audio/kg_games/general/
+    # ‏«تحدَّ زملاءك» لصفّ الروضة وحده: مئةُ سؤالٍ مسموع (question_NNN.mp3)،
+    # ‏يُشغَّل مقطعُ السؤال ثم يبدأ العدّاد — انظر kg_duel_audio.dart.
+    - assets/audio/kg_duel/
   fonts:
     # خطُّ لعبة «تتبّع واكتب» مضمَّناً لا منزَّلاً: مساراتُ حروف الروضة
     # تُحسب مسبقاً من أشكاله (tool/generate_tracing_glyphs.dart)، فيجب أن

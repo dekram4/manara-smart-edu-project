@@ -470,8 +470,13 @@ class _StudentVideoPlayerState extends State<StudentVideoPlayer> {
   /// of leaving the screen black for a long, undiagnosable stretch.
   static const Duration _kVideoTrackGracePeriod = Duration(seconds: 4);
 
-  String get _url =>
-      resolveStudentVideoUrl(widget.video, apiBaseUrl: widget.apiBaseUrl);
+  String get _url => _isAsset
+      ? widget.video.url
+      : resolveStudentVideoUrl(widget.video, apiBaseUrl: widget.apiBaseUrl);
+
+  /// فيديو مدمجٌ في حزمة التطبيق (`asset:assets/…`) — فيديو وضع الزائر —
+  /// يُشغَّل من الجهاز بلا شبكة.
+  bool get _isAsset => widget.video.url.startsWith(assetVideoScheme);
 
   bool get _isNativeVideo => isDirectVideoUrl(_url, widget.video);
 
@@ -486,7 +491,7 @@ class _StudentVideoPlayerState extends State<StudentVideoPlayer> {
   /// of routing Android through a third-party native renderer, is what
   /// actually eliminates that failure mode rather than working around it.
   bool get _usesMediaKit =>
-      !kIsWeb && defaultTargetPlatform == TargetPlatform.windows;
+      !_isAsset && !kIsWeb && defaultTargetPlatform == TargetPlatform.windows;
 
   /// The official `youtube_player_iframe` package correctly implements
   /// YouTube's IFrame Player API contract (a valid `origin` + `enablejsapi`
@@ -721,6 +726,10 @@ class _StudentVideoPlayerState extends State<StudentVideoPlayer> {
   }
 
   Future<void> _openVideo() async {
+    if (_isAsset) {
+      await _openWithVideoPlayer(Uri());
+      return;
+    }
     final uri = Uri.tryParse(_url);
     final isWebRelativeUrl = kIsWeb && _url.startsWith('/');
     if (uri == null ||
@@ -890,10 +899,12 @@ class _StudentVideoPlayerState extends State<StudentVideoPlayer> {
     // ExoPlayer, used either as the primary backend (when media_kit isn't
     // applicable) or as the one-time fallback from
     // `_handleNativePlaybackError` below.
-    final controller = VideoPlayerController.networkUrl(
-      uri,
-      httpHeaders: _videoHttpHeaders(uri.toString()),
-    );
+    final controller = _isAsset
+        ? VideoPlayerController.asset(widget.video.url.substring(assetVideoScheme.length))
+        : VideoPlayerController.networkUrl(
+            uri,
+            httpHeaders: _videoHttpHeaders(uri.toString()),
+          );
     _networkController = controller;
     controller.addListener(() {
       // Ignore a stale listener firing after this controller was disposed
@@ -1892,6 +1903,9 @@ class _FullscreenBackButton extends StatelessWidget {
     );
   }
 }
+
+/// بادئةُ فيديو مدمجٍ في حزمة التطبيق.
+const assetVideoScheme = 'asset:';
 
 String resolveStudentVideoUrl(LessonVideo video, {String apiBaseUrl = ''}) {
   var raw = video.url.trim();

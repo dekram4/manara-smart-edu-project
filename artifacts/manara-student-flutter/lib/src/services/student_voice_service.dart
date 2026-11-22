@@ -63,6 +63,40 @@ class StudentVoiceService {
   bool _speechAvailable = false;
   bool _speaking = false;
 
+  /// إذنُ الميكروفون للتطبيق كلّه — حالةٌ واحدةٌ تراها كلُّ الشاشات.
+  ///
+  /// ── لماذا هنا ──
+  /// التسميعُ يأخذ الإذنَ من محرّك التعرّف نفسه ([prepare])، وألعابُ الروضة
+  /// كانت تسأل عنه من جديدٍ بطريقٍ آخر (`permission_handler`) — فقد يقول
+  /// أحدُهما «مسموح» والآخر «لا»، فيعمل المايكُ في «تعليم القرآن» ويظهر
+  /// «غير متاح» في لعبة الألوان. فصار ما يثبت به الإذنُ من أيّ طريقٍ يُحفظ
+  /// هنا ([markMicGranted])، وكلُّ شاشةٍ تسأل هذا أوّلاً.
+  bool _micGranted = false;
+
+  /// ثبت إذنُ الميكروفون في هذا التشغيل.
+  bool get micGranted => _micGranted;
+
+  /// يُحفظ أنّ الإذنَ ثابت — بعد سماحٍ من النظام أو تهيئةٍ ناجحةٍ للمحرّك.
+  ///
+  /// ولا يُمحى ما عاش التطبيق: سحبُ الإذن من الإعدادات يُعيد Android به
+  /// تشغيلَ التطبيق من أوّله.
+  void markMicGranted() => _micGranted = true;
+
+  /// للاختبار: كأنّ التطبيقَ بدأ لتوّه، لم يثبت إذن.
+  @visibleForTesting
+  void forgetMicForTest() => _micGranted = false;
+
+  /// يسأل محرّكُ التعرّف النظامَ عن الإذن، بلا نافذة.
+  Future<bool> hasMicPermission() async {
+    if (_micGranted) return true;
+    try {
+      // ‏بمهلة: المحرّكُ على Android لا يردّ أبداً إن لم يكن له سياقٌ بعد.
+      final granted = await _speech.hasPermission.timeout(const Duration(seconds: 1), onTimeout: () => false);
+      if (granted) _micGranted = true;
+    } catch (_) {}
+    return _micGranted;
+  }
+
   /// هل يُسمع الطفل الآن؟
   bool get listening => _speech.isListening;
 
@@ -74,29 +108,58 @@ class StudentVoiceService {
   /// النتيجة تُحفظ: `initialize` يسأل النظام عن الإذن وعن وجود خدمة،
   /// ونداؤه عند كل ضغطةٍ يُظهر نافذة إذنٍ متكرّرة.
   Future<bool> prepare() async {
-    if (_speechReady) return _speechAvailable;
+    // ‏ما نجح يُحفظ؛ وما فشل (رُفض الإذنُ مرّةً، أو لم تُجب الخدمة) يُعاد عند
+    // ‏الضغطة التالية — وإلا بقي المايكُ معطّلاً حتى يُعاد تشغيلُ التطبيق.
+    if (_speechReady && _speechAvailable) return true;
     _speechReady = true;
+    // ‏مرّتان: تهيئةٌ تتزامن مع أخرى لم تنتهِ يرفضها المحرّك («واحدةٌ في كل مرّة»).
+    for (var attempt = 0; attempt < 2 && !_speechAvailable; attempt++) {
+      if (attempt > 0) await Future<void>.delayed(const Duration(milliseconds: 400));
+      _speechAvailable = await _initialize();
+    }
+    // ‏المحرّكُ لا يتهيّأ على Android إلا بإذن الميكروفون.
+    if (_speechAvailable) _micGranted = true;
+    if (!_speechAvailable) lastProblem = 'speech_unavailable';
+    return _speechAvailable;
+  }
+
+  Future<bool> _initialize() async {
     try {
-      _speechAvailable = await _speech.initialize(
-        onError: (_) {
+      return await _speech.initialize(
+        onError: (error) {
+          lastProblem = error.errorMsg;
+          debugPrint('[voice] engine error: ${error.errorMsg} (permanent: ${error.permanent})');
           // تعرّفٌ على الجهاز لم ينجح (لا نموذجَ عربياً منزَّلاً): الاستماعُ
           // التالي بالخدمة العادية، ما بقي التطبيقُ مفتوحاً.
+          //
+          // ‏وأيُّ خطأٍ كان — حتى «لم يُفهم شيء»: محرّكٌ محلّيٌّ بلا نموذجٍ عربيّ
+          // ‏يقول ذلك لكل كلمة. (استُثني الصمتُ مرّةً فعلِق التطبيقُ كلُّه على
+          // ‏التعرّف المحلّيّ الذي لا يفهم العربية، فتعطّل المايكُ في كل شاشة.)
           if (_liveOnDevice) _preferOnDevice = false;
           _onLiveEnd?.call();
           _onChildEnd?.call();
+          _onDictationEnd?.call();
         },
         onStatus: (status) {
           if (status == SpeechToText.doneStatus || status == SpeechToText.notListeningStatus) {
             _onLiveEnd?.call();
             _onChildEnd?.call();
+            _onDictationEnd?.call();
           }
         },
       );
-    } catch (_) {
-      _speechAvailable = false;
+    } catch (error) {
+      debugPrint('[voice] speech initialize failed: $error');
+      return false;
     }
-    return _speechAvailable;
   }
+
+  /// آخرُ ما قاله المحرّكُ عن فشلٍ (رمزُ خطئه، أو «لم يبدأ»): يُعرض صغيراً
+  /// تحت «غير متاح» ليُعرف السببُ من جهاز الطفل نفسه.
+  String? lastProblem;
+
+  /// [lastProblem] بين قوسين لآخر سطرِ «غير متاح» — أو لا شيء.
+  String get problemSuffix => lastProblem == null ? '' : ' ($lastProblem)';
 
   /// يبدأ الإملاء، ويُسلّم ما سمعه عند انتهائه.
   ///
@@ -149,6 +212,7 @@ class StudentVoiceService {
   bool _preferOnDevice = true;
   bool _liveOnDevice = false;
 
+
   /// استماعٌ حيّ للتسميع: كلُّ ما سُمع حتى الآن يصل مع كل كلمةٍ جديدة
   /// ([onWords]) — فيتلوّن النصّ والطفلُ يقرأ — و[onEnd] مرّةً حين يتوقّف.
   ///
@@ -167,6 +231,9 @@ class StudentVoiceService {
   }) async {
     if (!await prepare()) return false;
     await stopSpeaking();
+    // ‏ولا يُلغى قبله استماعٌ «قديم»: إلغاءُ المحرّك يُطلق «انتهى» يصل بعد أن
+    // ‏تبدأ الجلسةُ الجديدة فيُنهيها — فيُعاد فتحُها ويُلغى من جديد، ولا يسمع
+    // ‏المايكُ شيئاً أبداً.
     var ended = false;
     var heard = false;
     final startedAt = DateTime.now();
@@ -274,6 +341,10 @@ class StudentVoiceService {
       });
     }
 
+    // ‏بالخدمة العادية (Google) كما يعمل في الدخول واختيار المسار. والتعرّفُ على
+    // ‏الجهاز لا يُجرَّب إلا إن رفض المحرّكُ الخدمةَ العادية من أوّلها: محرّكٌ
+    // ‏محلّيٌّ بلا نموذجٍ عربيّ يبدأ ولا يفهم شيئاً، فلا يكون الطريقَ الأوّل.
+    var onDevice = false;
     session = () async {
       final mine = generation;
       final startedAt = DateTime.now();
@@ -294,6 +365,7 @@ class StudentVoiceService {
             // ‏إملاءٌ لا تأكيدُ كلمة: يتابع الكلامَ الطبيعيَّ المتّصل كما يُقال،
             // ‏فلا يحتاج الطفلُ أن يقطّع «سادن… داود».
             listenMode: ListenMode.dictation,
+            onDevice: onDevice,
           ),
           onResult: (result) {
             if (finished || mine != generation) return;
@@ -311,9 +383,16 @@ class StudentVoiceService {
             if (result.finalResult) finish();
           },
         );
+        _micGranted = true;
         return true;
-      } catch (_) {
+      } catch (error) {
+        debugPrint('[voice] child listen failed (onDevice: $onDevice): $error');
+        lastProblem = '$error';
         _onChildEnd = null;
+        if (!onDevice) {
+          onDevice = true;
+          return session();
+        }
         return false;
       }
     };
@@ -346,6 +425,143 @@ class StudentVoiceService {
 
   /// يُنهي استماعَ الطفل بما سُمع حتى الآن (لمسةٌ ثانيةٌ على الميكروفون).
   void finishChildListening() => _finishChild?.call();
+
+  /// انتهاءُ جلسةٍ من الإملاء المتّصل ([listenDictation]).
+  VoidCallback? _onDictationEnd;
+
+  /// يُنهي الإملاءَ المتّصل بما سُمع حتى الآن — لمسةٌ ثانيةٌ على الميكروفون.
+  VoidCallback? _finishDictation;
+
+  /// إملاءُ سؤالٍ كامل: لا يُقطع حتى يفرغ الطفلُ من كلامه.
+  ///
+  /// ── لماذا كان يكتب نصفَ السؤال ──
+  /// [listen] جلسةٌ واحدة، ومحرّكُ Android يُنهيها عند أوّل وقفةٍ قصيرة —
+  /// الطفلُ يقول «ما منزلة الرقم سبعة…» ثم يتذكّر العدد، فتُغلق الجلسةُ في
+  /// تلك الثانية ويُكتب نصفُ السؤال. و`pauseFor` لا يمنع ذلك: المحرّكُ
+  /// يقرّر وحده متى انتهى الكلام.
+  ///
+  /// فهنا جلساتٌ متّصلة: كلُّ ما تُنهيه وقفةٌ يُحفظ، ويُفتح المايكُ من جديد
+  /// فوراً ويُضاف ما بعده — ما لم يسكت الطفلُ [endSilence] كاملةً بعد آخر
+  /// كلمة، أو تنقضِ النافذة [window]، أو يضغط «توقّف» ([finishDictation]).
+  /// وقبل أوّل كلمةٍ يُنتظر [firstPause].
+  ///
+  /// [onPartial] النصُّ كلُّه حتى الآن (مع كل كلمة)، و[onResult] مرّةً في
+  /// الختام بالسؤال كاملاً — فارغاً إن لم يُسمع شيء.
+  Future<bool> listenDictation({
+    required ValueChanged<String> onResult,
+    ValueChanged<String>? onPartial,
+    String locale = 'ar_SA',
+    Duration window = const Duration(seconds: 60),
+    Duration firstPause = const Duration(seconds: 8),
+    Duration endSilence = const Duration(milliseconds: 2800),
+  }) async {
+    if (!await prepare()) return false;
+    await stopSpeaking();
+    final opened = DateTime.now();
+    final deadline = opened.add(window);
+    var committed = '';
+    var current = '';
+    var lastWordAt = opened;
+    var finished = false;
+    var generation = 0;
+    var onDevice = false;
+
+    String full() => [committed, current].where((part) => part.isNotEmpty).join(' ');
+
+    void finish() {
+      if (finished) return;
+      finished = true;
+      generation++;
+      _onDictationEnd = null;
+      _finishDictation = null;
+      committed = full();
+      current = '';
+      onResult(committed);
+    }
+
+    late Future<bool> Function() session;
+
+    void ended(int of) {
+      if (finished || of != generation) return;
+      generation++;
+      _onDictationEnd = null;
+      committed = full();
+      current = '';
+      final now = DateTime.now();
+      final quiet = now.difference(lastWordAt);
+      final waited = committed.isEmpty ? quiet >= firstPause : quiet >= endSilence;
+      if (waited || deadline.difference(now) < const Duration(milliseconds: 800)) {
+        finish();
+        return;
+      }
+      // ‏وقفةٌ في منتصف السؤال: يُفتح المايكُ ثانيةً ويُكمَل ما بعدها.
+      Future<void>.delayed(const Duration(milliseconds: 120), () {
+        if (!finished) unawaited(session());
+      });
+    }
+
+    session = () async {
+      final mine = generation;
+      final remaining = deadline.difference(DateTime.now());
+      if (remaining < const Duration(milliseconds: 800)) {
+        finish();
+        return true;
+      }
+      _onDictationEnd = () => ended(mine);
+      try {
+        await _speech.listen(
+          listenOptions: SpeechListenOptions(
+            localeId: locale,
+            listenFor: remaining,
+            pauseFor: committed.isEmpty ? firstPause : endSilence,
+            partialResults: true,
+            cancelOnError: false,
+            listenMode: ListenMode.dictation,
+            onDevice: onDevice,
+          ),
+          onResult: (result) {
+            if (finished || mine != generation) return;
+            final words = result.recognizedWords.trim();
+            // ‏النتيجةُ النهائية تكرّر الكلماتِ نفسها: لا تُحسب كلاماً جديداً،
+            // ‏وإلا بدا الصمتُ الذي سبقها صفراً فأُعيد فتحُ المايك بلا داعٍ.
+            if (words.isNotEmpty && words != current) {
+              current = words;
+              lastWordAt = DateTime.now();
+              onPartial?.call(full());
+            }
+            if (result.finalResult) ended(mine);
+          },
+        );
+        _micGranted = true;
+        return true;
+      } catch (error) {
+        debugPrint('[voice] dictation failed (onDevice: $onDevice): $error');
+        lastProblem = '$error';
+        _onDictationEnd = null;
+        if (committed.isNotEmpty) {
+          finish();
+          return true;
+        }
+        if (!onDevice) {
+          onDevice = true;
+          return session();
+        }
+        return false;
+      }
+    };
+
+    _finishDictation = () {
+      unawaited(stopListening());
+      finish();
+    };
+    return session();
+  }
+
+  /// يُنهي الإملاءَ المتّصل بما سُمع حتى الآن.
+  void finishDictation() => _finishDictation?.call();
+
+  /// هل إملاءٌ متّصلٌ جارٍ؟
+  bool get dictating => _finishDictation != null;
 
   Future<void> stopListening() async {
     try {
@@ -380,6 +596,88 @@ class StudentVoiceService {
       await _tts.speak(line);
     } catch (_) {
       _speaking = false;
+    }
+  }
+
+  /// يعدّ نُطقَ [speakAnswer] الجاري: إيقافٌ أو نطقٌ جديد يُنهي ما قبله.
+  int _answerGeneration = 0;
+
+  /// أطولُ مقطعٍ يُرسل إلى المحرّك دفعةً واحدة.
+  ///
+  /// محرّكُ Android يرفض بصمتٍ نصّاً فوق حدّه (أربعة آلاف حرف) ويتعثّر
+  /// في الطويل قبله، وإجابةُ «حل المسائل» خطواتٌ قد تبلغ ذلك. فتُقطع جُملاً.
+  static const answerChunk = 320;
+
+  /// [text] مقاطعَ جُمليّة لا يتجاوز أيٌّ منها [answerChunk] حرفاً.
+  @visibleForTesting
+  static List<String> answerChunks(String text) {
+    final pieces = text
+        .split(RegExp(r'(?<=[.!?؟،\n:])\s+'))
+        .map((p) => p.trim())
+        .where((p) => p.isNotEmpty);
+    final chunks = <String>[];
+    var buffer = '';
+    void flush() {
+      if (buffer.isNotEmpty) chunks.add(buffer);
+      buffer = '';
+    }
+
+    for (var piece in pieces) {
+      while (piece.length > answerChunk) {
+        final cut = piece.lastIndexOf(' ', answerChunk);
+        final at = cut > answerChunk ~/ 2 ? cut : answerChunk;
+        flush();
+        chunks.add(piece.substring(0, at).trim());
+        piece = piece.substring(at).trim();
+      }
+      if (buffer.isNotEmpty && buffer.length + 1 + piece.length > answerChunk) flush();
+      buffer = buffer.isEmpty ? piece : '$buffer $piece';
+    }
+    flush();
+    return chunks;
+  }
+
+  /// ينطق إجابةً طويلةً كاملةً بوضوح: مقطعاً بعد مقطع، ويعود حين تنتهي.
+  ///
+  /// ── لماذا لا [speak] ──
+  /// [speak] تُسلّم النصَّ كلَّه دفعةً ولا تسأل هل قبله المحرّك: إجابةٌ
+  /// طويلة يرفضها بصمت، ومحرّكٌ لم يرتبط بعد (أوّلُ ضغطةٍ بعد فتح التطبيق)
+  /// يردّ «فشل» — فيضغط الطفلُ «اسمع الإجابة» ولا يسمع شيئاً. فهنا يُنتظر
+  /// كلُّ مقطعٍ حتى يُنطق، ويُعاد المقطعُ الذي رفضه المحرّكُ مرّةً بعد
+  /// لحظة، وبأعلى صوت. ويقطعه [stopSpeaking] أو نطقٌ جديد.
+  Future<void> speakAnswer(String text, {String locale = preferredLocale}) async {
+    final line = speakableText(text);
+    if (line.isEmpty) return;
+    final mine = ++_answerGeneration;
+    await stopListening();
+    try {
+      await _tts.stop();
+      await _setBestArabic(locale);
+      await _tts.setSpeechRate(speechRate);
+      await _tts.setVolume(1.0);
+      await _tts.setPitch(1.0);
+      await _tts.awaitSpeakCompletion(true);
+      _tts.setCompletionHandler(() {});
+      _tts.setCancelHandler(() {});
+      _tts.setErrorHandler((_) {});
+      _speaking = true;
+      for (final chunk in answerChunks(line)) {
+        if (mine != _answerGeneration) return;
+        final result = await _tts.speak(chunk);
+        if (result == 0 && mine == _answerGeneration) {
+          await Future<void>.delayed(const Duration(milliseconds: 400));
+          if (mine == _answerGeneration) await _tts.speak(chunk);
+        }
+      }
+    } catch (_) {
+      // لا محرّك نطق: يبقى الجوابُ مقروءاً.
+    } finally {
+      if (mine == _answerGeneration) {
+        _speaking = false;
+        try {
+          await _tts.awaitSpeakCompletion(false);
+        } catch (_) {}
+      }
     }
   }
 
@@ -499,6 +797,7 @@ class StudentVoiceService {
   }
 
   Future<void> stopSpeaking() async {
+    _answerGeneration++;
     try {
       await _tts.stop();
     } catch (_) {

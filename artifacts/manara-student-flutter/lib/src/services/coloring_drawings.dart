@@ -1,0 +1,1406 @@
+import 'dart:math' as math;
+import 'dart:typed_data';
+import 'dart:ui';
+
+/// رسوماتُ «لوحة الألوان السحرية»: خطوطٌ سوداء ومناطقُ مغلقة يلوّنها الطفل.
+///
+/// ── لماذا مساراتٌ لا صور ──
+/// صورةٌ نقطيّة لا تعرف أين تنتهي أذنُ القطّة وأين يبدأ رأسُها، فالتعبئةُ فيها
+/// تتسرّب من أيّ ثغرةٍ في الخط، والفرشاةُ تخرج عن الحدود. وكلُّ رسمةٍ هنا قائمةُ
+/// مناطقَ مغلقة ([ColoringDrawing.regions]) مرتّبةٍ من الخلف إلى الأمام: لمسةُ
+/// الدلو تملأ المنطقةَ العليا تحت الإصبع، وخطُّ الفرشاة يُقصّ على المنطقة التي
+/// بدأ فيها — فلا يخرج لونُ طفلٍ عن الخطّ مهما اضطربت يده.
+///
+/// والإحداثيّاتُ في مربّعٍ ثابت [coloringCanvasSize]، تُكبَّر إلى حجم الشاشة.
+///
+/// ── والتجديد ──
+/// إلى جانب الرسومات المرسومة باليد، مولّدان ([mandala] و[shapeGarden]) يصنعان
+/// من بذرةٍ عشوائية رسمةً لم تُرَ من قبل — فكلُّ دخولٍ يأتي بجديد.
+const double coloringCanvasSize = 300;
+
+enum ColoringCategory { animals, nature, characters, shapes, objects, magic }
+
+class ColoringDrawing {
+  const ColoringDrawing({
+    required this.id,
+    required this.titleAr,
+    required this.titleEn,
+    required this.category,
+    required this.regions,
+    this.details = const [],
+  });
+
+  /// معرّفٌ يُحفظ مع اللوحة: اسمُ الرسمة، أو `mandala:<بذرة>` للمولَّدة.
+  final String id;
+  final String titleAr;
+  final String titleEn;
+  final ColoringCategory category;
+
+  /// المناطقُ المغلقة من الخلف إلى الأمام — المتأخّرةُ تغطّي ما تحتها.
+  final List<Path> regions;
+
+  /// خطوطٌ تُرسم فوق كلّ شيء ولا تُلوَّن: شواربُ، وابتسامات، وخيوط.
+  final List<Path> details;
+
+  /// المنطقةُ العليا تحت [point] (بإحداثيّات الرسمة)، أو `-1` للخلفية.
+  int regionAt(Offset point) {
+    for (var i = regions.length - 1; i >= 0; i--) {
+      if (regions[i].contains(point)) return i;
+    }
+    return -1;
+  }
+}
+
+// ── أدواتُ الرسم ─────────────────────────────────────────────────────
+
+Path _circle(double x, double y, double r) =>
+    Path()..addOval(Rect.fromCircle(center: Offset(x, y), radius: r));
+
+Path _oval(double x, double y, double rx, double ry) =>
+    Path()..addOval(Rect.fromCenter(center: Offset(x, y), width: rx * 2, height: ry * 2));
+
+Path _rect(double l, double t, double w, double h, [double r = 0]) =>
+    Path()..addRRect(RRect.fromRectAndRadius(Rect.fromLTWH(l, t, w, h), Radius.circular(r)));
+
+Path _poly(List<double> xy) {
+  final path = Path()..moveTo(xy[0], xy[1]);
+  for (var i = 2; i < xy.length; i += 2) {
+    path.lineTo(xy[i], xy[i + 1]);
+  }
+  return path..close();
+}
+
+Path _line(List<double> xy) {
+  final path = Path()..moveTo(xy[0], xy[1]);
+  for (var i = 2; i < xy.length; i += 2) {
+    path.lineTo(xy[i], xy[i + 1]);
+  }
+  return path;
+}
+
+Path _curve(double x1, double y1, double cx, double cy, double x2, double y2) =>
+    Path()
+      ..moveTo(x1, y1)
+      ..quadraticBezierTo(cx, cy, x2, y2);
+
+/// [path] مُداراً بزاوية [angle] حول ([cx], [cy]).
+Path _rotate(Path path, double cx, double cy, double angle) {
+  final c = math.cos(angle);
+  final s = math.sin(angle);
+  final matrix = Float64List.fromList([
+    c, s, 0, 0, //
+    -s, c, 0, 0,
+    0, 0, 1, 0,
+    cx - c * cx + s * cy, cy - s * cx - c * cy, 0, 1,
+  ]);
+  return path.transform(matrix);
+}
+
+Path _rotOval(double x, double y, double rx, double ry, double angle) =>
+    _rotate(_oval(x, y, rx, ry), x, y, angle);
+
+Path _star(double cx, double cy, double outer, double inner, int points, [double rotation = -math.pi / 2]) {
+  final xy = <double>[];
+  for (var i = 0; i < points * 2; i++) {
+    final r = i.isEven ? outer : inner;
+    final a = rotation + i * math.pi / points;
+    xy
+      ..add(cx + r * math.cos(a))
+      ..add(cy + r * math.sin(a));
+  }
+  return _poly(xy);
+}
+
+Path _polygon(double cx, double cy, double r, int sides, [double rotation = -math.pi / 2]) {
+  final xy = <double>[];
+  for (var i = 0; i < sides; i++) {
+    final a = rotation + i * 2 * math.pi / sides;
+    xy
+      ..add(cx + r * math.cos(a))
+      ..add(cy + r * math.sin(a));
+  }
+  return _poly(xy);
+}
+
+Path _heart(double cx, double cy, double s) => Path()
+  ..moveTo(cx, cy + 0.9 * s)
+  ..cubicTo(cx - 1.6 * s, cy - 0.2 * s, cx - 0.6 * s, cy - 1.3 * s, cx, cy - 0.45 * s)
+  ..cubicTo(cx + 0.6 * s, cy - 1.3 * s, cx + 1.6 * s, cy - 0.2 * s, cx, cy + 0.9 * s)
+  ..close();
+
+Path _union(List<Path> paths) =>
+    paths.skip(1).fold(paths.first, (a, b) => Path.combine(PathOperation.union, a, b));
+
+Path _cloud(double x, double y, double s) => _union([
+      _circle(x - 22 * s, y + 4 * s, 20 * s),
+      _circle(x, y - 8 * s, 26 * s),
+      _circle(x + 24 * s, y + 4 * s, 20 * s),
+      _rect(x - 22 * s, y + 4 * s, 46 * s, 20 * s, 8 * s),
+    ]);
+
+/// نصفُ دائرةٍ علويّ مغلقٌ بقطره.
+Path _semi(double cx, double cy, double r) => Path()
+  ..moveTo(cx - r, cy)
+  ..arcTo(Rect.fromCircle(center: Offset(cx, cy), radius: r), math.pi, math.pi, false)
+  ..close();
+
+// ── الرسوماتُ المرسومة باليد ──────────────────────────────────────────
+
+ColoringDrawing _cat() => ColoringDrawing(
+      id: 'cat',
+      titleAr: 'القطة اللطيفة',
+      titleEn: 'Cute Cat',
+      category: ColoringCategory.animals,
+      regions: [
+        _rotOval(222, 205, 14, 50, 0.6),
+        _oval(150, 215, 58, 55),
+        _oval(150, 230, 32, 32),
+        _oval(122, 266, 17, 10),
+        _oval(178, 266, 17, 10),
+        _poly([98, 100, 106, 38, 142, 80]),
+        _poly([202, 100, 194, 38, 158, 80]),
+        _poly([108, 88, 111, 56, 132, 80]),
+        _poly([192, 88, 189, 56, 168, 80]),
+        _circle(150, 118, 55),
+        _oval(128, 110, 10, 13),
+        _oval(172, 110, 10, 13),
+        _circle(131, 106, 3.5),
+        _circle(175, 106, 3.5),
+        _poly([142, 130, 158, 130, 150, 139]),
+      ],
+      details: [
+        _curve(150, 139, 145, 150, 136, 148),
+        _curve(150, 139, 155, 150, 164, 148),
+        _line([118, 135, 82, 128]),
+        _line([118, 141, 84, 146]),
+        _line([182, 135, 218, 128]),
+        _line([182, 141, 216, 146]),
+      ],
+    );
+
+ColoringDrawing _fish() => ColoringDrawing(
+      id: 'fish',
+      titleAr: 'السمكة الملوّنة',
+      titleEn: 'Rainbow Fish',
+      category: ColoringCategory.animals,
+      regions: [
+        _poly([82, 150, 32, 102, 46, 150, 32, 198]),
+        _poly([135, 102, 172, 60, 205, 106]),
+        _poly([148, 196, 168, 232, 192, 194]),
+        _oval(160, 150, 85, 55),
+        _oval(122, 150, 10, 44),
+        _oval(155, 150, 10, 50),
+        _oval(188, 150, 10, 46),
+        _circle(214, 136, 12),
+        _circle(217, 136, 5),
+        _circle(258, 78, 10),
+        _circle(272, 46, 7),
+        _circle(248, 28, 5),
+      ],
+      details: [
+        _curve(232, 162, 240, 168, 246, 160),
+        _curve(200, 120, 192, 150, 200, 180),
+      ],
+    );
+
+ColoringDrawing _butterfly() => ColoringDrawing(
+      id: 'butterfly',
+      titleAr: 'الفراشة الجميلة',
+      titleEn: 'Pretty Butterfly',
+      category: ColoringCategory.animals,
+      regions: [
+        _rotOval(98, 108, 56, 44, -0.5),
+        _rotOval(202, 108, 56, 44, 0.5),
+        _rotOval(110, 192, 42, 34, 0.5),
+        _rotOval(190, 192, 42, 34, -0.5),
+        _circle(94, 104, 17),
+        _circle(206, 104, 17),
+        _circle(110, 196, 12),
+        _circle(190, 196, 12),
+        _circle(70, 128, 8),
+        _circle(230, 128, 8),
+        _oval(150, 158, 12, 66),
+        _circle(150, 84, 16),
+        _circle(124, 40, 6),
+        _circle(176, 40, 6),
+      ],
+      details: [
+        _curve(145, 70, 138, 50, 126, 44),
+        _curve(155, 70, 162, 50, 174, 44),
+      ],
+    );
+
+ColoringDrawing _turtle() => ColoringDrawing(
+      id: 'turtle',
+      titleAr: 'السلحفاة الصبورة',
+      titleEn: 'Patient Turtle',
+      category: ColoringCategory.animals,
+      regions: [
+        _poly([68, 168, 38, 180, 68, 186]),
+        _oval(102, 218, 20, 16),
+        _oval(198, 218, 20, 16),
+        _oval(246, 160, 30, 23),
+        _oval(150, 165, 85, 58),
+        _polygon(150, 165, 26, 6, 0),
+        _polygon(100, 165, 18, 6, 0),
+        _polygon(200, 165, 18, 6, 0),
+        _polygon(122, 128, 15, 6, 0),
+        _polygon(178, 128, 15, 6, 0),
+        _polygon(122, 202, 15, 6, 0),
+        _polygon(178, 202, 15, 6, 0),
+        _circle(256, 152, 5),
+      ],
+      details: [
+        _curve(250, 170, 260, 176, 270, 166),
+      ],
+    );
+
+ColoringDrawing _owl() => ColoringDrawing(
+      id: 'owl',
+      titleAr: 'البومة الحكيمة',
+      titleEn: 'Wise Owl',
+      category: ColoringCategory.animals,
+      regions: [
+        _poly([95, 108, 98, 58, 132, 96]),
+        _poly([205, 108, 202, 58, 168, 96]),
+        _oval(150, 172, 70, 86),
+        _oval(150, 200, 45, 55),
+        _rotOval(84, 186, 20, 50, 0.2),
+        _rotOval(216, 186, 20, 50, -0.2),
+        _rect(36, 252, 228, 16, 8),
+        _oval(128, 254, 14, 9),
+        _oval(172, 254, 14, 9),
+        _circle(122, 134, 26),
+        _circle(178, 134, 26),
+        _circle(122, 137, 12),
+        _circle(178, 137, 12),
+        _poly([140, 158, 160, 158, 150, 178]),
+      ],
+      details: [
+        _line([132, 196, 140, 204, 148, 196]),
+        _line([152, 196, 160, 204, 168, 196]),
+        _line([142, 218, 150, 226, 158, 218]),
+      ],
+    );
+
+ColoringDrawing _bunny() => ColoringDrawing(
+      id: 'bunny',
+      titleAr: 'الأرنب والجزرة',
+      titleEn: 'Bunny & Carrot',
+      category: ColoringCategory.animals,
+      regions: [
+        _oval(125, 68, 16, 48),
+        _oval(175, 68, 16, 48),
+        _oval(125, 72, 8, 36),
+        _oval(175, 72, 8, 36),
+        _oval(150, 232, 56, 50),
+        _oval(150, 240, 30, 30),
+        _circle(150, 142, 48),
+        _oval(132, 132, 6, 8),
+        _oval(168, 132, 6, 8),
+        _circle(120, 156, 8),
+        _circle(180, 156, 8),
+        _heart(150, 152, 7),
+        _rect(143, 166, 14, 11, 3),
+        _poly([222, 282, 240, 196, 262, 202]),
+        _poly([246, 198, 238, 170, 254, 194]),
+        _poly([254, 200, 270, 176, 262, 204]),
+      ],
+      details: [
+        _line([150, 160, 150, 166]),
+        _line([116, 148, 88, 142]),
+        _line([184, 148, 212, 142]),
+        _line([234, 222, 248, 226]),
+        _line([230, 246, 244, 250]),
+      ],
+    );
+
+ColoringDrawing _flower() {
+  final petals = [
+    for (var i = 0; i < 8; i++)
+      _rotOval(
+        150 + 46 * math.cos(i * math.pi / 4),
+        112 + 46 * math.sin(i * math.pi / 4),
+        26,
+        15,
+        i * math.pi / 4,
+      ),
+  ];
+  return ColoringDrawing(
+    id: 'flower',
+    titleAr: 'زهرة الحديقة',
+    titleEn: 'Garden Flower',
+    category: ColoringCategory.nature,
+    regions: [
+      _rect(144, 150, 12, 100, 6),
+      _rotOval(118, 212, 28, 12, -0.5),
+      _rotOval(182, 200, 28, 12, 0.5),
+      ...petals,
+      _circle(150, 112, 26),
+      _poly([108, 252, 192, 252, 180, 294, 120, 294]),
+      _rect(100, 240, 100, 16, 4),
+    ],
+  );
+}
+
+ColoringDrawing _sun() => ColoringDrawing(
+      id: 'sun',
+      titleAr: 'الشمس الضاحكة',
+      titleEn: 'Smiling Sun',
+      category: ColoringCategory.nature,
+      regions: [
+        for (var i = 0; i < 12; i++)
+          _poly([
+            150 + 60 * math.cos(i * math.pi / 6 - 0.16),
+            120 + 60 * math.sin(i * math.pi / 6 - 0.16),
+            150 + 96 * math.cos(i * math.pi / 6),
+            120 + 96 * math.sin(i * math.pi / 6),
+            150 + 60 * math.cos(i * math.pi / 6 + 0.16),
+            120 + 60 * math.sin(i * math.pi / 6 + 0.16),
+          ]),
+        _circle(150, 120, 58),
+        _circle(124, 136, 9),
+        _circle(176, 136, 9),
+        _circle(130, 108, 7),
+        _circle(170, 108, 7),
+        _cloud(64, 248, 1),
+        _cloud(236, 256, 0.85),
+      ],
+      details: [
+        _curve(128, 140, 150, 166, 172, 140),
+      ],
+    );
+
+ColoringDrawing _tree() => ColoringDrawing(
+      id: 'tree',
+      titleAr: 'شجرة التفاح',
+      titleEn: 'Apple Tree',
+      category: ColoringCategory.nature,
+      regions: [
+        _oval(150, 286, 150, 14),
+        _poly([134, 288, 166, 288, 160, 168, 140, 168]),
+        _union([
+          _circle(150, 102, 56),
+          _circle(104, 136, 40),
+          _circle(196, 136, 40),
+          _circle(150, 152, 44),
+        ]),
+        _oval(150, 232, 7, 11),
+        _circle(120, 104, 10),
+        _circle(176, 94, 10),
+        _circle(150, 146, 10),
+        _circle(198, 142, 9),
+        _circle(104, 150, 9),
+        _circle(262, 36, 22),
+      ],
+    );
+
+ColoringDrawing _house() => ColoringDrawing(
+      id: 'house',
+      titleAr: 'بيتي الجميل',
+      titleEn: 'My Home',
+      category: ColoringCategory.objects,
+      regions: [
+        _rect(0, 258, 300, 42),
+        _poly([130, 258, 170, 258, 186, 300, 114, 300]),
+        _rect(194, 58, 24, 52),
+        _poly([58, 132, 150, 56, 242, 132]),
+        _rect(76, 132, 148, 126),
+        _rect(130, 190, 40, 68, 6),
+        _rect(90, 150, 32, 30, 3),
+        _rect(178, 150, 32, 30, 3),
+        _circle(162, 226, 3.5),
+        _circle(214, 40, 9),
+        _circle(230, 22, 11),
+        _circle(150, 104, 12),
+      ],
+      details: [
+        _line([106, 150, 106, 180]),
+        _line([90, 165, 122, 165]),
+        _line([194, 150, 194, 180]),
+        _line([178, 165, 210, 165]),
+      ],
+    );
+
+ColoringDrawing _rainbow() => ColoringDrawing(
+      id: 'rainbow',
+      titleAr: 'قوس قزح',
+      titleEn: 'Rainbow',
+      category: ColoringCategory.nature,
+      regions: [
+        for (var i = 0; i < 6; i++)
+          Path.combine(
+            PathOperation.difference,
+            _semi(150, 214, 132.0 - i * 14),
+            _semi(150, 214, 118.0 - i * 14),
+          ),
+        _semi(150, 214, 48),
+        _cloud(48, 222, 1.0),
+        _cloud(252, 222, 1.0),
+        _star(150, 60, 14, 6, 5),
+        _star(60, 60, 10, 4, 5),
+        _star(240, 70, 10, 4, 5),
+      ],
+    );
+
+ColoringDrawing _mushroom() => ColoringDrawing(
+      id: 'mushroom',
+      titleAr: 'بيت الفطر',
+      titleEn: 'Mushroom House',
+      category: ColoringCategory.nature,
+      regions: [
+        _rect(0, 262, 300, 38),
+        _rect(114, 166, 72, 100, 18),
+        Path()
+          ..moveTo(44, 176)
+          ..arcTo(Rect.fromCenter(center: const Offset(150, 176), width: 212, height: 172), math.pi, math.pi, false)
+          ..close(),
+        _circle(100, 136, 14),
+        _circle(150, 110, 17),
+        _circle(202, 140, 13),
+        _circle(124, 162, 8),
+        _circle(178, 164, 8),
+        _rect(135, 214, 30, 52, 14),
+        _circle(150, 192, 9),
+        _circle(40, 250, 10),
+        _circle(262, 250, 10),
+      ],
+      details: [
+        _line([40, 260, 40, 274]),
+        _line([262, 260, 262, 274]),
+      ],
+    );
+
+ColoringDrawing _robot() => ColoringDrawing(
+      id: 'robot',
+      titleAr: 'الروبوت الذكي',
+      titleEn: 'Smart Robot',
+      category: ColoringCategory.characters,
+      regions: [
+        _circle(150, 36, 9),
+        _rect(90, 80, 12, 24, 3),
+        _rect(198, 80, 12, 24, 3),
+        _rect(100, 54, 100, 80, 14),
+        _circle(128, 88, 13),
+        _circle(172, 88, 13),
+        _circle(128, 88, 5),
+        _circle(172, 88, 5),
+        _rect(124, 110, 52, 12, 4),
+        _rect(138, 134, 24, 14),
+        _rect(84, 146, 132, 100, 16),
+        _rect(114, 164, 72, 44, 8),
+        _heart(150, 184, 12),
+        _circle(128, 226, 7),
+        _circle(150, 226, 7),
+        _circle(172, 226, 7),
+        _rect(54, 154, 28, 76, 12),
+        _rect(218, 154, 28, 76, 12),
+        _rect(104, 246, 32, 42, 6),
+        _rect(164, 246, 32, 42, 6),
+      ],
+      details: [
+        _line([150, 45, 150, 54]),
+      ],
+    );
+
+ColoringDrawing _hero() => ColoringDrawing(
+      id: 'hero',
+      titleAr: 'البطل الصغير',
+      titleEn: 'Little Hero',
+      category: ColoringCategory.characters,
+      regions: [
+        _poly([66, 300, 96, 204, 204, 204, 234, 300]),
+        _rect(96, 198, 108, 102, 30),
+        _star(150, 250, 24, 10, 5),
+        _oval(150, 118, 80, 76),
+        _circle(86, 140, 14),
+        _circle(214, 140, 14),
+        _circle(150, 136, 64),
+        _union([
+          _circle(104, 88, 24),
+          _circle(130, 74, 25),
+          _circle(162, 72, 25),
+          _circle(192, 84, 24),
+          _circle(204, 106, 16),
+        ]),
+        _oval(128, 134, 8, 10),
+        _oval(172, 134, 8, 10),
+        _circle(114, 160, 10),
+        _circle(186, 160, 10),
+        Path()
+          ..moveTo(130, 164)
+          ..arcTo(Rect.fromCenter(center: const Offset(150, 164), width: 40, height: 32), 0, math.pi, false)
+          ..close(),
+      ],
+      details: [
+        _curve(116, 118, 128, 112, 138, 118),
+        _curve(162, 118, 172, 112, 184, 118),
+      ],
+    );
+
+ColoringDrawing _snowman() => ColoringDrawing(
+      id: 'snowman',
+      titleAr: 'رجل الثلج',
+      titleEn: 'Snowman',
+      category: ColoringCategory.characters,
+      regions: [
+        _circle(150, 236, 58),
+        _circle(150, 156, 45),
+        _circle(150, 90, 32),
+        _rect(122, 14, 56, 44, 4),
+        _rect(122, 44, 56, 9),
+        _rect(108, 56, 84, 10, 4),
+        _poly([150, 90, 186, 96, 150, 100]),
+        _circle(138, 82, 4),
+        _circle(162, 82, 4),
+        _rect(114, 116, 72, 14, 7),
+        _rect(160, 120, 16, 40, 6),
+        _circle(150, 150, 6),
+        _circle(150, 172, 6),
+        _circle(150, 222, 7),
+        _star(46, 44, 11, 4, 6),
+        _star(256, 40, 10, 4, 6),
+        _star(262, 150, 8, 3, 6),
+      ],
+      details: [
+        _line([106, 152, 58, 122]),
+        _line([72, 130, 62, 112]),
+        _line([194, 152, 242, 122]),
+        _line([228, 130, 238, 112]),
+        _curve(138, 104, 150, 112, 162, 104),
+      ],
+    );
+
+ColoringDrawing _stars() => ColoringDrawing(
+      id: 'stars',
+      titleAr: 'نجمة الأبطال',
+      titleEn: 'Hero Star',
+      category: ColoringCategory.shapes,
+      regions: [
+        _star(150, 156, 112, 46, 5),
+        _star(150, 156, 52, 22, 5),
+        _circle(150, 156, 11),
+        _star(40, 40, 20, 8, 5),
+        _star(262, 44, 18, 8, 5),
+        _star(44, 262, 18, 8, 5),
+        _star(258, 262, 20, 8, 5),
+      ],
+    );
+
+ColoringDrawing _hearts() => ColoringDrawing(
+      id: 'hearts',
+      titleAr: 'قلوب المحبة',
+      titleEn: 'Loving Hearts',
+      category: ColoringCategory.shapes,
+      regions: [
+        _heart(150, 150, 88),
+        _heart(150, 150, 52),
+        _heart(150, 150, 20),
+        _heart(40, 42, 16),
+        _heart(262, 46, 14),
+        _heart(46, 262, 14),
+        _heart(258, 258, 16),
+      ],
+    );
+
+ColoringDrawing _shapesMix() => ColoringDrawing(
+      id: 'shapes',
+      titleAr: 'عالم الأشكال',
+      titleEn: 'World of Shapes',
+      category: ColoringCategory.shapes,
+      regions: [
+        _circle(82, 82, 50),
+        _rect(172, 36, 92, 92, 6),
+        _poly([36, 272, 88, 170, 140, 272]),
+        _poly([216, 162, 266, 216, 216, 270, 166, 216]),
+        _polygon(150, 158, 22, 6),
+        _circle(82, 82, 22),
+        _rect(200, 64, 36, 36, 4),
+        _circle(216, 216, 14),
+        _poly([74, 252, 88, 222, 102, 252]),
+      ],
+    );
+
+ColoringDrawing _car() => ColoringDrawing(
+      id: 'car',
+      titleAr: 'السيارة السريعة',
+      titleEn: 'Fast Car',
+      category: ColoringCategory.objects,
+      regions: [
+        _rect(0, 238, 300, 62),
+        _rect(20, 264, 50, 8, 4),
+        _rect(125, 264, 50, 8, 4),
+        _rect(230, 264, 50, 8, 4),
+        _poly([84, 152, 110, 100, 196, 100, 226, 152]),
+        _rect(40, 150, 220, 62, 18),
+        _poly([98, 146, 117, 108, 147, 108, 147, 146]),
+        _poly([157, 146, 157, 108, 190, 108, 212, 146]),
+        _circle(246, 172, 8),
+        _rect(42, 166, 10, 14, 3),
+        _circle(96, 212, 28),
+        _circle(204, 212, 28),
+        _circle(96, 212, 11),
+        _circle(204, 212, 11),
+        _circle(40, 50, 22),
+      ],
+      details: [
+        _line([152, 150, 152, 200]),
+        _line([118, 168, 132, 168]),
+        _line([170, 168, 184, 168]),
+      ],
+    );
+
+ColoringDrawing _rocket() => ColoringDrawing(
+      id: 'rocket',
+      titleAr: 'صاروخ الفضاء',
+      titleEn: 'Space Rocket',
+      category: ColoringCategory.objects,
+      regions: [
+        _poly([128, 236, 150, 296, 172, 236]),
+        _poly([140, 236, 150, 276, 160, 236]),
+        _poly([116, 176, 84, 246, 120, 236]),
+        _poly([184, 176, 216, 246, 180, 236]),
+        Path()
+          ..moveTo(116, 240)
+          ..lineTo(116, 124)
+          ..cubicTo(116, 84, 136, 50, 150, 32)
+          ..cubicTo(164, 50, 184, 84, 184, 124)
+          ..lineTo(184, 240)
+          ..close(),
+        _rect(116, 194, 68, 14),
+        _circle(150, 124, 22),
+        _circle(150, 124, 14),
+        _star(50, 66, 14, 6, 5),
+        _star(256, 96, 12, 5, 5),
+        _star(58, 196, 10, 4, 5),
+        _circle(248, 228, 24),
+        _circle(240, 220, 5),
+        _circle(256, 236, 4),
+      ],
+    );
+
+ColoringDrawing _iceCream() => ColoringDrawing(
+      id: 'icecream',
+      titleAr: 'الآيس كريم',
+      titleEn: 'Ice Cream',
+      category: ColoringCategory.objects,
+      regions: [
+        _poly([104, 150, 196, 150, 150, 286]),
+        _circle(124, 136, 36),
+        _circle(176, 136, 36),
+        _circle(150, 92, 40),
+        _circle(150, 42, 12),
+        _circle(132, 88, 5),
+        _circle(166, 78, 5),
+        _circle(158, 104, 5),
+        _circle(116, 132, 5),
+        _circle(186, 130, 5),
+      ],
+      details: [
+        _curve(150, 30, 154, 18, 164, 14),
+        _line([122, 178, 168, 222]),
+        _line([134, 166, 182, 198]),
+        _line([178, 178, 132, 222]),
+        _line([166, 166, 118, 198]),
+      ],
+    );
+
+ColoringDrawing _boat() => ColoringDrawing(
+      id: 'boat',
+      titleAr: 'المركب الشراعي',
+      titleEn: 'Sailboat',
+      category: ColoringCategory.objects,
+      regions: [
+        _circle(56, 56, 26),
+        _poly([60, 198, 240, 198, 212, 248, 88, 248]),
+        _circle(112, 220, 8),
+        _circle(150, 220, 8),
+        _circle(188, 220, 8),
+        _rect(146, 40, 8, 158),
+        _poly([156, 66, 156, 190, 236, 190]),
+        _poly([144, 82, 144, 190, 80, 190]),
+        _poly([154, 40, 182, 50, 154, 60]),
+        Path()
+          ..moveTo(0, 240)
+          ..quadraticBezierTo(25, 228, 50, 240)
+          ..quadraticBezierTo(75, 252, 100, 240)
+          ..quadraticBezierTo(125, 228, 150, 240)
+          ..quadraticBezierTo(175, 252, 200, 240)
+          ..quadraticBezierTo(225, 228, 250, 240)
+          ..quadraticBezierTo(275, 252, 300, 240)
+          ..lineTo(300, 300)
+          ..lineTo(0, 300)
+          ..close(),
+      ],
+      details: [
+        _curve(220, 70, 230, 60, 240, 70),
+        _curve(240, 70, 250, 60, 260, 70),
+        _curve(30, 120, 40, 110, 50, 120),
+      ],
+    );
+
+ColoringDrawing _balloons() => ColoringDrawing(
+      id: 'balloons',
+      titleAr: 'بالونات الحفلة',
+      titleEn: 'Party Balloons',
+      category: ColoringCategory.objects,
+      regions: [
+        _oval(98, 96, 38, 46),
+        _oval(202, 92, 38, 46),
+        _oval(150, 136, 40, 48),
+        _poly([94, 141, 102, 141, 98, 150]),
+        _poly([198, 137, 206, 137, 202, 146]),
+        _poly([146, 183, 154, 183, 150, 192]),
+        _rect(110, 236, 80, 56, 4),
+        _rect(145, 236, 10, 56),
+        _circle(138, 230, 10),
+        _circle(162, 230, 10),
+      ],
+      details: [
+        _curve(98, 150, 110, 200, 146, 228),
+        _curve(202, 146, 190, 200, 154, 228),
+        _line([150, 192, 150, 222]),
+      ],
+    );
+
+/// الرسوماتُ المرسومة باليد كلُّها، بأسمائها.
+final Map<String, ColoringDrawing Function()> handDrawnDrawings = {
+  'cat': _cat,
+  'fish': _fish,
+  'butterfly': _butterfly,
+  'turtle': _turtle,
+  'owl': _owl,
+  'bunny': _bunny,
+  'flower': _flower,
+  'sun': _sun,
+  'tree': _tree,
+  'rainbow': _rainbow,
+  'mushroom': _mushroom,
+  'robot': _robot,
+  'hero': _hero,
+  'snowman': _snowman,
+  'stars': _stars,
+  'hearts': _hearts,
+  'shapes': _shapesMix,
+  'house': _house,
+  'car': _car,
+  'rocket': _rocket,
+  'icecream': _iceCream,
+  'boat': _boat,
+  'balloons': _balloons,
+};
+
+// ── الرسوماتُ المولَّدة ───────────────────────────────────────────────
+
+/// ماندالا من بذرة: حلقاتٌ من البتلات والدوائر والنجوم، لا تتكرّر.
+ColoringDrawing mandala(int seed) {
+  final random = math.Random(seed);
+  final n = const [6, 8, 10, 12][random.nextInt(4)];
+  const c = 150.0;
+  final regions = <Path>[_circle(c, c, 136)];
+  final step = 2 * math.pi / n;
+  final twist = random.nextBool() ? step / 2 : 0.0;
+
+  // البتلاتُ الكبيرة.
+  final outerLen = 34.0 + random.nextInt(10);
+  for (var i = 0; i < n; i++) {
+    final a = i * step;
+    regions.add(_rotOval(c + 98 * math.cos(a), c + 98 * math.sin(a), outerLen, 15.0 + random.nextInt(6), a));
+  }
+  // حلقةٌ وسطى: دوائرُ أو نجومٌ أو قلوب.
+  final middle = random.nextInt(3);
+  for (var i = 0; i < n; i++) {
+    final a = i * step + twist;
+    final x = c + 62 * math.cos(a);
+    final y = c + 62 * math.sin(a);
+    regions.add(switch (middle) {
+      0 => _circle(x, y, 13),
+      1 => _star(x, y, 16, 7, 5, a),
+      _ => _rotate(_heart(x, y, 12), x, y, a + math.pi / 2),
+    });
+  }
+  // بتلاتٌ صغيرة حول القلب.
+  regions.add(_circle(c, c, 40));
+  for (var i = 0; i < n; i++) {
+    final a = i * step;
+    regions.add(_rotOval(c + 26 * math.cos(a), c + 26 * math.sin(a), 12, 6, a));
+  }
+  regions.add(random.nextBool() ? _star(c, c, 15, 7, n ~/ 2 + 2) : _circle(c, c, 12));
+  return ColoringDrawing(
+    id: 'mandala:$seed',
+    titleAr: 'الماندالا السحرية',
+    titleEn: 'Magic Mandala',
+    category: ColoringCategory.magic,
+    regions: regions,
+  );
+}
+
+/// حديقةُ أشكالٍ من بذرة: نجومٌ وقلوبٌ ودوائرُ وزهورٌ متناثرة لا تتداخل.
+ColoringDrawing shapeGarden(int seed) {
+  final random = math.Random(seed);
+  final regions = <Path>[];
+  final placed = <(double, double, double)>[];
+  var attempts = 0;
+  while (placed.length < 11 && attempts < 400) {
+    attempts++;
+    final r = 18.0 + random.nextInt(26);
+    final x = r + 6 + random.nextDouble() * (coloringCanvasSize - 2 * r - 12);
+    final y = r + 6 + random.nextDouble() * (coloringCanvasSize - 2 * r - 12);
+    final clash = placed.any((p) {
+      final dx = p.$1 - x;
+      final dy = p.$2 - y;
+      return math.sqrt(dx * dx + dy * dy) < p.$3 + r + 6;
+    });
+    if (clash) continue;
+    placed.add((x, y, r));
+    switch (random.nextInt(6)) {
+      case 0:
+        regions
+          ..add(_circle(x, y, r))
+          ..add(_circle(x, y, r * 0.45));
+      case 1:
+        regions.add(_star(x, y, r, r * 0.45, 5, -math.pi / 2 + random.nextDouble()));
+      case 2:
+        regions.add(_heart(x, y + r * 0.1, r * 0.82));
+      case 3:
+        regions.add(_polygon(x, y, r, 3 + random.nextInt(4), random.nextDouble()));
+      case 4:
+        for (var i = 0; i < 6; i++) {
+          final a = i * math.pi / 3;
+          regions.add(_circle(x + r * 0.55 * math.cos(a), y + r * 0.55 * math.sin(a), r * 0.42));
+        }
+        regions.add(_circle(x, y, r * 0.4));
+      default:
+        regions
+          ..add(_rect(x - r * 0.8, y - r * 0.8, r * 1.6, r * 1.6, r * 0.3))
+          ..add(_circle(x, y, r * 0.35));
+    }
+  }
+  return ColoringDrawing(
+    id: 'garden:$seed',
+    titleAr: 'حديقة الأشكال',
+    titleEn: 'Shape Garden',
+    category: ColoringCategory.magic,
+    regions: regions,
+  );
+}
+
+/// الرسمةُ بمعرّفها — لوحةٌ محفوظةٌ تُفتح من جديد.
+ColoringDrawing? coloringDrawingById(String id) {
+  final colon = id.indexOf(':');
+  if (colon > 0) {
+    final seed = int.tryParse(id.substring(colon + 1));
+    if (seed == null) return null;
+    return switch (id.substring(0, colon)) {
+      'mandala' => mandala(seed),
+      'garden' => shapeGarden(seed),
+      _ => null,
+    };
+  }
+  return handDrawnDrawings[id]?.call();
+}
+
+/// مجموعةُ رسوماتٍ لجلسةٍ جديدة.
+///
+/// [recent] ما عُرض في الجلسات السابقة: لا يعود قبل أن تُعرض الرسوماتُ الأخرى.
+/// والمجموعةُ تتنوّع بين الفئات (حيوانٌ وطبيعةٌ وشخصيّةٌ وأشكالٌ وأشياء)،
+/// وفي آخرها رسمتان مولَّدتان من بذرةٍ جديدة — لم تُرَيا قط.
+List<String> pickColoringSet(math.Random random, {List<String> recent = const [], int handDrawn = 6}) {
+  final ids = handDrawnDrawings.keys.toList()..shuffle(random);
+  final fresh = ids.where((id) => !recent.contains(id)).toList();
+  final pool = fresh.length >= handDrawn ? fresh : [...fresh, ...ids.where((id) => !fresh.contains(id))];
+  final picked = <String>[];
+  final usedCategories = <ColoringCategory>{};
+  // جولةٌ أولى: فئةٌ مختلفةٌ لكل رسمة.
+  for (final id in pool) {
+    if (picked.length >= handDrawn) break;
+    final category = handDrawnDrawings[id]!().category;
+    if (usedCategories.add(category)) picked.add(id);
+  }
+  for (final id in pool) {
+    if (picked.length >= handDrawn) break;
+    if (!picked.contains(id)) picked.add(id);
+  }
+  picked
+    ..add('mandala:${random.nextInt(1 << 30)}')
+    ..add('garden:${random.nextInt(1 << 30)}');
+  return picked;
+}
+
+// ── قوالبُ «استوديو الرسم» ───────────────────────────────────────────
+//
+// رسوماتٌ بخطوطٍ تُفتح في الاستوديو للتلوين والتعديل (انظر `drawing_studio.dart`).
+// بالمربّع نفسه وأدوات الرسم نفسها، ومناطقُها المغلقة تجعل دلوَ الاستوديو يملأ
+// الشعرَ أو الفستانَ وحده دون أن يتسرّب.
+
+ColoringDrawing _girl() => ColoringDrawing(
+      id: 'girl',
+      titleAr: 'البنت الأنيقة',
+      titleEn: 'Sweet Girl',
+      category: ColoringCategory.characters,
+      regions: [
+        _union([_oval(150, 132, 80, 86), _rect(72, 132, 156, 96, 34)]),
+        _rotOval(72, 206, 15, 36, 0.25),
+        _rotOval(228, 206, 15, 36, -0.25),
+        _poly([92, 300, 118, 212, 182, 212, 208, 300]),
+        _heart(150, 258, 12),
+        _rect(140, 192, 20, 24, 6),
+        _oval(150, 142, 58, 62),
+        _union([_circle(116, 96, 30), _circle(150, 86, 32), _circle(184, 96, 30)]),
+        _oval(128, 150, 13, 16),
+        _oval(172, 150, 13, 16),
+        _circle(132, 145, 4.5),
+        _circle(176, 145, 4.5),
+        _oval(110, 172, 9, 6),
+        _oval(190, 172, 9, 6),
+        Path()
+          ..moveTo(140, 178)
+          ..arcTo(Rect.fromCenter(center: const Offset(150, 178), width: 20, height: 16), 0, math.pi, false)
+          ..close(),
+        _poly([150, 58, 118, 42, 120, 74]),
+        _poly([150, 58, 182, 42, 180, 74]),
+        _circle(150, 58, 9),
+      ],
+      details: [
+        _curve(114, 134, 126, 128, 140, 134),
+        _curve(160, 134, 174, 128, 186, 134),
+        _curve(147, 163, 150, 166, 153, 163),
+      ],
+    );
+
+ColoringDrawing _boy() => ColoringDrawing(
+      id: 'boy',
+      titleAr: 'الولد البطل',
+      titleEn: 'Cool Boy',
+      category: ColoringCategory.characters,
+      regions: [
+        _rect(90, 210, 120, 92, 28),
+        _star(150, 256, 20, 9, 5),
+        _rect(138, 188, 24, 28, 6),
+        _circle(92, 146, 13),
+        _circle(208, 146, 13),
+        _oval(150, 142, 58, 60),
+        _poly([88, 132, 90, 92, 104, 70, 114, 92, 124, 60, 138, 86, 150, 54, 162, 86, 176, 60, 186, 92, 196, 70,
+          210, 92, 212, 132, 196, 106, 150, 98, 104, 106]),
+        _oval(130, 150, 10, 13),
+        _oval(170, 150, 10, 13),
+        _circle(133, 146, 3.5),
+        _circle(173, 146, 3.5),
+        _oval(112, 170, 8, 5),
+        _oval(188, 170, 8, 5),
+        Path()
+          ..moveTo(134, 174)
+          ..arcTo(Rect.fromCenter(center: const Offset(150, 174), width: 32, height: 24), 0, math.pi, false)
+          ..close(),
+      ],
+      details: [
+        _curve(118, 132, 130, 126, 142, 132),
+        _curve(158, 132, 170, 126, 182, 132),
+        _curve(147, 162, 150, 165, 153, 162),
+      ],
+    );
+
+ColoringDrawing _lion() => ColoringDrawing(
+      id: 'lion',
+      titleAr: 'الأسد الصغير',
+      titleEn: 'Lion Cub',
+      category: ColoringCategory.animals,
+      regions: [
+        _rotOval(226, 246, 8, 32, 0.8),
+        _circle(246, 222, 11),
+        _oval(150, 248, 62, 46),
+        _oval(116, 286, 17, 10),
+        _oval(184, 286, 17, 10),
+        _star(150, 138, 94, 74, 14),
+        _circle(100, 82, 17),
+        _circle(200, 82, 17),
+        _circle(150, 142, 56),
+        _oval(150, 168, 27, 18),
+        _oval(130, 130, 8, 10),
+        _oval(170, 130, 8, 10),
+        _circle(132, 126, 3),
+        _circle(172, 126, 3),
+        _poly([140, 154, 160, 154, 150, 164]),
+      ],
+      details: [
+        _curve(150, 164, 144, 176, 134, 172),
+        _curve(150, 164, 156, 176, 166, 172),
+        _line([124, 166, 98, 160]),
+        _line([176, 166, 202, 160]),
+      ],
+    );
+
+ColoringDrawing _dinosaur() => ColoringDrawing(
+      id: 'dinosaur',
+      titleAr: 'الديناصور اللطيف',
+      titleEn: 'Friendly Dino',
+      category: ColoringCategory.animals,
+      regions: [
+        _poly([96, 196, 14, 262, 104, 248]),
+        for (var x = 92.0; x <= 176; x += 21) _poly([x, 178, x + 11, 150, x + 22, 178]),
+        _rect(108, 246, 28, 46, 10),
+        _rect(168, 246, 28, 46, 10),
+        _oval(150, 216, 76, 50),
+        _oval(150, 232, 46, 26),
+        _rect(190, 128, 34, 78, 15),
+        _oval(218, 118, 44, 32),
+        _circle(230, 110, 8),
+        _circle(232, 109, 3.5),
+        _oval(206, 132, 7, 5),
+      ],
+      details: [
+        _curve(222, 132, 238, 142, 254, 128),
+        _curve(132, 214, 140, 220, 148, 214),
+      ],
+    );
+
+ColoringDrawing _castle() => ColoringDrawing(
+      id: 'castle',
+      titleAr: 'القلعة السحرية',
+      titleEn: 'Magic Castle',
+      category: ColoringCategory.objects,
+      regions: [
+        _rect(70, 150, 160, 142),
+        for (final x in [84.0, 112.0, 160.0, 188.0]) _rect(x, 136, 16, 16),
+        _rect(38, 112, 52, 180),
+        _rect(210, 112, 52, 180),
+        _poly([32, 114, 64, 46, 96, 114]),
+        _poly([204, 114, 236, 46, 268, 114]),
+        _rect(120, 92, 60, 72),
+        _poly([114, 94, 150, 30, 186, 94]),
+        _poly([150, 8, 174, 15, 150, 22]),
+        _union([_rect(130, 236, 40, 56), _circle(150, 236, 20)]),
+        _rect(56, 150, 16, 24, 8),
+        _rect(228, 150, 16, 24, 8),
+        _rect(142, 112, 16, 26, 8),
+      ],
+      details: [
+        _line([150, 30, 150, 8]),
+        _line([150, 236, 150, 292]),
+      ],
+    );
+
+ColoringDrawing _bouquet() => ColoringDrawing(
+      id: 'bouquet',
+      titleAr: 'باقة الزهور',
+      titleEn: 'Flower Bouquet',
+      category: ColoringCategory.nature,
+      regions: [
+        _rotOval(116, 194, 11, 26, -0.6),
+        _rotOval(184, 194, 11, 26, 0.6),
+        for (final (cx, cy) in const [(96.0, 116.0), (150.0, 84.0), (204.0, 116.0)]) ...[
+          _union([
+            for (var i = 0; i < 5; i++)
+              _circle(cx + 20 * math.cos(i * 2 * math.pi / 5 - math.pi / 2), cy + 20 * math.sin(i * 2 * math.pi / 5 - math.pi / 2), 17),
+          ]),
+          _circle(cx, cy, 11),
+        ],
+        _poly([108, 220, 192, 220, 172, 294, 128, 294]),
+        _heart(150, 248, 11),
+      ],
+      details: [
+        _curve(96, 136, 110, 180, 140, 220),
+        _line([150, 104, 150, 220]),
+        _curve(204, 136, 190, 180, 160, 220),
+      ],
+    );
+
+/// رسوماتُ القوالب الجديدة — تُضاف إلى [handDrawnDrawings] في مكتبة الاستوديو.
+final Map<String, ColoringDrawing Function()> studioTemplateDrawings = {
+  'girl': _girl,
+  'boy': _boy,
+  'lion': _lion,
+  'dinosaur': _dinosaur,
+  'castle': _castle,
+  'bouquet': _bouquet,
+  ...animeTemplateDrawings,
+};
+
+// ── شخصياتُ أنمي لمكتبة القوالب ───────────────────────────────────────
+//
+// وجهٌ واحدٌ بأسلوب الأنمي ([_animeFeatures]) لكل الشخصيات: عينان كبيرتان
+// ببؤبؤٍ ولمعتين، وخدّان وفمٌ مبتسم — والشعرُ والملابسُ ما يميّز كلاً منها.
+// كلُّ جزءٍ منطقةٌ مغلقة، فيلوّن الدلوُ الشعرَ أو الشريطةَ أو العينَ وحدها.
+
+Path _animeFace() => _oval(150, 140, 52, 56);
+Path _animeNeck() => _rect(140, 186, 20, 28, 6);
+List<Path> _animeEars() => [_circle(98, 148, 10), _circle(202, 148, 10)];
+
+Path _animeMouth() => Path()
+  ..moveTo(141, 176)
+  ..arcTo(Rect.fromCenter(center: const Offset(150, 176), width: 18, height: 14), 0, math.pi, false)
+  ..close();
+
+List<Path> _animeFeatures() => [
+      _oval(128, 148, 13, 16),
+      _oval(172, 148, 13, 16),
+      _oval(129, 151, 9, 12),
+      _oval(173, 151, 9, 12),
+      _circle(132, 145, 4),
+      _circle(176, 145, 4),
+      _circle(125, 157, 2),
+      _circle(169, 157, 2),
+      _oval(112, 170, 8, 5),
+      _oval(188, 170, 8, 5),
+      _animeMouth(),
+    ];
+
+List<Path> _animeDetails({bool lashes = false}) => [
+      _curve(116, 128, 128, 122, 140, 128),
+      _curve(160, 128, 172, 122, 184, 128),
+      _curve(148, 163, 150, 166, 152, 163),
+      if (lashes) ...[_line([115, 141, 107, 135]), _line([185, 141, 193, 135])],
+    ];
+
+/// خصلاتٌ مدبّبةٌ تحت قبّعة: من ([l]،[top]) إلى ([r]،[top])، رؤوسُها نحو [tip].
+Path _tufts(double l, double r, double top, double tip, int count) {
+  final xy = <double>[l, tip + 6, l + 2, top, r - 2, top, r, tip + 6];
+  final step = (r - l) / count;
+  for (var i = count - 1; i > 0; i--) {
+    xy
+      ..add(l + step * i + step / 2)
+      ..add(tip - 6)
+      ..add(l + step * i)
+      ..add(tip + 8);
+  }
+  return _poly(xy);
+}
+
+ColoringDrawing _animeTwintails() => ColoringDrawing(
+      id: 'anime_twintails',
+      titleAr: 'صاحبة الضفيرتين',
+      titleEn: 'Twin-Tails Girl',
+      category: ColoringCategory.characters,
+      regions: [
+        _rotOval(74, 196, 18, 58, 0.22),
+        _rotOval(226, 196, 18, 58, -0.22),
+        _oval(150, 134, 64, 66),
+        _poly([94, 300, 116, 214, 184, 214, 206, 300]),
+        _poly([116, 214, 150, 254, 184, 214, 172, 208, 150, 230, 128, 208]),
+        _poly([150, 240, 130, 228, 130, 252]),
+        _poly([150, 240, 170, 228, 170, 252]),
+        _circle(150, 240, 6),
+        _animeNeck(),
+        _animeFace(),
+        _poly([96, 140, 100, 106, 120, 84, 150, 76, 180, 84, 200, 106, 204, 140, 190, 118, 176, 132, 164, 110, 150, 128,
+          136, 110, 124, 132, 110, 118]),
+        _circle(90, 140, 10),
+        _circle(210, 140, 10),
+        ..._animeFeatures(),
+      ],
+      details: _animeDetails(lashes: true),
+    );
+
+ColoringDrawing _animePrincess() => ColoringDrawing(
+      id: 'anime_princess',
+      titleAr: 'الأميرة الصغيرة',
+      titleEn: 'Little Princess',
+      category: ColoringCategory.characters,
+      regions: [
+        _union([_oval(150, 136, 66, 70), _rect(84, 136, 132, 140, 40)]),
+        _poly([66, 300, 112, 216, 188, 216, 234, 300]),
+        _rect(112, 230, 76, 14, 7),
+        _animeNeck(),
+        _circle(150, 214, 7),
+        _animeFace(),
+        _poly([92, 150, 96, 108, 118, 84, 150, 76, 188, 86, 206, 112, 208, 150, 196, 120, 160, 104, 130, 118, 108, 132]),
+        _poly([118, 82, 122, 48, 136, 66, 150, 40, 164, 66, 178, 48, 182, 82]),
+        _circle(150, 64, 5),
+        ..._animeFeatures(),
+      ],
+      details: _animeDetails(lashes: true),
+    );
+
+ColoringDrawing _animeBob() => ColoringDrawing(
+      id: 'anime_bob',
+      titleAr: 'صاحبة الشعر القصير',
+      titleEn: 'Bob-Hair Girl',
+      category: ColoringCategory.characters,
+      regions: [
+        _rect(90, 208, 120, 94, 30),
+        _rect(118, 256, 64, 30, 10),
+        _animeNeck(),
+        _union([_oval(150, 132, 66, 62), _rect(84, 132, 132, 62, 18)]),
+        _animeFace(),
+        _semi(150, 122, 56),
+        _union([
+          for (var i = 0; i < 5; i++)
+            _circle(200 + 8 * math.cos(i * 2 * math.pi / 5), 98 + 8 * math.sin(i * 2 * math.pi / 5), 7),
+        ]),
+        _circle(200, 98, 5),
+        ..._animeFeatures(),
+      ],
+      details: [
+        ..._animeDetails(lashes: true),
+        _line([138, 214, 134, 244]),
+        _line([162, 214, 166, 244]),
+      ],
+    );
+
+ColoringDrawing _animePonytail() => ColoringDrawing(
+      id: 'anime_ponytail',
+      titleAr: 'البطلة الرياضية',
+      titleEn: 'Sporty Girl',
+      category: ColoringCategory.characters,
+      regions: [
+        _rotOval(224, 158, 18, 54, -0.6),
+        _oval(150, 132, 62, 64),
+        _poly([82, 254, 104, 210, 196, 210, 218, 254, 196, 262, 196, 300, 104, 300, 104, 262]),
+        _heart(150, 264, 14),
+        _animeNeck(),
+        _animeFace(),
+        _poly([94, 140, 98, 104, 122, 82, 158, 76, 194, 90, 206, 120, 180, 106, 150, 112, 120, 126]),
+        _circle(202, 116, 8),
+        ..._animeFeatures(),
+      ],
+      details: _animeDetails(lashes: true),
+    );
+
+ColoringDrawing _animeFairy() => ColoringDrawing(
+      id: 'anime_fairy',
+      titleAr: 'الجنيّة اللطيفة',
+      titleEn: 'Little Fairy',
+      category: ColoringCategory.characters,
+      regions: [
+        _rotOval(82, 232, 30, 48, -0.6),
+        _rotOval(218, 232, 30, 48, 0.6),
+        _rotOval(96, 282, 20, 26, 0.5),
+        _rotOval(204, 282, 20, 26, -0.5),
+        _oval(150, 138, 64, 72),
+        _poly([104, 300, 120, 214, 180, 214, 196, 300, 176, 286, 150, 300, 124, 286]),
+        _animeNeck(),
+        _animeFace(),
+        _poly([94, 140, 100, 104, 122, 82, 150, 90, 178, 82, 200, 104, 206, 140, 190, 114, 150, 106, 110, 114]),
+        _star(150, 70, 16, 7, 5),
+        _star(258, 150, 14, 6, 5),
+        ..._animeFeatures(),
+      ],
+      details: [..._animeDetails(lashes: true), _line([214, 214, 250, 162])],
+    );
+
+ColoringDrawing _animeNinja() => ColoringDrawing(
+      id: 'anime_ninja',
+      titleAr: 'النينجا الشجاع',
+      titleEn: 'Brave Ninja',
+      category: ColoringCategory.characters,
+      regions: [
+        _rotOval(214, 220, 10, 30, -0.9),
+        _rect(92, 210, 116, 92, 28),
+        _animeNeck(),
+        _rect(114, 198, 72, 24, 12),
+        ..._animeEars(),
+        _animeFace(),
+        _poly([86, 132, 82, 92, 104, 100, 102, 64, 128, 84, 140, 50, 158, 80, 182, 54, 186, 88, 214, 78, 206, 112,
+          218, 132, 196, 116, 150, 110, 106, 116]),
+        _rect(96, 108, 108, 20, 6),
+        _rect(130, 106, 40, 24, 5),
+        ..._animeFeatures(),
+      ],
+      details: [
+        ..._animeDetails(),
+        _curve(142, 118, 150, 110, 158, 118),
+        _line([150, 222, 150, 300]),
+      ],
+    );
+
+ColoringDrawing _animeCapBoy() => ColoringDrawing(
+      id: 'anime_cap',
+      titleAr: 'صاحب القبّعة',
+      titleEn: 'Cap Boy',
+      category: ColoringCategory.characters,
+      regions: [
+        _rect(90, 208, 120, 94, 30),
+        _rect(118, 256, 64, 30, 10),
+        _animeNeck(),
+        ..._animeEars(),
+        _animeFace(),
+        _tufts(96, 204, 104, 126, 7),
+        _semi(150, 106, 56),
+        _oval(186, 106, 42, 9),
+        _circle(150, 52, 5),
+        _star(150, 82, 11, 5, 5),
+        ..._animeFeatures(),
+      ],
+      details: [..._animeDetails(), _line([138, 214, 134, 244]), _line([162, 214, 166, 244])],
+    );
+
+ColoringDrawing _animeGlasses() => ColoringDrawing(
+      id: 'anime_glasses',
+      titleAr: 'العبقري الصغير',
+      titleEn: 'Little Genius',
+      category: ColoringCategory.characters,
+      regions: [
+        _rect(92, 208, 116, 94, 26),
+        _animeNeck(),
+        _poly([122, 208, 150, 224, 138, 240]),
+        _poly([178, 208, 150, 224, 162, 240]),
+        _poly([150, 226, 132, 216, 132, 238]),
+        _poly([150, 226, 168, 216, 168, 238]),
+        _circle(150, 226, 5),
+        ..._animeEars(),
+        _animeFace(),
+        _poly([92, 136, 94, 104, 114, 82, 150, 74, 188, 82, 206, 104, 208, 136, 200, 114, 120, 110, 104, 124]),
+        ..._animeFeatures(),
+      ],
+      details: [
+        ..._animeDetails(),
+        Path()..addOval(Rect.fromCircle(center: const Offset(128, 148), radius: 20)),
+        Path()..addOval(Rect.fromCircle(center: const Offset(172, 148), radius: 20)),
+        _curve(148, 146, 150, 142, 152, 146),
+      ],
+    );
+
+ColoringDrawing _animeSoccer() => ColoringDrawing(
+      id: 'anime_soccer',
+      titleAr: 'لاعب الكرة',
+      titleEn: 'Soccer Star',
+      category: ColoringCategory.characters,
+      regions: [
+        _poly([82, 254, 104, 208, 196, 208, 218, 254, 196, 262, 196, 300, 104, 300, 104, 262]),
+        _rect(140, 208, 20, 92),
+        _circle(242, 268, 26),
+        _polygon(242, 268, 9, 5),
+        _animeNeck(),
+        ..._animeEars(),
+        _animeFace(),
+        _poly([88, 134, 86, 98, 104, 76, 128, 70, 140, 56, 158, 68, 182, 64, 200, 82, 214, 108, 212, 134, 198, 112,
+          182, 120, 170, 102, 154, 118, 138, 102, 120, 120, 102, 110]),
+        ..._animeFeatures(),
+      ],
+      details: _animeDetails(),
+    );
+
+ColoringDrawing _animeWizard() => ColoringDrawing(
+      id: 'anime_wizard',
+      titleAr: 'الساحر الصغير',
+      titleEn: 'Little Wizard',
+      category: ColoringCategory.characters,
+      regions: [
+        _poly([70, 300, 112, 208, 188, 208, 230, 300]),
+        _rect(110, 208, 80, 94, 20),
+        _star(150, 260, 14, 6, 5),
+        _animeNeck(),
+        ..._animeEars(),
+        _animeFace(),
+        _tufts(98, 202, 104, 124, 6),
+        _poly([104, 106, 196, 106, 166, 20]),
+        _oval(150, 106, 72, 12),
+        _star(156, 74, 10, 4.5, 5),
+        ..._animeFeatures(),
+      ],
+      details: _animeDetails(),
+    );
+
+/// شخصياتُ الأنمي — تُضاف إلى [studioTemplateDrawings].
+final Map<String, ColoringDrawing Function()> animeTemplateDrawings = {
+  'anime_twintails': _animeTwintails,
+  'anime_princess': _animePrincess,
+  'anime_bob': _animeBob,
+  'anime_ponytail': _animePonytail,
+  'anime_fairy': _animeFairy,
+  'anime_ninja': _animeNinja,
+  'anime_cap': _animeCapBoy,
+  'anime_glasses': _animeGlasses,
+  'anime_soccer': _animeSoccer,
+  'anime_wizard': _animeWizard,
+};

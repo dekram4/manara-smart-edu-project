@@ -192,8 +192,11 @@ class FakeDuel implements StudentDuelService {
   // يُرسَل بها الجوابُ ويُحسم: الأوّلُ لي دائماً إن أصبت.
   final Set<int> won = {};
 
+  /// حزمةٌ بعينها (أسئلةُ الروضة المسموعة) بدل [questions].
+  List<DuelQuestion>? pack;
+
   @override
-  Future<List<DuelQuestion>?> claimPack(String matchId) async => questions;
+  Future<List<DuelQuestion>?> claimPack(String matchId, {bool kindergarten = false}) async => pack ?? questions;
 
   @override
   Future<DuelAnswerResult> answer({
@@ -286,6 +289,7 @@ final lessonContext = AcademicContext(
 
 void main() {
   gamesAndThemes();
+  kindergartenDuel();
   setUp(() {
     SharedPreferences.setMockInitialValues({});
     StudentSettings.resetForTest();
@@ -896,5 +900,82 @@ void gamesAndThemes() {
         }
       });
     }
+  }
+}
+
+/// صفُّ الروضة وحده: أسئلتُه المسموعة وزرُّ المايك. وغيرُه بلا مايك كما كان.
+void kindergartenDuel() {
+  final kgPack = [
+    for (var i = 1; i <= 3; i++)
+      DuelQuestion(
+        id: 'kg_00$i',
+        category: 'general',
+        prompt: 'سؤال الروضة $i؟',
+        options: const ['القطة', 'الكلب', 'البقرة', 'الفيل'],
+        answerAt: 0,
+      ),
+  ];
+
+  for (final kg in [true, false]) {
+    testWidgets(kg ? 'الروضة: مقطعُ السؤال ثم المايكُ، و«أحسنت يا بطل» للأسرع' : 'الرابع: لا مايكَ ولا مقطع — كما كان',
+        (tester) async {
+      SharedPreferences.setMockInitialValues({});
+      StudentSettings.resetForTest();
+      tester.view.physicalSize = const Size(360, 780);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+      final duel = FakeDuel()..pack = kg ? kgPack : null;
+      addTearDown(duel.events.close);
+      await tester.pumpWidget(
+        MaterialApp(
+          home: DuelMatchScreen(
+            profile: StudentProfile(
+              id: 'me',
+              username: 'me',
+              name: 'أنا',
+              role: 'student',
+              teacherId: 't1',
+              grade: kg ? 'روضة منارة المعرفة' : 'الصف الرابع الابتدائي',
+            ),
+            duelService: duel,
+            matchId: 'm1',
+            rivalId: 'r1',
+            rivalName: 'سارة',
+            isHost: true,
+            transport: ServiceDuelTransport(duel, kindergarten: kg),
+          ),
+        ),
+      );
+      for (var i = 0; i < 3; i++) {
+        await tester.pump(const Duration(milliseconds: 100));
+      }
+      duel.rivalJoined = true;
+      for (var i = 0; i < 40; i++) {
+        await tester.pump(const Duration(milliseconds: 100));
+      }
+      expect(find.text(kg ? kgPack[0].prompt : questions[0].prompt), findsOneWidget);
+      final mic = find.byKey(const ValueKey('duel-kg-mic'));
+      if (kg) {
+        await tester.scrollUntilVisible(mic, 200, scrollable: find.byType(Scrollable).first);
+        expect(mic, findsOneWidget);
+      } else {
+        expect(mic, findsNothing);
+        expect(find.byKey(const ValueKey('duel-kg-hearing')), findsNothing);
+      }
+      final option = find.text(kg ? 'القطة' : 'الأول').first;
+      await Scrollable.ensureVisible(tester.element(option), alignment: 0.5);
+      await tester.pump();
+      await tester.tap(option);
+      for (var i = 0; i < 4; i++) {
+        await tester.pump(const Duration(milliseconds: 100));
+      }
+      expect(find.byKey(const ValueKey('duel-kg-mic')), findsNothing, reason: 'أجاب: لا مايك');
+      expect(tester.takeException(), isNull);
+      await tester.pumpWidget(const SizedBox());
+      // ‏«أحسنت يا بطل» ينتظر انتهاءَ العبارة (حتى ٦ ثوانٍ).
+      for (var i = 0; i < 40; i++) {
+        await tester.pump(const Duration(milliseconds: 200));
+      }
+    });
   }
 }

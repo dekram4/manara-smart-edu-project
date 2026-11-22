@@ -21,6 +21,8 @@ import '../widgets/student_avatar_view.dart';
 import '../widgets/student_mascot.dart';
 import '../widgets/voice_mic_button.dart';
 import 'academic_selection_screen.dart';
+import '../services/demo_mode.dart';
+import '../widgets/demo_ui.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({
@@ -261,6 +263,7 @@ class _LoginScreenState extends State<LoginScreen> {
         username: username,
         password: password,
       );
+      DemoMode.enterFor(student);
       StudentSoundService.instance.play(StudentSoundCue.loginSuccess);
       if (!mounted) return;
       setState(() => _loginSucceeded = true);
@@ -291,6 +294,46 @@ class _LoginScreenState extends State<LoginScreen> {
           _errorMessage = tr('login.failed');
         });
       }
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  /// «جرّب كزائر»: يختار المسارَ (الروضة أو الصف الرابع) ثم يدخل حسابَ العرض.
+  Future<void> _guest() async {
+    final service = widget.authService;
+    if (service == null) return;
+    StudentSoundService.instance.playTap();
+    final track = await showModalBottomSheet<String>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      // ‏على التابلت والأيباد لا تمتدّ اللوحةُ بعرض الشاشة كلِّها.
+      constraints: const BoxConstraints(maxWidth: 560),
+      builder: (context) => const DemoTrackSheet(),
+    );
+    if (track == null || !mounted) return;
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+    });
+    try {
+      final student = await service.signInDemo(track);
+      if (!mounted) return;
+      DemoMode.enterFor(student);
+      DemoMode.plansBaseUrl = widget.apiBaseUrl;
+      await Navigator.of(context).pushReplacement(
+        StudentPageRoute<void>(
+          builder: (_) => AcademicSelectionScreen(
+            profile: student,
+            authService: service,
+            apiBaseUrl: widget.apiBaseUrl,
+          ),
+        ),
+      );
+    } on StudentAuthException catch (error) {
+      StudentSoundService.instance.play(StudentSoundCue.warning);
+      if (mounted) setState(() => _errorMessage = error.message);
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
@@ -670,6 +713,7 @@ class _LoginScreenState extends State<LoginScreen> {
                               setState(() => _hidePassword = !_hidePassword);
                             },
                             onSubmit: _submit,
+                            onGuest: isConfigured ? _guest : null,
                             ),
                           ),
                         ),
@@ -859,6 +903,7 @@ class _BoardLoginForm extends StatelessWidget {
     required this.onPasswordChanged,
     required this.onTogglePassword,
     required this.onSubmit,
+    this.onGuest,
   });
 
   final GlobalKey<FormState> formKey;
@@ -877,6 +922,9 @@ class _BoardLoginForm extends StatelessWidget {
   final ValueChanged<String> onPasswordChanged;
   final VoidCallback onTogglePassword;
   final Future<void> Function() onSubmit;
+
+  /// «جرّب كزائر»: وضعُ الزائر الاستكشافي.
+  final VoidCallback? onGuest;
 
   @override
   Widget build(BuildContext context) {
@@ -1028,6 +1076,35 @@ class _BoardLoginForm extends StatelessWidget {
               ),
             ),
             ),
+            if (onGuest != null) ...[
+              const SizedBox(height: 6),
+              // ‏زرٌّ زجاجيٌّ بحافّةٍ ذهبيّة، ينضغط تحت الإصبع، ونصُّه يصغر ولا يُقصّ.
+              DemoPressable(
+                key: const ValueKey('login-guest'),
+                onTap: isLoading ? null : onGuest,
+                child: Container(
+                  constraints: const BoxConstraints(minHeight: 44),
+                  padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: Colors.black.withValues(alpha: 0.22),
+                    borderRadius: BorderRadius.circular(30),
+                    border: Border.all(color: DemoPalette.goldLight.withValues(alpha: 0.85), width: 1.6),
+                  ),
+                  child: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: Row(mainAxisSize: MainAxisSize.min, children: [
+                      const Icon(Icons.explore_rounded, color: DemoPalette.goldLight),
+                      const SizedBox(width: 8),
+                      Text(
+                        tr('demo.tryAsGuest'),
+                        maxLines: 1,
+                        style: const TextStyle(color: DemoPalette.goldLight, fontSize: 17, fontWeight: FontWeight.w900),
+                      ),
+                    ]),
+                  ),
+                ),
+              ),
+            ],
           ],
         ),
     );

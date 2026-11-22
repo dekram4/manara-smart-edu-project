@@ -259,6 +259,14 @@ class _Cover extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // ‏فيديو مدمجٌ في التطبيق (وضع الزائر): غلافُه صورةٌ من الحزمة أيضاً.
+    if (video.url.startsWith('asset:')) {
+      return Image.asset(
+        'assets/images/back_cinema.png',
+        fit: BoxFit.cover,
+        errorBuilder: (_, __, ___) => const _CoverPlaceholder(),
+      );
+    }
     final thumbnail = youtubeThumbnailUrl(video.url);
     if (thumbnail != null) {
       return Image.network(

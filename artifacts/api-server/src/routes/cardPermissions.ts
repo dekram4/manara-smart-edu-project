@@ -17,6 +17,12 @@ import {
   type CardRule,
   type StudentCardId,
 } from "../lib/cardPermissions";
+import { planCards, planOf } from "../lib/subscriptionPlans";
+
+/** حالةُ بطاقات الطالب قبل القواعد: من باقته. */
+function planBase(student: StudentActor) {
+  return planCards(planOf({ subscriptionPlan: student.plan }));
+}
 import {
   asRecords,
   listTeachers,
@@ -151,7 +157,7 @@ export async function isCardOpenForStudent(
       ids: [student.rowId],
       grade: student.grade,
       teacherIdentities: identities,
-    })[card];
+    }, planBase(student))[card];
   } catch (error) {
     logger.warn({ err: error }, "[card-permissions] rules unavailable; card left open");
     return true;
@@ -368,7 +374,10 @@ router.get(
           ids: [student.rowId],
           grade: student.grade,
           teacherIdentities: identities,
-        }),
+        }, planBase(student)),
+        // ‏التطبيقُ يعرف أنّ الباقةَ طُبّقت هنا، فلا يطبّقها مرّةً ثانية.
+        plan: planOf({ subscriptionPlan: student.plan }),
+        planApplied: true,
       });
     } catch (error) {
       logger.error({ err: error }, "[card-permissions] student read failed");

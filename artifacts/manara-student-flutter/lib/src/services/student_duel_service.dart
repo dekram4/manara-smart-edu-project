@@ -10,6 +10,7 @@ import '../l10n/student_strings.dart';
 import '../models/duel_chat.dart';
 import '../models/duel_question.dart';
 import 'student_auth_service.dart';
+import 'kg_duel_audio.dart';
 
 /// الألعابُ الأربع في بطاقة التحدي. أسماؤها هي أسماؤها في الخادم.
 enum DuelGame {
@@ -543,15 +544,29 @@ class StudentDuelService {
   ///
   /// ولا يُقبل فيها سؤالٌ من الدرس: صفٌّ كتب حزمتَه خادمٌ أقدمُ يخلطها بأسئلة
   /// الدرس الحرفية، والمبارزةُ لا تعود إليها.
-  Future<List<DuelQuestion>?> claimPack(String matchId) async {
+  ///
+  /// ── وصفُّ الروضة: أسئلتُه المسموعة من الخادم ──
+  /// [kindergarten]: حزمةُ مباراة الروضة يبنيها الخادمُ من أسئلتها المئة (ولا
+  /// يعرفها بنكُ القاعدة)، فتُقرأ من المباراة نفسها. وإن كان الخادمُ أقدمَ من
+  /// ذلك عادت المباراةُ بحزمة القاعدة كما كانت.
+  Future<List<DuelQuestion>?> claimPack(String matchId, {bool kindergarten = false}) async {
+    List<DuelQuestion>? pack;
     try {
       final raw = await authService.client.rpc('claim_duel_pack',
           params: {'p_match_id': matchId}).timeout(const Duration(seconds: 5));
-      return duelPackFrom(raw);
+      pack = duelPackFrom(raw);
     } catch (error) {
       debugPrint('[duel] pack not claimed: $error');
-      return null;
     }
+    if (kindergarten) {
+      try {
+        final match = await fetchMatch(matchId).timeout(const Duration(seconds: 5));
+        if (isKgDuelPack(match.questions)) return match.questions;
+      } catch (error) {
+        debugPrint('[duel] kindergarten pack not read: $error');
+      }
+    }
+    return pack;
   }
 
   // ── سجلُّ المحادثة ──

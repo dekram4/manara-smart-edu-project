@@ -17,6 +17,9 @@ import '../widgets/portal_watermark.dart';
 import '../widgets/student_experience.dart';
 import '../widgets/student_video_player.dart';
 import '../widgets/video_rows.dart';
+import '../services/demo_mode.dart';
+import 'dart:math' as math;
+import '../widgets/demo_lock.dart';
 
 class StudentCinemaScreen extends StatefulWidget {
   const StudentCinemaScreen({
@@ -44,8 +47,13 @@ class _StudentCinemaScreenState extends State<StudentCinemaScreen> {
   String? _error;
   bool _checkingLocked = false;
 
-  int get _unlockedVideoCount =>
-      CinemaUnlockRules.unlockedCount(_gamification.gems);
+  int get _unlockedVideoCount => DemoMode.active
+      ? math.min(DemoMode.cinemaVideos, _videos.length)
+      : CinemaUnlockRules.unlockedCount(_gamification.gems);
+
+  /// الزائر: الفيديو الأوّلُ مفتوحٌ بلا جواهر — الجواهرُ لا تفتح له شيئاً.
+  bool _isUnlocked(int index) =>
+      DemoMode.active ? index < DemoMode.cinemaVideos : CinemaUnlockRules.isUnlocked(index, _gamification.gems);
 
   @override
   void initState() {
@@ -186,7 +194,12 @@ class _StudentCinemaScreenState extends State<StudentCinemaScreen> {
   }
 
   Future<void> _openVideo(LessonVideo video, int index) async {
-    if (!CinemaUnlockRules.isUnlocked(index, _gamification.gems)) {
+    // ‏الزائر: الجواهرُ لا تفتح له شيئاً — القفلُ يدعوه إلى الحساب الرسمي.
+    if (DemoMode.active && !_isUnlocked(index)) {
+      showDemoLocked(context);
+      return;
+    }
+    if (!_isUnlocked(index)) {
       if (_checkingLocked) return;
       // ── الرصيدُ أولاً من المصدر ──
       // لعلّ الطالب كسب جواهر منذ فُتحت السينما (من جهازٍ آخر أو بطاقةٍ
@@ -203,7 +216,7 @@ class _StudentCinemaScreenState extends State<StudentCinemaScreen> {
         _checkingLocked = false;
       }
       if (!mounted) return;
-      if (!CinemaUnlockRules.isUnlocked(index, _gamification.gems)) {
+      if (!_isUnlocked(index)) {
         StudentSoundService.instance.play(StudentSoundCue.warning);
         await _showLockedDialog(index);
         return;
@@ -330,6 +343,23 @@ class _StudentCinemaScreenState extends State<StudentCinemaScreen> {
             itemCount: _videos.length,
             itemBuilder: (context, index) {
               final video = _videos[index];
+              // ‏الزائر: البطاقةُ تحت قفلٍ ذهبيّ بدل «ينقصك كذا جوهرة».
+              if (DemoMode.active && !_isUnlocked(index)) {
+                return LivelyStagger(
+                  index: index,
+                  child: DemoLocked(
+                    key: ValueKey('demo-cinema-locked-$index'),
+                    locked: true,
+                    child: _CinemaVideoCard(
+                      video: video,
+                      apiBaseUrl: widget.apiBaseUrl,
+                      locked: false,
+                      missingGems: 0,
+                      onPressed: () {},
+                    ),
+                  ),
+                );
+              }
               return LivelyStagger(
                 index: index,
                 child: _CinemaVideoCard(

@@ -4,6 +4,8 @@ import 'package:http/http.dart' as http;
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../l10n/student_strings.dart';
+import 'demo_catalog.dart';
+import 'demo_content.dart';
 import '../models/student_profile.dart';
 
 /// Resolved on each read rather than held in a `const`, so the sentence
@@ -29,6 +31,9 @@ class StudentAuthService {
   String? _sessionUsername;
   String? _sessionPassword;
   String? _sessionStudentId;
+
+  /// مسارُ الزائر ما دام في وضع الزائر: يُجدَّد به رمزُه بلا كلمة مرور.
+  String? _demoTrack;
 
   /// Never persist this token. It lives only for the signed-in app session.
   String? get apiSessionToken => _apiSessionToken;
@@ -128,6 +133,11 @@ class StudentAuthService {
   Future<String?> ensureApiSession() async {
     final existing = _apiSessionToken?.trim();
     if (existing != null && existing.isNotEmpty) return existing;
+    // ‏الزائرُ بلا جلسةٍ على الخادم: كلُّ ما يراه على الجهاز.
+    if (_demoTrack != null) {
+      _apiSessionError = tr('demo.localOnly');
+      return null;
+    }
     final username = _sessionUsername;
     final password = _sessionPassword;
     final studentId = _sessionStudentId;
@@ -162,11 +172,34 @@ class StudentAuthService {
   }
 
   void clearApiSession() {
+    _demoTrack = null;
     _apiSessionToken = null;
     _apiSessionError = null;
     _sessionUsername = null;
     _sessionPassword = null;
     _sessionStudentId = null;
+  }
+
+  /// «جرّب كزائر»: ملفُّ العرض للمسار [track] (`kg` أو `grade4`) — على الجهاز.
+  ///
+  /// لا يُسأل الخادم: كان الزائرُ يدخل حساباً على الخادم، فإن لم يكن خادمُ
+  /// هذه النسخة منشوراً رأى «غير متوفرة على الخادم». فالملفُّ والمحتوى كلُّه
+  /// من [DemoContent]، والدخولُ فوريٌّ ولو بلا إنترنت.
+  ///
+  /// ‏والمنهجُ منهجُ الحساب الرسمي نفسُه ([DemoCatalog]): الملفُّ يحمل صفَّه
+  /// ‏ومعلّمَه، فتمرّ الشجرةُ والدروسُ في مسار الحساب الرسمي. وإن لم تصل نسخةٌ
+  /// ‏منه قطّ (أوّلُ دخولٍ بلا إنترنت) فالمنهجُ المدمج [DemoContent].
+  Future<StudentProfile> signInDemo(String track) async {
+    final key = track == 'grade4' ? 'grade4' : 'kg';
+    final catalog = await DemoCatalog.load(client, key);
+    final profile = DemoContent.profile(key, grade: catalog?.grade, teacherId: catalog?.owner);
+    _demoTrack = track;
+    _apiSessionToken = null;
+    _apiSessionError = tr('demo.localOnly');
+    _sessionUsername = null;
+    _sessionPassword = null;
+    _sessionStudentId = profile.id;
+    return profile;
   }
 
   /// ينشئ جلسة الخادم ويعيد جسمَ ردّه (الرمز وملفّ الطالب).

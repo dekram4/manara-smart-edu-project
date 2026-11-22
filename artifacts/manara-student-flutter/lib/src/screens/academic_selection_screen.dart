@@ -14,6 +14,8 @@ import '../services/student_auth_service.dart';
 import '../services/student_path_memory.dart';
 import '../services/student_avatar_store.dart';
 import '../services/student_sound_service.dart';
+import '../services/demo_mode.dart';
+import '../widgets/demo_lock.dart';
 import '../services/student_content_service.dart';
 import '../services/voice_match.dart' show SpokenIndex, normalizeSpoken;
 import '../theme/student_theme.dart';
@@ -426,8 +428,23 @@ class _AcademicSelectionScreenState extends State<AcademicSelectionScreen> {
   /// فيرى الطالب مساراً لا يملكه دون أن يختاره.
   List<String> _allowedSubjects(AcademicSelectionData data, String? grade) {
     if (grade == null) return const [];
+    // ‏الزائرُ كغيره: المسارُ كلُّه مفتوح، والقيودُ داخل البطاقات ([DemoMode]).
     return data.subjectsFor(grade: grade).where(widget.profile.allowsSubject).toList();
   }
+
+  /// لمسةٌ على خيارٍ مقفلٍ في وضع الزائر: السببُ مكتوباً، ورسالةُ القفل بزرّ الاشتراك.
+  void _demoLocked() {
+    HapticFeedback.mediumImpact();
+    setState(() => _voiceNote = tr('demo.lockedInDemo'));
+    showDemoLocked(context);
+  }
+
+  /// الزائر: صفُّه وحده من الصفوف.
+  bool _gradeLocked(String grade) =>
+      DemoMode.active && _normalized(grade) != _normalized(widget.profile.grade) && (widget.profile.grade ?? '').isNotEmpty;
+
+  /// هل المسارُ المختار مفتوحٌ للزائر؟ صفُّه وحده — وكلُّ موادّه وفصوله ووحداته ودروسه مفتوحة.
+  bool get _demoPathAllowed => _grade == null || !_gradeLocked(_grade!);
 
   /// مواد الصف المختار. مادةٌ واحدة مسندة تعني قائمةً من عنصر واحد،
   /// و`_pick` تختاره من تلقائه — فتُحدَّد المادة بلا أن يلمسها الطفل.
@@ -457,6 +474,10 @@ class _AcademicSelectionScreenState extends State<AcademicSelectionScreen> {
   Future<void> _enterDashboard() async {
     final selection = _selection;
     if (selection == null || _isEntering) return;
+    if (!_demoPathAllowed) {
+      _demoLocked();
+      return;
+    }
     // ‏آخرُ حارس: لا يُفتح درسٌ ليس من المادّة المختارة، مهما كان طريقُه إلى هنا.
     if (!_ownsLesson(selection.selectedLesson)) {
       _refuse(trf('voice.notInSubject', {'name': selection.selectedLesson.lessonName, 'subject': selection.subject}));
@@ -977,6 +998,8 @@ class _AcademicSelectionScreenState extends State<AcademicSelectionScreen> {
           value: _grade,
           options: _gradeOptions,
           artFor: (_, index) => RouteArt.gate(index),
+          isLocked: (grade, _) => _gradeLocked(grade),
+          onLocked: _demoLocked,
           onSelected: (value) {
             _selectGrade(value);
             _advanceJourney(0);

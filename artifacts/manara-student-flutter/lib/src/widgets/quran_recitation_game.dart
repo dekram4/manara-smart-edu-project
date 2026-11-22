@@ -11,6 +11,9 @@ import '../services/quran_recitation_worker.dart';
 import '../services/student_sound_service.dart';
 import '../services/student_voice_service.dart';
 import '../theme/student_theme.dart';
+import 'voice_mic_button.dart' show ensureVoiceMic;
+import '../services/demo_mode.dart';
+import 'demo_lock.dart';
 
 /// سورةٌ سُمِّعت كاملةً صحيحة: مكافأتُها من الخادم، مرّةً لكل سورة.
 typedef QuranRecitationWin = Future<RewardResult?> Function(QuranSurah surah);
@@ -34,6 +37,37 @@ const _surahLooks = <String, (List<Color>, String)>{
   'nasr': ([Color(0xFFF59E0B), Color(0xFFEA580C)], '🌟'),
   'kafirun': ([Color(0xFF6366F1), Color(0xFF7C3AED)], '🕌'),
   'kawthar': ([Color(0xFF06B6D4), Color(0xFF0284C7)], '💧'),
+  // ‏بقيّةُ جزء عمّ: لكلّ سورةٍ رمزٌ من معناها.
+  'maun': ([Color(0xFF14B8A6), Color(0xFF0F766E)], '🤝'),
+  'quraysh': ([Color(0xFFF59E0B), Color(0xFFB45309)], '🐪'),
+  'fil': ([Color(0xFF64748B), Color(0xFF334155)], '🐘'),
+  'humaza': ([Color(0xFFEF4444), Color(0xFF991B1B)], '🔥'),
+  'asr': ([Color(0xFFF97316), Color(0xFFC2410C)], '⏳'),
+  'takathur': ([Color(0xFF8B5CF6), Color(0xFF6D28D9)], '💰'),
+  'qaria': ([Color(0xFF0EA5E9), Color(0xFF075985)], '⚡'),
+  'adiyat': ([Color(0xFFD97706), Color(0xFF92400E)], '🐎'),
+  'zalzala': ([Color(0xFF78716C), Color(0xFF44403C)], '🌍'),
+  'bayyina': ([Color(0xFF10B981), Color(0xFF047857)], '📜'),
+  'qadr': ([Color(0xFF6366F1), Color(0xFF312E81)], '🌙'),
+  'alaq': ([Color(0xFF3B82F6), Color(0xFF1D4ED8)], '📖'),
+  'tin': ([Color(0xFF84CC16), Color(0xFF4D7C0F)], '🫒'),
+  'sharh': ([Color(0xFFEC4899), Color(0xFFBE185D)], '💖'),
+  'duha': ([Color(0xFFFBBF24), Color(0xFFD97706)], '☀️'),
+  'layl': ([Color(0xFF4338CA), Color(0xFF1E1B4B)], '🌌'),
+  'shams': ([Color(0xFFF59E0B), Color(0xFFEA580C)], '🌞'),
+  'balad': ([Color(0xFF0D9488), Color(0xFF115E59)], '🏙️'),
+  'fajr': ([Color(0xFFFB7185), Color(0xFFF97316)], '🌄'),
+  'ghashiya': ([Color(0xFF22C55E), Color(0xFF15803D)], '🌳'),
+  'ala': ([Color(0xFF60A5FA), Color(0xFF2563EB)], '✨'),
+  'tariq': ([Color(0xFF6366F1), Color(0xFF1E3A8A)], '⭐'),
+  'buruj': ([Color(0xFF7C3AED), Color(0xFF4C1D95)], '🌠'),
+  'inshiqaq': ([Color(0xFF0EA5E9), Color(0xFF1E40AF)], '☁️'),
+  'mutaffifin': ([Color(0xFFD97706), Color(0xFF78350F)], '⚖️'),
+  'infitar': ([Color(0xFF06B6D4), Color(0xFF155E75)], '🌊'),
+  'takwir': ([Color(0xFFF97316), Color(0xFF9A3412)], '🌅'),
+  'abasa': ([Color(0xFF10B981), Color(0xFF065F46)], '🌱'),
+  'naziat': ([Color(0xFF8B5CF6), Color(0xFF5B21B6)], '💫'),
+  'naba': ([Color(0xFF0284C7), Color(0xFF0C4A6E)], '⛰️'),
 };
 
 /// لعبةُ «تسميع القرآن الكريم»: يختار الطفلُ سورةً فيسمع اسمها، ويضغط المايك
@@ -241,6 +275,10 @@ class QuranRecitationGameState extends State<QuranRecitationGame> with TickerPro
     if (surah == null) return;
     final index = widget.surahs.indexOf(surah) + delta;
     if (index < 0 || index >= widget.surahs.length) return;
+    if (!DemoMode.allowsSurah(widget.surahs[index].name)) {
+      showDemoLocked(context);
+      return;
+    }
     await _quiet();
     if (!mounted) return;
     _open(widget.surahs[index]);
@@ -261,6 +299,14 @@ class QuranRecitationGameState extends State<QuranRecitationGame> with TickerPro
     _wantListening = true;
     setState(() => _message = null);
     HapticFeedback.mediumImpact();
+    // ‏الإذنُ بالطريق نفسه في كل الشاشات: نافذةٌ تشرح لماذا، و«افتح الإعدادات»
+    // ‏لمن رفض نهائياً ([ensureVoiceMic]). والمحرّكُ المزيّف في الاختبار لا يُسأل له.
+    if (widget.listen == null && !await ensureVoiceMic(context)) {
+      if (!mounted) return;
+      _wantListening = false;
+      setState(() => _message = tr('quran.micUnavailable'));
+      return;
+    }
     await _startListening();
   }
 
@@ -281,7 +327,7 @@ class QuranRecitationGameState extends State<QuranRecitationGame> with TickerPro
       _pulse.stop();
       setState(() {
         _listening = false;
-        _message = tr('quran.micUnavailable');
+        _message = tr('quran.micUnavailable') + StudentVoiceService.instance.problemSuffix;
       });
       return;
     }
@@ -449,7 +495,9 @@ class QuranRecitationGameState extends State<QuranRecitationGame> with TickerPro
               crossAxisSpacing: 16,
               childAspectRatio: 0.92,
               children: [
-                for (var i = 0; i < widget.surahs.length; i++) _surahTile(widget.surahs[i], i),
+                // ‏الزائر: سورةُ الفاتحة وحدها، والباقي ظاهرٌ بقفله.
+                for (var i = 0; i < widget.surahs.length; i++)
+                  DemoLocked(locked: !DemoMode.allowsSurah(widget.surahs[i].name), child: _surahTile(widget.surahs[i], i)),
               ],
             );
           }),

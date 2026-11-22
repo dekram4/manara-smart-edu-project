@@ -329,7 +329,29 @@ const arabicLetterClips = <String, String>{
   'ي': 'audio/ar/letter_ya.mp3',
 };
 
-/// المقطعُ المسجّل لعنصرٍ إن كان حرفاً عربياً له تسجيل، وإلا `null` — فيُنطق
-/// بمحرّك النطق (الإنجليزيةُ والأعداد).
-String? recordedClipFor(TracingItem item) =>
-    item.kind == 'letter' && item.lang == 'ar' ? arabicLetterClips[item.text] : null;
+/// المقطعُ المسجّل لكل عنصرٍ من مجموعات الروضة الأربع، وإلا `null` — فيُنطق
+/// بمحرّك النطق.
+///
+/// ── لماذا التسجيلُ للكل ──
+/// كانت الأعدادُ والحروفُ الإنجليزية بمحرّك نطق الجهاز. وكثيرٌ من هواتف
+/// أندرويد بلا صوتٍ عربيٍّ منزَّل، فكانت الأرقامُ العربية **صامتة**. فصار لكل
+/// عددٍ من ٠ إلى ١٠٠ (بالعربية والإنجليزية) ولكل حرفٍ إنجليزيٍّ تسجيلُه
+/// (`tool/build_tracing_voices.py`)، كما للحروف العربية.
+String? recordedClipFor(TracingItem item) {
+  if (item.kind == 'letter') {
+    if (item.lang == 'ar') return arabicLetterClips[item.text];
+    final first = item.text.isEmpty ? '' : item.text[0].toLowerCase();
+    return RegExp(r'^[a-z]$').hasMatch(first) ? 'audio/letters_en/letter_$first.mp3' : null;
+  }
+  if (item.kind == 'number') {
+    final n = int.tryParse(_westernDigits(item.text));
+    if (n == null || n < 0 || n > 100) return null;
+    return item.lang == 'en' ? 'audio/numbers_en/n_$n.mp3' : 'audio/numbers_ar/n_$n.mp3';
+  }
+  return null;
+}
+
+String _westernDigits(String value) => value.replaceAllMapped(
+      RegExp('[٠-٩]'),
+      (m) => '${m[0]!.codeUnitAt(0) - 0x0660}',
+    );

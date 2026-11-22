@@ -8,6 +8,8 @@ import '../l10n/student_strings.dart';
 import '../models/interactive_study.dart';
 import '../models/study_games.dart';
 import 'student_auth_service.dart';
+import 'demo_content.dart';
+import 'demo_mode.dart';
 
 /// سببُ تعذُّر تحضير المذاكرة، بمفتاحِ نصٍّ يُعرض للطفل.
 class StudyFailure implements Exception {
@@ -67,6 +69,7 @@ class StudentStudyService {
   }
 
   Future<StudyPack> fetch({required String lessonId}) async {
+    if (DemoMode.active) throw const StudyFailure('noService');
     final map = await _post(endpoint, lessonId);
     final pack = StudyPack.fromMap(map['pack']);
     if (pack == null) throw const StudyFailure('badPack');
@@ -104,7 +107,19 @@ class StudentStudyService {
 
   /// ألعابُ الدرس: سحبٌ وإسقاط، ومطابقة، وأسئلةٌ متتالية — يولّدها الخادم
   /// من نصّ الدرس أوّلَ مرّة ويحفظها معه.
-  Future<StudyGamesPack> fetchGames({required String lessonId}) async {
+  ///
+  /// ‏[subject] و[lessonName] و[grade]: للزائر — يُبنى منها لعبُ درسٍ لا أسئلةَ
+  /// ‏له في المنهج ([DemoContent.gamesFor])، فلا تتعذّر بطاقةٌ في أيّ مادة.
+  Future<StudyGamesPack> fetchGames({
+    required String lessonId,
+    String? subject,
+    String? lessonName,
+    String? grade,
+  }) async {
+    // ‏الزائر: لعبةُ السباق من أسئلة الدرس، على الجهاز في كلّ مادة.
+    if (DemoMode.active) {
+      return DemoContent.gamesFor(lessonId: lessonId, subject: subject, lessonName: lessonName, grade: grade);
+    }
     final map = await _post(gamesEndpoint, lessonId);
     final pack = StudyGamesPack.fromMap(map['pack']);
     if (pack == null) throw const StudyFailure('badPack');
@@ -132,7 +147,16 @@ class StudentStudyService {
     required String lessonId,
     required StudyGameType type,
     required List<String> exclude,
+    String? subject,
+    String? lessonName,
+    String? grade,
   }) async {
+    // ‏الزائر: تُعاد أسئلةُ الدرس نفسُها بترتيبٍ آخر.
+    if (DemoMode.active) {
+      final game =
+          DemoContent.gamesFor(lessonId: lessonId, subject: subject, lessonName: lessonName, grade: grade).games.first;
+      return game.withQuestions([...game.questions]..shuffle());
+    }
     final map = await _post(freshGameEndpoint, lessonId, extra: {
       'gameType': type.wire,
       'exclude': exclude,

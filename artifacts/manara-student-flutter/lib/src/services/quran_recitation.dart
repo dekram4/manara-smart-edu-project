@@ -20,6 +20,8 @@ import 'package:flutter/foundation.dart' show visibleForTesting;
 
 import 'tracing_scope.dart' show isKindergartenGrade;
 
+part 'quran_juz_amma.g.dart';
+
 /// سورةٌ قصيرة: آياتُها بالرسم الإملائي مشكولة.
 class QuranSurah {
   const QuranSurah({required this.id, required this.name, required this.verses});
@@ -66,7 +68,10 @@ class RecitationUnit {
 const istiadha = 'أَعُوذُ بِاللَّهِ مِنَ الشَّيْطَانِ الرَّجِيمِ';
 const basmala = 'بِسْمِ اللَّهِ الرَّحْمَنِ الرَّحِيمِ';
 
-/// السورُ الثماني في الدرس، بترتيب المصحف من آخره كما تُحفَظ.
+/// السورُ في الدرس: الفاتحة، ثم جزءُ عمّ كاملاً (٣٧ سورة) بترتيب المصحف من
+/// آخره كما تُحفَظ — الثماني الأولى هنا، وبقيّةُ الجزء ([juzAmmaSurahs]) في
+/// `quran_juz_amma.g.dart`: النصُّ من مشروع تنزيل (simple-plain) بالمعالجة نفسها
+/// التي يطابقها نصُّ هذه الثماني حرفاً بحرف (انظر tool/build_juz_amma.py).
 const quranSurahs = <QuranSurah>[
   QuranSurah(id: 'fatiha', name: 'الفاتحة', verses: [
     'بِسْمِ اللَّهِ الرَّحْمَنِ الرَّحِيمِ',
@@ -123,6 +128,7 @@ const quranSurahs = <QuranSurah>[
     'فَصَلِّ لِرَبِّكَ وَانْحَرْ',
     'إِنَّ شَانِئَكَ هُوَ الْأَبْتَرُ',
   ]),
+  ...juzAmmaSurahs,
 ];
 
 // ── متى تظهر ──────────────────────────────────────────────────────────

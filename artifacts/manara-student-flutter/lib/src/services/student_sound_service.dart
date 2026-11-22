@@ -509,7 +509,12 @@ class StudentSoundService with WidgetsBindingObserver {
   Future<void> playClipToEnd(String asset, {double? volume, Duration limit = const Duration(seconds: 30)}) async {
     if (muted.value || _backgrounded) return;
     final done = _voicePlayer.onPlayerComplete.first;
-    if (!await playClip(asset, volume: volume)) return;
+    // ‏بدءُ التشغيل نفسُه له مهلة: محرّكُ صوتٍ لا يعود من `play` على بعض
+    // ‏الأجهزة كان يحبس من ينتظر المقطع — ومنه مايكُ ألعاب الروضة الذي لا
+    // ‏يُفتح قبل انتهاء السؤال، فيبقى معطّلاً لا يستجيب.
+    final started = await playClip(asset, volume: volume)
+        .timeout(const Duration(seconds: 4), onTimeout: () => false);
+    if (!started) return;
     try {
       await done.timeout(limit);
     } catch (_) {
@@ -1384,11 +1389,51 @@ class StudentSoundService with WidgetsBindingObserver {
     unawaited(_cheerOverClapping(nextEncouragementClip()));
   }
 
+  /// «أحسنت يا بطل» بعينها — لاحتفال «قلمي السحري» وألعاب الروضة الصوتية:
+  /// العبارةُ التي يُبنى عليها التسلسل («حرفُ الألف… أحسنت، حرفُ الألف»).
+  static const ahsantClip = 'audio/encouragement/encouragement_ahsant_ya_batal.mp3';
+
+  /// [playCheer] لعبارةٍ بعينها، وينتظر حتى تنتهي العبارة (والتصفيقُ تحتها
+  /// يخفت وحده بعدها) — ليُبنى عليه تسلسل: اسمُ الحرف بعد التشجيع لا فوقه.
+  Future<void> playCheerToEnd(String phrase) async {
+    if (muted.value || _backgrounded) return;
+    HapticFeedback.mediumImpact();
+    _applauseCancelled = false;
+    final done = _effectsPlayer.onPlayerComplete.first;
+    unawaited(_cheerOverClapping(phrase));
+    try {
+      await done.timeout(const Duration(seconds: 6));
+    } catch (_) {
+      // انقطع أو طال: التسلسلُ يمضي على كل حال.
+    }
+  }
+
   /// نجاحٌ فوريّ قصير بلا كلام — آيةٌ صحّت في التسميع. نغمةٌ لا عبارة: المايكُ
   /// مفتوح، وعبارةٌ مسموعةٌ يكتبها محرّكُ التعرّف كأنها قراءةُ الطفل.
   void playInstantSuccess() {
     HapticFeedback.lightImpact();
     play(StudentSoundCue.success);
+  }
+
+  /// «حاول مرة ثانية يا بطل» — صوتُ الخطأ الموحّد في كلّ سؤالٍ ولعبةٍ داخل
+  /// البطاقات التعليمية: ألعابُ الأسئلة، والتتبّعُ، والمنازلة، وألعابُ الروضة
+  /// الصوتية. المقطعُ نفسُه الذي كان لألعاب الروضة وحدها.
+  static const tryAgainClip = 'audio/kg_games/wrong_answer.mp3';
+
+  /// بين «حاول مرة ثانية» والتي بعدها: أخطاءٌ متتابعة (إصبعٌ يخرج عن الخطّ
+  /// مراراً) لا تتراكب جملةً فوق جملة — تُسمع مرّةً وتكتمل.
+  static const tryAgainCooldown = Duration(milliseconds: 1800);
+  DateTime? _lastTryAgain;
+
+  /// يُشغّل [tryAgainClip] بلا انتظار، مع اهتزازٍ خفيف. يحترم الكتمَ والخلفية.
+  void playTryAgain() {
+    HapticFeedback.lightImpact();
+    if (muted.value || _backgrounded) return;
+    final now = DateTime.now();
+    final last = _lastTryAgain;
+    if (last != null && now.difference(last) < tryAgainCooldown) return;
+    _lastTryAgain = now;
+    unawaited(playClip(tryAgainClip).catchError((Object _) => false));
   }
 
   /// التصفيقُ النقيّ: «تصفيق.mp3» منسوخاً إلى المشروع باسمٍ لاتيني — الأسماءُ

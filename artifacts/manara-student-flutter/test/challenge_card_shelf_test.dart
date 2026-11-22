@@ -22,11 +22,13 @@ void main() {
     test('بطاقةٌ واحدةٌ للتحدي لا اثنتان', () {
       // أُضيفت للحلبة بطاقةٌ ثانية في الموضع ١١، فصار في الرفّ موضعان
       // يقولان «تحدّ» ولا يفرّق بينهما طفلٌ بالاسم.
-      // ‏والموضعان ١١ و١٢ اليوم بطاقتا الروضة، لا تحدٍّ ثانٍ.
-      expect(homeModuleCount, 13);
-      expect(homeVisualOrder, hasLength(13));
-      expect(homeVisualOrder.toSet(), hasLength(13));
+      // ‏والموضعان ١١ و١٢ اليوم بطاقتا الروضة، و١٣ «عالم الحكايات والمغامرات»
+      // ‏(ألعابُ الروضة كلُّها في بطاقةٍ واحدة) — لا تحدٍّ ثانٍ.
+      expect(homeModuleCount, 14);
+      expect(homeVisualOrder, hasLength(14));
+      expect(homeVisualOrder.toSet(), hasLength(14));
       expect(kindergartenModules, {11, 12});
+      expect(kgWorldModule, 13);
     });
 
     test('واسمُ البطاقة صار «تحدَّ زملاءك» ومفتاحُها كما كان', () async {

@@ -2,6 +2,8 @@ import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+
+import 'fit_text.dart';
 import 'package:flutter/services.dart';
 
 import '../services/student_sound_service.dart';
@@ -21,7 +23,15 @@ class AdventureStep {
     required this.onSelected,
     required this.artFor,
     this.numbered = false,
+    this.isLocked,
+    this.onLocked,
   });
+
+  /// خيارٌ يظهر مقفلاً (وضعُ الزائر): لمستُه تقول لماذا ولا تختاره.
+  final bool Function(String option, int index)? isLocked;
+  final VoidCallback? onLocked;
+
+  bool locked(int index) => isLocked?.call(options[index], index) ?? false;
 
   /// اسمُ المستوى تحت محطّته («الصف»).
   final String label;
@@ -908,10 +918,11 @@ class _Choices extends StatelessWidget {
         numbered: step.numbered,
         color: step.color,
         selected: step.options[j] == step.value,
+        locked: step.locked(j),
         width: height * _aspect,
         height: height,
         clock: clock,
-        onTap: () => onChoose(step.options[j]),
+        onTap: step.locked(j) ? (step.onLocked ?? () {}) : () => onChoose(step.options[j]),
       );
 
   @override
@@ -962,12 +973,18 @@ class _ChoiceCard extends StatelessWidget {
     required this.numbered,
     required this.color,
     required this.selected,
+    this.locked = false,
     required this.width,
     required this.height,
     required this.clock,
     required this.onTap,
     super.key,
   });
+
+  final bool locked;
+
+  double get artSize => height * (label.length > 14 ? 0.5 : 0.56);
+  double get badge => (height * 0.2).clamp(22.0, 44.0).toDouble();
 
   final String label;
   final int index;
@@ -982,8 +999,8 @@ class _ChoiceCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final artSize = height * 0.62;
-    final badge = (height * 0.2).clamp(22.0, 44.0).toDouble();
+    // ‏الصورةُ أصغرُ قليلاً من قبل (٠٫٦٢): كان السطرُ الثاني من اسم المادة
+    // ‏لا يجد مكاناً في البطاقة الصغيرة فيُقصّ. والاسمُ يُصغَّر خطُّه حتى يظهر كاملاً.
     return Semantics(
       button: true,
       selected: selected,
@@ -997,7 +1014,38 @@ class _ChoiceCard extends StatelessWidget {
             final bob = math.sin((clock.value + index * 0.17) * 2 * math.pi) * 4;
             return Transform.translate(offset: Offset(0, bob), child: child);
           },
-          child: AnimatedScale(
+          child: locked ? _lockedOverlay(_card()) : _card(),
+        ),
+      ),
+    );
+  }
+
+  /// بطاقةٌ مقفلة: باهتة، وعليها قفلٌ ذهبيّ.
+  Widget _lockedOverlay(Widget card) => Stack(
+        key: ValueKey('adventure-option-locked-$index'),
+        alignment: Alignment.center,
+        children: [
+          Opacity(opacity: 0.45, child: ColorFiltered(colorFilter: const ColorFilter.matrix(_grey), child: card)),
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: const BoxDecoration(
+              color: Color(0xFFF59E0B),
+              shape: BoxShape.circle,
+              boxShadow: [BoxShadow(color: Colors.black26, blurRadius: 6)],
+            ),
+            child: const Icon(Icons.lock_rounded, color: Colors.white, size: 26),
+          ),
+        ],
+      );
+
+  static const _grey = <double>[
+    0.33, 0.33, 0.33, 0, 0, //
+    0.33, 0.33, 0.33, 0, 0,
+    0.33, 0.33, 0.33, 0, 0,
+    0, 0, 0, 1, 0,
+  ];
+
+  Widget _card() => AnimatedScale(
             scale: selected ? 1.06 : 1,
             duration: const Duration(milliseconds: 220),
             curve: Curves.easeOutBack,
@@ -1080,15 +1128,15 @@ class _ChoiceCard extends StatelessWidget {
                   const SizedBox(height: 4),
                   Expanded(
                     child: Center(
-                      child: Text(
+                      child: FitText(
                         label,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        textAlign: TextAlign.center,
+                        key: ValueKey('adventure-option-label-$index'),
+                        maxLines: 3,
+                        maxFont: (height * 0.11).clamp(15.0, 22.0).toDouble(),
+                        minFont: 10,
                         style: const TextStyle(
                           color: _ink,
-                          fontSize: 16,
-                          height: 1.25,
+                          height: 1.2,
                           fontWeight: FontWeight.w900,
                         ),
                       ),
@@ -1097,9 +1145,5 @@ class _ChoiceCard extends StatelessWidget {
                 ],
               ),
             ),
-          ),
-        ),
-      ),
-    );
-  }
+          );
 }
