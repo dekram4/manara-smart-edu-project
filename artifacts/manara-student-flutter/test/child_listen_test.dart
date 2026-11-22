@@ -125,6 +125,30 @@ void main() {
     expect(speech.sessions, hasLength(2));
   });
 
+  test('التابلت: جلسةٌ انتهت في لحظة فتحها (المحرّكُ مشغولٌ بصوتٍ يُشغَّل) تُفتح ثانيةً ولا يعلق المايك', () async {
+    final results = <String>[];
+    await voice.listenForChild(onResult: results.add, window: const Duration(seconds: 10));
+    // ‏خطأٌ في أوّل ١٠٠ ملّي ثانية: كان يُهمَل فتبقى الشاشةُ «تسمع» والمايكُ مغلق.
+    await _wait(100);
+    speech.error!(SpeechRecognitionError('error_busy', false));
+    await _wait(800);
+    expect(speech.sessions, hasLength(2), reason: 'فُتح المايكُ من جديد');
+    speech.say('القطة', last: true);
+    expect(results, ['القطة']);
+  });
+
+  test('ومحرّكٌ لا يبدأ أبداً: محاولاتٌ محدودة ثم يُختم فارغاً — لا دورانَ بلا نهاية', () async {
+    final results = <String>[];
+    await voice.listenForChild(onResult: results.add, window: const Duration(seconds: 30));
+    for (var i = 0; i < 6; i++) {
+      await _wait(50);
+      speech.status!(SpeechToText.doneStatus);
+      await _wait(700);
+    }
+    expect(speech.sessions.length, lessThanOrEqualTo(5));
+    expect(results, ['']);
+  });
+
   test('تكلّم: الصمتُ المُنهي يقصر، والكلماتُ تصل وهي تُقال، ثم ما قاله', () async {
     final results = <String>[];
     final partials = <String>[];

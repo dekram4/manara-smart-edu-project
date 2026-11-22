@@ -324,10 +324,33 @@ class StudentVoiceService {
 
     late Future<bool> Function() session;
 
+    // ‏كم مرّةً انتهت جلسةٌ في لحظة فتحها (المحرّكُ «مشغول» أو لم يفرغ بعدُ من صوتٍ
+    // ‏يُشغَّل) ففُتحت ثانية — بحدّ، فلا يدور المايكُ بلا نهاية على جهازٍ لا يسمع.
+    var quickRetries = 0;
+
     void ended(int of, DateTime startedAt) {
       // ‏حدثٌ متأخّرٌ من جلسةٍ سابقة، أو «انتهى» يصل مرّتين: يُهمَل.
       if (finished || of != generation) return;
-      if (DateTime.now().difference(startedAt) < const Duration(milliseconds: 400)) return;
+      if (DateTime.now().difference(startedAt) < const Duration(milliseconds: 400)) {
+        // ‏── ما كان يُعلّق المايكَ على التابلت ──
+        // ‏انتهاءٌ في لحظة الفتح كان يُهمَل كلُّه، ظنّاً أنه «انتهى» متأخّرٌ من جلسةٍ
+        // ‏سابقة. لكنه على أجهزةٍ كثيرة (التابلت خاصّةً) خطأٌ حقيقيّ: المحرّكُ رفض
+        // ‏البدءَ لأن مخرجَ الصوت لم يُغلق بعد. فتبقى الشاشةُ تقول «أسمعك» والمايكُ
+        // ‏مغلق. فيُنظر بعد لحظة: إن لم يكن يسمع فعلاً فُتح من جديد.
+        Future<void>.delayed(const Duration(milliseconds: 600), () {
+          if (finished || of != generation || _speech.isListening) return;
+          generation++;
+          _onChildEnd = null;
+          if (heard.isNotEmpty) {
+            finish();
+          } else if (quickRetries++ < 4) {
+            unawaited(session());
+          } else {
+            finish();
+          }
+        });
+        return;
+      }
       generation++;
       _onChildEnd = null;
       final remaining = deadline.difference(DateTime.now());

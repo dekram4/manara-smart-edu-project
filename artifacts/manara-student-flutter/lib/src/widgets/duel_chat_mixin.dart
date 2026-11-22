@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -26,6 +27,13 @@ mixin DuelChatMixin<T extends StatefulWidget> on State<T> {
   /// شخصيةُ من أرسل — في تحدٍّ جماعي ليس المنافسَ الأوّلَ دائماً.
   Map<String, dynamic>? chatAppearanceOf(String studentId) =>
       chatRivalAppearance;
+
+  /// المايكُ مشغولٌ بجواب السؤال بالصوت: لا تسجيلَ رسالةٍ معه — كلامُ الطفل
+  /// جوابٌ لا رسالة، والمحرّكان لا يتقاسمان المايك.
+  bool get chatMicBlocked => false;
+
+  /// يسجّل رسالةً صوتيةً الآن — فلا يُفتح مايكُ الجواب معه.
+  ValueListenable<bool> get chatRecording => _recording;
 
   /// اسمُ من أرسل، يُكتب تحت تفاعله الطائر.
   String chatNameOf(String studentId) => '';
@@ -172,6 +180,10 @@ mixin DuelChatMixin<T extends StatefulWidget> on State<T> {
 
   Future<void> _startHold() async {
     if (_recording.value) return;
+    if (chatMicBlocked) {
+      _say(tr('duel.voice.busyAnswer'));
+      return;
+    }
     if (!_mute.canSend) {
       _say(tr('duel.chat.mutedSelf'));
       return;

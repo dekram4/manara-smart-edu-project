@@ -15,12 +15,14 @@ import '../services/student_settings.dart';
 import '../services/student_sound_service.dart';
 import '../services/student_voice_service.dart';
 import '../services/tracing_scope.dart' show isKindergartenGrade;
-import '../services/voice_match.dart';
+import '../services/duel_voice_answer.dart';
 import '../theme/student_theme.dart';
 import '../widgets/arena_widgets.dart';
 import '../widgets/duel_arenas.dart';
 import '../widgets/duel_chat_mixin.dart';
 import '../widgets/duel_versus.dart';
+import '../widgets/duel_voice_answer_pad.dart';
+import '../widgets/voice_mic_button.dart' show ensureVoiceMic;
 import '../widgets/student_avatar_view.dart';
 import '../widgets/student_experience.dart';
 
@@ -28,6 +30,14 @@ import '../widgets/student_experience.dart';
 ///
 /// المنطقُ كلُّه في [DuelLiveController] — الساعةُ والإشاراتُ والخادم — وعليه
 /// اختباراته. وهذه الشاشةُ ترسمه وتُسمعه.
+/// يستمع لجواب الطفل مرّةً في [window]: الكلماتُ وهي تُقال ([onPartial])، ثم
+/// ما قاله ([onResult] — فارغاً إن لم يُسمع شيء). و`false` إن تعذّر.
+typedef DuelVoiceListen = Future<bool> Function({
+  required ValueChanged<String> onResult,
+  ValueChanged<String>? onPartial,
+  required Duration window,
+});
+
 class DuelMatchScreen extends StatefulWidget {
   const DuelMatchScreen({
     required this.profile,
@@ -40,8 +50,24 @@ class DuelMatchScreen extends StatefulWidget {
     this.rivalAppearance,
     this.rivals = const [],
     this.transport,
+    this.voiceListen,
+    this.voiceStop,
+    this.ensureMic,
+    this.quietForMic,
     super.key,
   });
+
+  /// جوابُ الروضة بالصوت: الاستماعُ وإنهاؤه، وإذنُ المايك، وإسكاتُ ما يُشغَّل
+  /// قبله. وبلا قيمٍ: [StudentVoiceService] و[ensureVoiceMic] و
+  /// [StudentSoundService.quietForMic] — والاختبارُ يضع مكانها ما يشاء.
+  @visibleForTesting
+  final DuelVoiceListen? voiceListen;
+  @visibleForTesting
+  final VoidCallback? voiceStop;
+  @visibleForTesting
+  final Future<bool> Function(BuildContext context)? ensureMic;
+  @visibleForTesting
+  final Future<void> Function()? quietForMic;
 
   /// كلُّ المنافسين في تحدٍّ جماعي. فارغةٌ في نزالٍ بين اثنين: [rivalId] وحده.
   final List<DuelRival> rivals;
@@ -151,6 +177,9 @@ class _DuelMatchScreenState extends State<DuelMatchScreen>
   DuelPhase? _lastPhase;
   int _lastCountdown = -1;
 
+  /// السؤالُ الذي يخصّه حالُ زرّ الصوت.
+  int? _voiceIndex;
+
   /// «انطلق!» لحظةَ يُفتح السؤالُ الأول بعد العدّ — مع طلقة البدء.
   bool _go = false;
   Timer? _goTimer;
@@ -164,6 +193,11 @@ class _DuelMatchScreenState extends State<DuelMatchScreen>
   /// المايكُ مفتوحٌ لجواب الروضة بالصوت، ولأيّ سؤال.
   int? _listeningAt;
 
+  /// حالُ زرّ «أجب بصوتك»، وما سمعه المايكُ حتى الآن.
+  VoiceAnswerState _voiceState = VoiceAnswerState.idle;
+  String _heard = '';
+  Timer? _voiceSafety;
+
   /// يُسمع سؤالُ الروضة كاملاً، ثم يبدأ العدّاد. سؤالٌ بلا مقطع: فوراً.
   Future<void> _hearQuestion(int index) async {
     final questions = _game.questions;
@@ -173,45 +207,154 @@ class _DuelMatchScreenState extends State<DuelMatchScreen>
     await StudentSoundService.instance.playClipToEnd(clip, limit: const Duration(seconds: 12));
   }
 
+  /// السؤالُ ما زال مفتوحاً لجواب [at]: لم يُجب، ولم يُكشف، ولم يتبدّل.
+  bool _openFor(int at) =>
+      mounted && _game.index == at && _game.phase == DuelPhase.question && !_game.hearing && _game.picked == null;
+
+  bool get _canAnswerByVoice => _kg && _openFor(_game.index);
+
+  void _endVoice([VoiceAnswerState state = VoiceAnswerState.idle]) {
+    _voiceSafety?.cancel();
+    _voiceSafety = null;
+    _listeningAt = null;
+    if (!mounted) return;
+    setState(() => _voiceState = state);
+  }
+
+  void _finishVoice() => (widget.voiceStop ?? StudentVoiceService.instance.finishChildListening)();
+
+  Future<bool> _listen({
+    required ValueChanged<String> onResult,
+    ValueChanged<String>? onPartial,
+    required Duration window,
+  }) {
+    final custom = widget.voiceListen;
+    if (custom != null) return custom(onResult: onResult, onPartial: onPartial, window: window);
+    // ‏كما في الدخول بالصوت — وهو ما يعمل على التابلت: صمتٌ أوّلُ طويلٌ يُنتظر فيه
+    // ‏الطفل، والمايكُ يُفتح من جديدٍ وحده إن أغلقه المحرّكُ قبل أن يتكلّم.
+    return StudentVoiceService.instance.listenForChild(
+      onResult: onResult,
+      onPartial: onPartial,
+      window: window,
+      firstPause: const Duration(seconds: 6),
+    );
+  }
+
   /// جوابُ الروضة بالصوت: يقول الطفلُ الجواب، ويُختار الخيارُ الذي قصده.
+  ///
+  /// ── ما كان يجعل التابلت لا يسمع ──
+  /// كان المايكُ يُفتح في لحظة اللمس ومقطعُ السؤال ومؤثّرُ ظهوره (أو رسالةُ
+  /// زميلٍ صوتية) ما زالت على المكبّر، ولا يُسأل عن الإذن قبله. والتابلت لا يبدأ
+  /// التعرّفَ ومخرجُ الصوت مفتوح — ينتهي في لحظته، وكان ذلك الانتهاءُ يُهمَل،
+  /// فتبقى الشاشةُ تقول «أسمعك» والمايكُ مغلق. ودخولُ الصوت يعمل لأنه يسأل عن
+  /// الإذن ويُسكت صوتَه أوّلاً. فهنا الترتيبُ نفسُه: الإذن، ثم إسكاتُ كلِّ ما
+  /// يُشغَّل، ثم لحظةٌ يتحوّل فيها الجهازُ من التشغيل إلى التسجيل، ثم الاستماع —
+  /// ومحاولةٌ ثانيةٌ إن رفض المحرّكُ البدء، واحتياطٌ يُنهيه إن لم يُبلغ بنهايته.
   Future<void> _answerByVoice() async {
-    if (_listeningAt != null || _game.phase != DuelPhase.question || _game.hearing || _game.picked != null) return;
+    // ‏لمسةٌ ثانيةٌ وهو يسمع: يُنهي بما قيل حتى الآن.
+    if (_voiceState == VoiceAnswerState.listening && _listeningAt != null) {
+      _finishVoice();
+      return;
+    }
+    if (_listeningAt != null || !_canAnswerByVoice) return;
+    if (chatRecording.value) {
+      _kgNotice(tr('duel.voice.busyAnswer'));
+      return;
+    }
     final at = _game.index;
     final options = _game.question?.options ?? const <String>[];
-    setState(() => _listeningAt = at);
-    void heard(String text) {
-      if (!mounted) return;
-      setState(() => _listeningAt = null);
-      if (_game.index != at || _game.phase != DuelPhase.question || _game.picked != null) return;
-      final choice = matchSpoken(text, options);
-      if (choice != null) {
-        unawaited(_game.pick(choice));
-      } else {
-        _kgNotice(tr('duel.kg.notHeard'));
-      }
+    setState(() {
+      _listeningAt = at;
+      _voiceState = VoiceAnswerState.preparing;
+      _heard = '';
+    });
+    final allowed = await (widget.ensureMic ?? ensureVoiceMic)(context);
+    if (!_openFor(at) || _listeningAt != at) return _endVoice();
+    if (!allowed) {
+      _endVoice(VoiceAnswerState.missed);
+      _kgNotice(tr('duel.kg.noMic'));
+      return;
+    }
+    await (widget.quietForMic ?? StudentSoundService.instance.quietForMic)();
+    await Future<void>.delayed(const Duration(milliseconds: 300));
+    if (!_openFor(at) || _listeningAt != at) return _endVoice();
+
+    var done = false;
+    void choose(int choice, String text) {
+      _voiceSafety?.cancel();
+      _listeningAt = null;
+      setState(() {
+        _heard = text;
+        _voiceState = VoiceAnswerState.matching;
+      });
+      unawaited(_game.pick(choice));
     }
 
+    void heard(String text) {
+      if (done) return;
+      done = true;
+      _voiceSafety?.cancel();
+      if (!_openFor(at)) return _endVoice();
+      final choice = matchDuelAnswer(text, options);
+      if (choice != null) return choose(choice, text);
+      _heard = text;
+      _endVoice(VoiceAnswerState.missed);
+      _kgNotice(text.trim().isEmpty ? tr('duel.kg.notHeard') : trf('duel.kg.notUnderstood', {'heard': text.trim()}));
+    }
+
+    void partial(String words) {
+      if (done || !_openFor(at)) return;
+      final early = earlyDuelAnswer(words, options);
+      if (early == null) {
+        setState(() => _heard = words);
+        return;
+      }
+      // ‏قال خياراً كاملاً لا يشبه غيرَه: يُختار الآن، بلا انتظار صمتٍ والثواني تمضي.
+      done = true;
+      _finishVoice();
+      choose(early, words);
+    }
+
+    final left = _game.timeLeft - const Duration(milliseconds: 400);
+    final window = left > const Duration(seconds: 12)
+        ? const Duration(seconds: 12)
+        : (left < const Duration(seconds: 3) ? const Duration(seconds: 3) : left);
+    setState(() => _voiceState = VoiceAnswerState.listening);
     var started = false;
     try {
-      started = await StudentVoiceService.instance.listenForChild(
-        onResult: heard,
-        window: const Duration(seconds: 8),
-        firstPause: const Duration(seconds: 5),
-      );
+      started = await _listen(onResult: heard, onPartial: partial, window: window);
+      if (!started && _openFor(at) && !done) {
+        // ‏رفضٌ عابر (المحرّكُ لم يفرغ بعدُ من صوتٍ سابق): مرّةً ثانيةً بعد لحظة.
+        await Future<void>.delayed(const Duration(milliseconds: 600));
+        if (_openFor(at) && !done) started = await _listen(onResult: heard, onPartial: partial, window: window);
+      }
     } catch (_) {
       started = false;
     }
-    if (!started && mounted) {
-      setState(() => _listeningAt = null);
-      _kgNotice(tr('duel.kg.noMic'));
+    if (!mounted || done) return;
+    if (!started) {
+      done = true;
+      _endVoice(VoiceAnswerState.missed);
+      _kgNotice(tr('voice.micUnavailable') + StudentVoiceService.instance.problemSuffix);
+      return;
     }
+    // ‏احتياطٌ وحده: محرّكٌ لم يُبلغ بنهايته قطّ.
+    _voiceSafety = Timer(window + const Duration(seconds: 4), () {
+      if (done) return;
+      _finishVoice();
+      heard(_heard);
+    });
   }
 
   void _stopListening() {
     if (_listeningAt == null) return;
     _listeningAt = null;
-    StudentVoiceService.instance.finishChildListening();
+    _voiceSafety?.cancel();
+    _finishVoice();
   }
+
+  @override
+  bool get chatMicBlocked => _listeningAt != null;
 
   void _kgNotice(String text) {
     ScaffoldMessenger.maybeOf(context)
@@ -272,6 +415,14 @@ class _DuelMatchScreenState extends State<DuelMatchScreen>
     // ‏سؤالٌ جديدٌ أو كشف: مايكُ السؤال السابق يُغلق.
     if (_listeningAt != null && (phase != DuelPhase.question || _game.index != _listeningAt)) {
       _stopListening();
+    }
+    if (phase != DuelPhase.question || _game.index != _voiceIndex) {
+      // ‏سؤالٌ جديدٌ أو كشف: زرُّ الصوت يعود جاهزاً، بلا ما سُمع للسؤال السابق.
+      _voiceIndex = phase == DuelPhase.question ? _game.index : null;
+      if (_listeningAt == null) {
+        _voiceState = VoiceAnswerState.idle;
+        _heard = '';
+      }
     }
     if (phase == DuelPhase.question && _lastPhase != DuelPhase.question) {
       _lastWinner = QuestionWinner.none;
@@ -357,6 +508,7 @@ class _DuelMatchScreenState extends State<DuelMatchScreen>
   @override
   void dispose() {
     _stopListening();
+    _voiceSafety?.cancel();
     _goTimer?.cancel();
     _fastTimer?.cancel();
     _game.removeListener(_onGame);
@@ -535,12 +687,63 @@ class _DuelMatchScreenState extends State<DuelMatchScreen>
     }
   }
 
+  /// صفحةُ السؤال، مرتّبةً أقساماً لا تتزاحم:
+  ///  ١. المواجهة: شريطُ النقاط، ولوحةُ الترتيب في التحدّي الجماعي، والحلبة.
+  ///  ٢. السؤال: رقمُه وعدّادُه، وبطاقتُه.
+  ///  ٣. الجواب: «أجب بصوتك» (للروضة) بارزاً فوق الخيارات، ثم الخيارات، ثم ما جرى.
+  ///  ٤. «دردشة الزملاء»: الرسالةُ الصوتية في بطاقتها آخرَ الصفحة — بعيدةً عن زرّ
+  ///     الجواب ومختلفةً عنه، فلا يُرسل الطفلُ جوابه رسالةً لزملائه.
+  ///
+  /// وفي الشاشة العريضة (التابلت، أو الهاتف مستلقياً) عمودان: المواجهةُ في
+  /// جانب، والسؤالُ وجوابُه في الآخر — فلا يُمرَّر إلى الخيارات تحت حلبةٍ طويلة.
   Widget _questionView() {
     final question = _game.question;
     if (question == null) return const SizedBox.shrink();
-    return ListView(
-      padding: const EdgeInsets.fromLTRB(14, 6, 14, 120),
-      children: [
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final wide = constraints.maxWidth >= 760 && constraints.maxHeight >= 420;
+        final arena = _arenaSection();
+        final ask = _questionSection(question);
+        final answer = _answerSection(question);
+        final chat = _chatSection();
+        if (!wide) {
+          return ListView(
+            key: const ValueKey('duel-question-narrow'),
+            padding: const EdgeInsets.fromLTRB(14, 6, 14, 120),
+            children: [...arena, const SizedBox(height: 6), ...ask, const SizedBox(height: 12), ...answer, const SizedBox(height: 16), chat],
+          );
+        }
+        return Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 1280),
+            child: Row(
+              key: const ValueKey('duel-question-wide'),
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  flex: 5,
+                  child: ListView(
+                    padding: const EdgeInsets.fromLTRB(14, 6, 8, 120),
+                    children: arena,
+                  ),
+                ),
+                Expanded(
+                  flex: 6,
+                  child: ListView(
+                    padding: const EdgeInsets.fromLTRB(8, 6, 14, 120),
+                    children: [...ask, const SizedBox(height: 12), ...answer, const SizedBox(height: 16), chat],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  /// ١. المواجهة.
+  List<Widget> _arenaSection() => [
         DuelVersusBar(
           myName: tr('duel.you'),
           rivalName: _leaderName,
@@ -588,13 +791,17 @@ class _DuelMatchScreenState extends State<DuelMatchScreen>
             child: FadeTransition(opacity: animation, child: child),
           ),
           child: _fastLabel == null
-              ? const SizedBox(height: 12)
+              ? const SizedBox(height: 4)
               : Padding(
                   key: ValueKey(_fastLabel),
                   padding: const EdgeInsets.only(top: 8),
                   child: Center(child: _FastChip(text: _fastLabel!)),
                 ),
         ),
+      ];
+
+  /// ٢. السؤال.
+  List<Widget> _questionSection(DuelQuestion question) => [
         Row(
           children: [
             Expanded(
@@ -653,27 +860,35 @@ class _DuelMatchScreenState extends State<DuelMatchScreen>
           ),
           child: _QuestionCard(question: question),
         ),
+        // ‏ما جرى في السؤال («أنت الأسرع!»، «سبقك خالد») تحت بطاقته مباشرةً: يُرى
+        // ‏مع السؤال نفسه، لا تحت الخيارات حيث يُمرَّر إليه.
         const SizedBox(height: 10),
         _Feedback(
           game: _game,
           rivalName: _nameOf(_game.winnerId ?? _game.leaderId),
         ),
-        const SizedBox(height: 10),
-        // ‏الروضة: الجوابُ بالصوت أيضاً — زرُّ مايكٍ واضحٌ بين السؤال والخيارات.
+      ];
+
+  /// ٣. الجواب.
+  List<Widget> _answerSection(DuelQuestion question) => [
+        // ‏الروضة: «أجب بصوتك» بارزاً بين السؤال والخيارات — زرُّ الجواب وحده.
         if (_kg && _game.phase == DuelPhase.question && !_game.hearing && _game.picked == null) ...[
           Center(
-            child: Arena3DButton(
-              key: const ValueKey('duel-kg-mic'),
-              glow: _listeningAt != null ? ArenaPalette.gold : null,
-              onPressed: _listeningAt == null ? () => unawaited(_answerByVoice()) : null,
-              child: Row(mainAxisSize: MainAxisSize.min, children: [
-                Icon(_listeningAt == null ? Icons.mic_rounded : Icons.graphic_eq_rounded, color: Colors.white),
-                const SizedBox(width: 8),
-                Text(tr(_listeningAt == null ? 'duel.kg.mic' : 'duel.kg.listening')),
-              ]),
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 420),
+              child: ValueListenableBuilder<bool>(
+                valueListenable: chatRecording,
+                builder: (context, recording, _) => DuelVoiceAnswerPad(
+                  state: _voiceState,
+                  heard: _heard,
+                  enabled: !recording,
+                  size: MediaQuery.sizeOf(context).shortestSide >= 600 ? 104 : 84,
+                  onTap: () => unawaited(_answerByVoice()),
+                ),
+              ),
             ),
           ),
-          const SizedBox(height: 10),
+          const SizedBox(height: 12),
         ],
         DuelChoices(
           game: widget.game,
@@ -686,12 +901,29 @@ class _DuelMatchScreenState extends State<DuelMatchScreen>
               ? (index) => unawaited(_game.pick(index))
               : null,
         ),
-        // رسالةٌ صوتيةٌ تحت الخيارات مباشرةً: اضغط مطوّلاً وتكلّم، وارفع للإرسال.
-        const SizedBox(height: 14),
-        voiceButton(),
-      ],
-    );
-  }
+      ];
+
+  /// ٤. «دردشة الزملاء»: بطاقةٌ مستقلّة، والرسالةُ الصوتية فيها بالضغط المطوّل.
+  Widget _chatSection() => Container(
+        key: const ValueKey('duel-chat-section'),
+        padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(20),
+          color: ArenaPalette.violet.withValues(alpha: 0.08),
+          border: Border.all(color: ArenaPalette.violet.withValues(alpha: 0.35), width: 1.5),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text(
+              tr('duel.chat.section'),
+              style: const TextStyle(color: ArenaPalette.violet, fontSize: 14, fontWeight: FontWeight.w900),
+            ),
+            const SizedBox(height: 8),
+            voiceButton(),
+          ],
+        ),
+      );
 
   Widget _resultView() {
     final result = _game.result;

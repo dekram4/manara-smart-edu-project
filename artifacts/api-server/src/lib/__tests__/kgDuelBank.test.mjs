@@ -68,3 +68,15 @@ test("صفُّ الروضة يُعرف بأيّ كتابة، والرابعُ ل
   assert.equal(tracing.isKindergartenGrade("روضة منارة المعرفة"), true);
   assert.equal(tracing.isKindergartenGrade("الصف الرابع الابتدائي"), false);
 });
+
+test("لا مشتّتَ بمعنى الجواب: «الماء» لا يُعرض مع «في الماء»", { skip }, () => {
+  assert.equal(mod.answerCore("في الماء"), mod.answerCore("الماء"));
+  for (let i = 0; i < 200; i++) {
+    for (const q of mod.kgPackFor(`core_${i}`).questions) {
+      const answer = q.options[q.answerAt];
+      for (const other of q.options) {
+        if (other !== answer) assert.notEqual(mod.answerCore(other), mod.answerCore(answer), `${q.id}: ${other}`);
+      }
+    }
+  }
+});

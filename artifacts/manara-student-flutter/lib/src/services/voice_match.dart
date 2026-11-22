@@ -87,6 +87,9 @@ bool _close(String said, String written) {
   return a.length >= 4 && b.length >= 4 && _distance(a, b) <= 1;
 }
 
+/// كلمتان متقاربتان في السماع ([_close]) — لمطابقاتٍ أخرى تبني على هذه.
+bool spokenWordsClose(String said, String written) => _close(said, written);
+
 /// هيكلُ الكلمة كما تُسمع: بلا حروف المدّ (ا و ي) إلا أوّلَها، وبالحروف
 /// المتقاربة في نطق الأطفال حرفاً واحداً — فلا يفرّق السماعُ السريع بين
 /// «سادين» و«سادن» ولا بين «ص» و«س».
