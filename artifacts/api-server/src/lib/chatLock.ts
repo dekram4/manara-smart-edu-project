@@ -2,9 +2,9 @@
  * قفلُ الدردشة: المعلّمُ يوقف الإرسالَ لطالبٍ بعينه أو لطلابه جميعاً متى شاء.
  *
  * ── ما يُقفل ──
- * الإرسالُ وحده — نصّاً وصوتاً وصورةً وملفّاً، إلى الزملاء وإلى المعلّم. والقراءةُ
- * باقية: يرى الطالبُ ما وصله، ويرى سطراً يقول إن المعلّم قفل الدردشة. والمعلّمُ
- * نفسه يرسل كما يشاء.
+ * الإرسالُ إلى المعلّم وحده — نصّاً وصوتاً وصورةً وملفّاً. ودردشةُ الطالب مع زملائه
+ * باقيةٌ إرسالاً واستقبالاً ([lockBlocks]). والقراءةُ باقية: يرى الطالبُ ما وصله من
+ * معلّمه، ويرى سطراً يقول إن المعلّم قفل الدردشة معه. والمعلّمُ يرسل كما يشاء.
  *
  * ── وأين يُحفظ ──
  * صفٌّ واحدٌ لكل معلّم في `interactions` (`chatlock_<معرّفه>`): لا جدولَ جديداً
@@ -50,6 +50,19 @@ export function readChatLock(data: unknown): ChatLock {
 
 export function isLockedFor(lock: ChatLock, studentId: string): boolean {
   return lock.all || lock.students.includes(studentId);
+}
+
+/** مستلمٌ هو معلّمُ الصفّ (`teacher:<معرّفه>`). */
+export function isTeacherRecipient(recipient: string): boolean {
+  return recipient.startsWith("teacher:");
+}
+
+/**
+ * هل يُرفض هذا الإرسال بالقفل؟ القفلُ يخصّ محادثةَ المعلّم وحدها: رسالةٌ إلى
+ * زميلٍ أو إلى الصفّ تمرّ وإن كان الطالبُ مقفولاً عليه.
+ */
+export function lockBlocks(lock: ChatLock, studentId: string, recipient: string): boolean {
+  return isTeacherRecipient(recipient) && isLockedFor(lock, studentId);
 }
 
 /**

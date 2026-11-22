@@ -7,6 +7,8 @@ import {
   chatLockRowId,
   emptyLock,
   isLockedFor,
+  isTeacherRecipient,
+  lockBlocks,
   readChatLock,
 } from "../../../dist/lib/chatLock.mjs";
 
@@ -41,4 +43,17 @@ test("معرّفُ صفّ القفل آمنٌ في العنوان، والرسا
   assert.match(chatLockRowId("أ.محمد 1"), /^chatlock_[A-Za-z0-9_-]+$/);
   assert.notEqual(chatLockRowId("t1"), chatLockRowId("t2"));
   assert.equal(CHAT_LOCKED_MESSAGE, "المعلم قام بقفل الدردشة حالياً");
+});
+
+test("القفلُ يخصّ محادثةَ المعلّم وحدها: الزملاءُ والصفُّ مفتوحون", () => {
+  const lock = applyLockChange(emptyLock(), { studentId: "s1", locked: true }, now);
+  assert.equal(lockBlocks(lock, "s1", "teacher:t1"), true);
+  assert.equal(lockBlocks(lock, "s1", "s2"), false);
+  assert.equal(lockBlocks(lock, "s1", "all"), false);
+  assert.equal(lockBlocks(lock, "s2", "teacher:t1"), false);
+  const all = applyLockChange(emptyLock(), { all: true }, now);
+  assert.equal(lockBlocks(all, "s9", "teacher:t1"), true);
+  assert.equal(lockBlocks(all, "s9", "s2"), false);
+  assert.equal(isTeacherRecipient("teacher:x"), true);
+  assert.equal(isTeacherRecipient("all"), false);
 });

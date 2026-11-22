@@ -653,6 +653,53 @@ void main() {
           find.text(trf('arena.withdrawn', {'name': 'سارة'})), findsOneWidget);
     });
 
+    testWidgets(
+        'دعوةٌ وصلتني خارج الساحة: تُفتح لها فوراً، و«مشغول» يرفضها ويعيدني حيث كنت',
+        (tester) async {
+      sized(tester, const Size(390, 844));
+      final duel = FakeDuel();
+      addTearDown(duel.events.close);
+      const invite = DuelInviteEvent(
+        kind: DuelInviteKind.invite,
+        matchId: 'm7',
+        fromId: 'r1',
+        fromName: 'سارة',
+      );
+      // ‏الواجهةُ تفتح الساحةَ بالدعوة فوق شاشةٍ أخرى من التطبيق.
+      await tester.pumpWidget(MaterialApp(
+        home: Builder(
+          builder: (context) => Scaffold(
+            body: Center(
+              child: TextButton(
+                key: const ValueKey('open-for-invite'),
+                onPressed: () => Navigator.of(context).push(MaterialPageRoute<void>(
+                  builder: (_) => StudentDuelScreen(
+                    profile: me,
+                    duelService: duel,
+                    challengeService: NoChallenge(),
+                    leaderboardService: FakeBoard(),
+                    initialInvite: invite,
+                  ),
+                )),
+                child: const Text('درسي'),
+              ),
+            ),
+          ),
+        ),
+      ));
+      await tester.tap(find.byKey(const ValueKey('open-for-invite')));
+      await settle(tester, 6);
+      expect(find.text(trf('arena.inviteTitle', {'name': 'سارة'})), findsOneWidget);
+      expect(find.text(tr('arena.accept')), findsOneWidget);
+      expect(find.text(tr('arena.decline')), findsOneWidget);
+
+      await tester.tap(find.text(tr('arena.decline')));
+      await settle(tester, 8);
+      expect(duel.log, contains('respond:m7:false'));
+      expect(find.byType(StudentDuelScreen), findsNothing);
+      expect(find.text('درسي'), findsOneWidget);
+    });
+
     testWidgets('لا تجاوزَ على شاشةٍ ضيّقةٍ ولا عريضة', (tester) async {
       await pumpLobby(tester, size: const Size(320, 640));
       expect(tester.takeException(), isNull);

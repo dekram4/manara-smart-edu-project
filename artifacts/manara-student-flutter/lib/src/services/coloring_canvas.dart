@@ -7,10 +7,11 @@ import 'package:flutter/rendering.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'coloring_drawings.dart';
+import 'drawing_studio.dart';
 import 'free_drawing.dart';
 
 /// لوحةٌ في «لوحاتي»: تلوينٌ جاهز ([ColoringController]) أو رسمٌ حرّ
-/// ([FreeDrawingController]). ما يحتاجه المعرضُ والدردشةُ ولوحُ الرسم منهما
+/// ([FreeDrawingController]) أو رسمةٌ من «استوديو الرسم» ([StudioArtwork]). ما يحتاجه المعرضُ والدردشةُ ولوحُ الرسم منهما
 /// واحد: الأدواتُ نفسُها، والحفظُ، والصورةُ المصغّرة، وصورةُ PNG للإرسال.
 abstract class ColoringArtwork extends ChangeNotifier {
   /// يُحفظ مع اللوحة: اسمُ الرسمة، أو `free:<وقت>` للرسم الحرّ.
@@ -60,6 +61,7 @@ abstract class ColoringArtwork extends ChangeNotifier {
     final id = json['id'];
     if (id is! String) return null;
     if (id.startsWith(FreeDrawingController.idPrefix)) return FreeDrawingController.fromJson(json);
+    if (id.startsWith(StudioArtwork.idPrefix)) return StudioArtwork.fromJson(json);
     return ColoringController.fromJson(json);
   }
 }
@@ -827,11 +829,15 @@ class ColoringGallery {
 
   /// يحفظ [controller] في أوّل «لوحاتي». [replacing] لوحةٌ فُتحت من المعرض
   /// فعُدّلت: تحلّ النسخةُ الجديدة محلّها لا بجانبها.
-  static Future<bool> save(ColoringArtwork controller, {required String owner, int? replacing}) async {
+  ///
+  /// و[replacingId]: تحلّ محلّ كلّ لوحةٍ بالمعرّف نفسه — رسمةُ الاستوديو تُحفظ
+  /// مرّةً بعد مرّة بمعرّفها، فتبقى واحدةً في «لوحاتي» بآخر نسخة.
+  static Future<bool> save(ColoringArtwork controller, {required String owner, int? replacing, bool replacingId = false}) async {
     try {
       final prefs = await SharedPreferences.getInstance();
       final list = List.of(prefs.getStringList(keyFor(owner)) ?? const <String>[]);
       if (replacing != null && replacing >= 0 && replacing < list.length) list.removeAt(replacing);
+      if (replacingId) list.removeWhere((item) => _idOf(item) == controller.artworkId);
       list.insert(0, jsonEncode(controller.toJson()));
       while (list.length > maxArtworks) {
         list.removeLast();
@@ -839,6 +845,29 @@ class ColoringGallery {
       return prefs.setStringList(keyFor(owner), list);
     } catch (error) {
       debugPrint('[coloring] artwork not saved: $error');
+      return false;
+    }
+  }
+
+  static String? _idOf(String item) {
+    try {
+      final json = jsonDecode(item);
+      return json is Map && json['id'] is String ? json['id'] as String : null;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// يمحو من «لوحاتي» كلَّ لوحةٍ بالمعرّف [id] — رسمةُ استوديو حُذفت من مشاريعه.
+  static Future<bool> removeId(String id, {required String owner}) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final list = List.of(prefs.getStringList(keyFor(owner)) ?? const <String>[]);
+      final before = list.length;
+      list.removeWhere((item) => _idOf(item) == id);
+      return list.length == before || await prefs.setStringList(keyFor(owner), list);
+    } catch (error) {
+      debugPrint('[coloring] artwork not removed: $error');
       return false;
     }
   }

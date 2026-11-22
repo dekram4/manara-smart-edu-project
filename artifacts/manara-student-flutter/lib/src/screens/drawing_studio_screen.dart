@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:gal/gal.dart';
 
+import '../services/coloring_canvas.dart';
 import '../services/coloring_cloud.dart';
 import '../services/drawing_studio.dart';
 import '../services/student_settings.dart';
@@ -228,7 +229,16 @@ class DrawingStudioScreenState extends State<DrawingStudioScreen> {
     try {
       if (target == 'project') {
         await StudioProjects.save(_owner, _controller);
-        _toast(_t('حُفظت في «لوحاتي» ✓', 'Saved to My drawings ✓'));
+        // ‏وفي «لوحاتي» نفسِها التي تحفظ فيها «لوحة الألوان»: فتظهر في الدردشة
+        // عند «أرسل رسمة» وفي معرض اللوحات. نسخةٌ مستقلّة: ما يُرسم بعد الحفظ لا
+        // يغيّرها حتى يُحفظ ثانية.
+        final copy = StudioArtwork.fromJson(_controller.toJson());
+        final ok = copy != null &&
+            await ColoringGallery.save(copy, owner: _owner, replacingId: true);
+        copy?.dispose();
+        _toast(ok
+            ? _t('حُفظت في «لوحاتي» ✓', 'Saved to My drawings ✓')
+            : _t('حُفظت في مشاريع الاستوديو، وتعذّر وضعها في «لوحاتي»', 'Saved as a studio project, but not added to My drawings'));
       } else {
         final png = await _controller.toPng();
         final saver = widget.saveToPhotos ??
@@ -353,6 +363,7 @@ class DrawingStudioScreenState extends State<DrawingStudioScreen> {
                                   onPressed: () async {
                                     if (!await _confirmDelete()) return;
                                     await StudioProjects.remove(_owner, p.id);
+                                    await ColoringGallery.removeId(p.id, owner: _owner);
                                     final fresh = await StudioProjects.load(_owner);
                                     setSheet(() => projects = fresh);
                                     if (mounted) _toast(_t('حُذفت الرسمة', 'Drawing deleted'));

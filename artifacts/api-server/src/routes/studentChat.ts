@@ -26,6 +26,7 @@ import {
   chatLockRowId,
   emptyLock,
   isLockedFor,
+  lockBlocks,
   readChatLock,
   type ChatLock,
 } from "../lib/chatLock";
@@ -184,6 +185,11 @@ async function lockOf(teacherKey: string): Promise<ChatLock> {
 
 async function chatLockedFor(student: StudentActor): Promise<boolean> {
   return isLockedFor(await lockOf(normalizeScopeId(student.teacherId)), student.id);
+}
+
+/** القفلُ يمنع هذا الإرسال: إلى المعلّم وحده — والزملاءُ مفتوحون. */
+async function lockedTo(student: StudentActor, recipient: string): Promise<boolean> {
+  return lockBlocks(await lockOf(normalizeScopeId(student.teacherId)), student.id, recipient);
 }
 
 /** 423: «المعلم قام بقفل الدردشة حالياً» — والتطبيقُ يعرضها كما هي. */
@@ -585,7 +591,6 @@ router.post("/student/chat/messages", chatRateLimit, requireStudentSession, reso
   if (!canUseChat(student)) {
     return res.status(403).json({ error: "الدردشة غير مفعلة لحسابك" });
   }
-  if (await chatLockedFor(student)) return sendLocked(res);
   const message = text(req.body?.message);
   const requestedRecipient = text(req.body?.to) || "all";
   if (!message || message.length > 1000) {
@@ -596,6 +601,7 @@ router.post("/student/chat/messages", chatRateLimit, requireStudentSession, reso
     if (!recipient) {
       return res.status(403).json({ error: "لا يمكنك إرسال رسالة إلى هذا الحساب" });
     }
+    if (await lockedTo(student, recipient)) return sendLocked(res);
     const config = apiSupabaseConfig();
     if (!config) throw new Error("Supabase is not configured");
     const now = new Date().toISOString();
@@ -709,7 +715,6 @@ router.post("/student/chat/voice", requireStudentSession, resolveChatTeacher, vo
   if (!canUseChat(student)) {
     return res.status(403).json({ error: "الدردشة غير مفعلة لحسابك" });
   }
-  if (await chatLockedFor(student)) return sendLocked(res);
   const note = parseChatVoice(req.body?.audio, req.body?.durationMs);
   if (!note.ok) {
     logger.warn(
@@ -739,6 +744,7 @@ router.post("/student/chat/voice", requireStudentSession, resolveChatTeacher, vo
     if (!recipient) {
       return res.status(403).json({ error: "لا يمكنك إرسال رسالة إلى هذا الحساب" });
     }
+    if (await lockedTo(student, recipient)) return sendLocked(res);
     const now = new Date().toISOString();
     const scope = {
       from: student.id,
@@ -863,7 +869,6 @@ router.post("/student/chat/image", requireStudentSession, resolveChatTeacher, im
   if (!canUseChat(student)) {
     return res.status(403).json({ error: "الدردشة غير مفعلة لحسابك" });
   }
-  if (await chatLockedFor(student)) return sendLocked(res);
   const image = parseChatImage(req.body?.image);
   if (!image.ok) {
     logger.warn({ studentId: student.id, code: image.error }, "[student-chat] image rejected");
@@ -881,6 +886,7 @@ router.post("/student/chat/image", requireStudentSession, resolveChatTeacher, im
     if (!recipient) {
       return res.status(403).json({ error: "لا يمكنك إرسال رسالة إلى هذا الحساب" });
     }
+    if (await lockedTo(student, recipient)) return sendLocked(res);
     const now = new Date().toISOString();
     const scope = {
       from: student.id,
@@ -976,7 +982,6 @@ router.post("/student/chat/file", requireStudentSession, resolveChatTeacher, fil
   if (!canUseChat(student)) {
     return res.status(403).json({ error: "الدردشة غير مفعلة لحسابك" });
   }
-  if (await chatLockedFor(student)) return sendLocked(res);
   const file = parseChatFile(req.body?.file, req.body?.name, req.body?.gzip);
   if (!file.ok) {
     logger.warn({ studentId: student.id, code: file.error }, "[student-chat] file rejected");
@@ -987,6 +992,7 @@ router.post("/student/chat/file", requireStudentSession, resolveChatTeacher, fil
     if (!recipient) {
       return res.status(403).json({ error: "لا يمكنك إرسال رسالة إلى هذا الحساب" });
     }
+    if (await lockedTo(student, recipient)) return sendLocked(res);
     const message = await writeFileMessage(
       { from: student.id, to: recipient, grade: student.grade, teacherId: student.teacherId },
       student.name,
@@ -1089,19 +1095,36 @@ router.get("/teacher/chat/messages", teacherChatLimit, async (req, res) => {
       }
       receipts.push(...found);
     }
+    // ‏رسالةٌ «لجميع الطلاب» مستلموها طلابُ صفّها كلُّهم، لا طالبٌ واحد.
+    const classOf = new Map<string, string[]>();
+    for (const row of rows) {
+      const data = dataOf(row);
+      const grade = text(data.grade);
+      if (text(data.to) === "all" && !classOf.has(grade)) {
+        classOf.set(grade, (await findStudentsInScope(grade, teacher.key)).map((p) => p.id));
+      }
+    }
+    const recipientsFor = (row: Record<string, unknown>) => {
+      const meta = metaOf(row);
+      if (meta.from !== teacher.recipient) return [teacher.recipient];
+      return meta.to === "all" ? classOf.get(text(dataOf(row).grade)) ?? [] : [meta.to];
+    };
     const messages = rows
       .filter((row) => {
         if (!ephemeral) return true;
-        const meta = metaOf(row);
-        const recipients = meta.from === teacher.recipient ? [meta.to] : [teacher.recipient];
-        return visibleTo(meta, teacher.recipient, recipients, receipts, visit, now);
+        return visibleTo(metaOf(row), teacher.recipient, recipientsFor(row), receipts, visit, now);
       })
       .map((row): Record<string, unknown> => {
         const meta = metaOf(row);
         const out: Record<string, unknown> = { ...publicMessage(row), grade: text(dataOf(row).grade) };
         if (meta.from === teacher.recipient) {
           out.mine = true;
-          out.readByAll = allSeenAt(meta, [meta.to], receipts) !== null;
+          const recipients = recipientsFor(row);
+          out.readByAll = allSeenAt(meta, recipients, receipts) !== null;
+          if (meta.to === "all") {
+            out.recipients = recipients.length;
+            out.seenCount = seenBy(meta, recipients, receipts).length;
+          }
         }
         return out;
       })
@@ -1208,19 +1231,44 @@ router.get("/teacher/chat/students", teacherChatLimit, async (req, res) => {
   }
 });
 
-/** يحلّ الطالبَ المستلم أو يردّ بالخطأ. */
-async function teacherTarget(req: any, res: any) {
+type TeacherScope = ReturnType<typeof teacherScope>;
+
+/**
+ * يحلّ المستلمَ أو يردّ بالخطأ: طالبٌ من طلاب المعلّم، أو `all` — جميعُ طلابه.
+ *
+ * ── «لجميع الطلاب»: رسالةٌ لكل صفّ ──
+ * طلابُ المعلّم في صفوفٍ مختلفة، والطالبُ يرى ما في صفّه وحده. فتُكتب الرسالةُ مرّةً
+ * لكل صفّ، إلى `all` فيه — كرسالة الطالب إلى صفّه. فتجري عليها دورةُ القراءة نفسها:
+ * يراها كلُّ طالب، ويرى المعلّمُ كم شاهدها، وتُحذف حين يشاهدها الصفُّ كلُّه.
+ */
+async function teacherTargets(req: any, res: any): Promise<{ teacher: { key: string; recipient: string }; scopes: TeacherScope[] } | null> {
   const teacher = await teacherReader(req);
   if (!teacher) {
     res.status(401).json({ error: "سجّل الدخول كمعلّم أولاً" });
     return null;
   }
-  const student = await teacherStudent(teacher.key, text(req.body?.to));
+  const to = text(req.body?.to);
+  if (to === "all") {
+    const byGrade = new Map<string, TeacherScope>();
+    for (const student of await studentsOfTeacher(teacher.key)) {
+      if (!student.canAccessChat) continue;
+      const grade = normalizeScopeId(student.grade);
+      if (grade && !byGrade.has(grade)) {
+        byGrade.set(grade, { ...teacherScope(teacher, student), to: "all" });
+      }
+    }
+    if (byGrade.size === 0) {
+      res.status(404).json({ error: "لا يوجد طلاب مربوطون بك بعد", code: "no_students" });
+      return null;
+    }
+    return { teacher, scopes: [...byGrade.values()] };
+  }
+  const student = await teacherStudent(teacher.key, to);
   if (!student) {
     res.status(403).json({ error: "هذا الطالب ليس من طلابك", code: "not_your_student" });
     return null;
   }
-  return { teacher, student };
+  return { teacher, scopes: [teacherScope(teacher, student)] };
 }
 
 router.post("/teacher/chat/messages", teacherChatLimit, async (req, res) => {
@@ -1229,19 +1277,17 @@ router.post("/teacher/chat/messages", teacherChatLimit, async (req, res) => {
     return res.status(400).json({ error: "الرسالة يجب أن تكون بين 1 و2000 حرف" });
   }
   try {
-    const target = await teacherTarget(req, res);
+    const target = await teacherTargets(req, res);
     if (!target) return;
     const now = new Date().toISOString();
-    const id = `chat_${Date.now()}_${crypto.randomUUID()}`;
-    const data = {
-      type: "student_chat",
-      ...teacherScope(target.teacher, target.student),
-      name: TEACHER_NAME,
-      message,
-      time: now,
-    };
-    await writeRow(id, data, now);
-    return res.status(201).json({ message: { id, ...data, kind: "text", mine: true } });
+    const sent: Record<string, unknown>[] = [];
+    for (const scope of target.scopes) {
+      const id = `chat_${Date.now()}_${crypto.randomUUID()}`;
+      const data = { type: "student_chat", ...scope, name: TEACHER_NAME, message, time: now };
+      await writeRow(id, data, now);
+      sent.push({ id, ...data, kind: "text", mine: true });
+    }
+    return res.status(201).json({ message: sent[0], classes: sent.length });
   } catch (error) {
     logger.error({ err: error }, "[teacher-chat] send failed");
     return res.status(503).json({ error: "تعذر إرسال الرسالة الآن" });
@@ -1254,16 +1300,19 @@ router.post("/teacher/chat/voice", teacherChatLimit, async (req, res) => {
     return res.status(400).json({ error: "الرسالة الصوتية غير صالحة", code: note.error });
   }
   try {
-    const target = await teacherTarget(req, res);
+    const target = await teacherTargets(req, res);
     if (!target) return;
     const now = new Date().toISOString();
-    const scope = teacherScope(target.teacher, target.student);
-    const voiceId = `chatvoice_${Date.now()}_${crypto.randomUUID()}`;
-    await writeRow(voiceId, { type: "student_chat_voice", ...scope, audio: note.base64, mime: note.mime, time: now }, now);
-    const id = `chat_${Date.now()}_${crypto.randomUUID()}`;
-    const data = { type: "student_chat", ...scope, name: TEACHER_NAME, message: "", voiceId, durationMs: note.durationMs, time: now };
-    await writeRow(id, data, now);
-    return res.status(201).json({ message: { ...data, id, kind: "voice", mine: true } });
+    const sent: Record<string, unknown>[] = [];
+    for (const scope of target.scopes) {
+      const voiceId = `chatvoice_${Date.now()}_${crypto.randomUUID()}`;
+      await writeRow(voiceId, { type: "student_chat_voice", ...scope, audio: note.base64, mime: note.mime, time: now }, now);
+      const id = `chat_${Date.now()}_${crypto.randomUUID()}`;
+      const data = { type: "student_chat", ...scope, name: TEACHER_NAME, message: "", voiceId, durationMs: note.durationMs, time: now };
+      await writeRow(id, data, now);
+      sent.push({ ...data, id, kind: "voice", mine: true });
+    }
+    return res.status(201).json({ message: sent[0], classes: sent.length });
   } catch (error) {
     logger.error({ err: error }, "[teacher-chat] voice send failed");
     return res.status(503).json({ error: "تعذر إرسال الرسالة الصوتية الآن" });
@@ -1276,16 +1325,19 @@ router.post("/teacher/chat/image", teacherChatLimit, async (req, res) => {
     return res.status(image.error === "tooBig" ? 413 : 400).json({ error: "الصورة غير صالحة أو كبيرة", code: image.error });
   }
   try {
-    const target = await teacherTarget(req, res);
+    const target = await teacherTargets(req, res);
     if (!target) return;
     const now = new Date().toISOString();
-    const scope = teacherScope(target.teacher, target.student);
-    const imageId = `chatimage_${Date.now()}_${crypto.randomUUID()}`;
-    await writeRow(imageId, { type: "student_chat_image", ...scope, image: image.base64, mime: image.mime, time: now }, now);
-    const id = `chat_${Date.now()}_${crypto.randomUUID()}`;
-    const data = { type: "student_chat", ...scope, name: TEACHER_NAME, message: "", imageId, time: now };
-    await writeRow(id, data, now);
-    return res.status(201).json({ message: { ...data, id, kind: "image", mine: true } });
+    const sent: Record<string, unknown>[] = [];
+    for (const scope of target.scopes) {
+      const imageId = `chatimage_${Date.now()}_${crypto.randomUUID()}`;
+      await writeRow(imageId, { type: "student_chat_image", ...scope, image: image.base64, mime: image.mime, time: now }, now);
+      const id = `chat_${Date.now()}_${crypto.randomUUID()}`;
+      const data = { type: "student_chat", ...scope, name: TEACHER_NAME, message: "", imageId, time: now };
+      await writeRow(id, data, now);
+      sent.push({ ...data, id, kind: "image", mine: true });
+    }
+    return res.status(201).json({ message: sent[0], classes: sent.length });
   } catch (error) {
     logger.error({ err: error }, "[teacher-chat] image send failed");
     return res.status(503).json({ error: "تعذر إرسال الصورة الآن" });
@@ -1296,10 +1348,13 @@ router.post("/teacher/chat/file", teacherChatLimit, async (req, res) => {
   const file = parseChatFile(req.body?.file, req.body?.name, req.body?.gzip);
   if (!file.ok) return fileRejection(res, file.error);
   try {
-    const target = await teacherTarget(req, res);
+    const target = await teacherTargets(req, res);
     if (!target) return;
-    const message = await writeFileMessage(teacherScope(target.teacher, target.student), TEACHER_NAME, file);
-    return res.status(201).json({ message: { ...message, mine: true } });
+    const sent: Record<string, unknown>[] = [];
+    for (const scope of target.scopes) {
+      sent.push({ ...(await writeFileMessage(scope, TEACHER_NAME, file)), mine: true });
+    }
+    return res.status(201).json({ message: sent[0], classes: sent.length });
   } catch (error) {
     logger.error({ err: error }, "[teacher-chat] file send failed");
     return res.status(503).json({ error: "تعذر إرسال الملف الآن" });

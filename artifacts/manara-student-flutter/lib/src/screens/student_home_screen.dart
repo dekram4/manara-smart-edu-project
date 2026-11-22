@@ -25,6 +25,8 @@ import '../services/kindergarten_voice_quiz.dart';
 import '../services/tracing_scope.dart';
 import '../services/student_study_service.dart';
 import '../services/student_duel_service.dart';
+import '../services/student_chat_inbox.dart';
+import '../widgets/chat_arrival_banner.dart';
 import '../services/student_leaderboard_service.dart';
 import '../services/student_content_service.dart';
 import '../widgets/living_art.dart';
@@ -100,6 +102,25 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> with RouteAware {
   late final StudentLeaderboardService _leaderboardService;
   late final StudentDuelService _duelService;
   late final ConfettiController _rewardController;
+
+  // ── الحضورُ في التطبيق كلّه ──
+  /// دعواتُ التحدي تصل أينما كان الطالبُ في التطبيق. والساحةُ إن كانت مفتوحة
+  /// تتولّاها بنفسها.
+  StreamSubscription<DuelInviteEvent>? _invitesAnywhere;
+  bool _duelOpen = false;
+
+  // ── تنبيهُ الرسائل ──
+  StudentChatInbox? _chatInbox;
+  StreamSubscription<ChatArrival>? _chatArrivals;
+  OverlayEntry? _chatBanner;
+  Timer? _chatBannerTimer;
+  bool _chatOpen = false;
+
+  String get _classKey {
+    final teacher = (widget.profile.teacherId ?? '').trim();
+    final grade = (widget.profile.grade ?? '').trim();
+    return teacher.isEmpty || grade.isEmpty ? '' : '$teacher:$grade';
+  }
 
   /// يعيش خارج البطاقات لأن القائمة تتخلّص منها عند السحب. بدونه تعيد كل
   /// بطاقة حركة دخولها كلّما عادت إلى الشاشة.
@@ -204,6 +225,20 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> with RouteAware {
       authService: widget.authService,
     );
     _rewardController = ConfettiController(duration: const Duration(seconds: 2));
+    if (!DemoMode.active) {
+      _invitesAnywhere = _duelService.inviteEvents.listen(_onInviteAnywhere);
+      _joinClass();
+      if (widget.profile.canAccessChat) {
+        final inbox = StudentChatInbox(
+          apiBaseUrl: widget.apiBaseUrl,
+          authService: widget.authService,
+          myId: widget.profile.id,
+        );
+        _chatInbox = inbox;
+        _chatArrivals = inbox.arrivals.listen(_onChatArrival);
+        inbox.start();
+      }
+    }
     _loadGamification();
     unawaited(_loadCardAccess());
     _startCardAccessPoll();
@@ -213,7 +248,15 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> with RouteAware {
       _selectionData = null;
       unawaited(_loadCardAccess());
       _startCardAccessPoll();
-    }, onPause: _stopCardAccessPoll);
+      // ‏عاد إلى التطبيق: متصلٌ ثانيةً، والرسائلُ تُراقب.
+      _joinClass();
+      if (!_chatOpen) _chatInbox?.resume();
+    }, onPause: () {
+      _stopCardAccessPoll();
+      // ‏خرج من التطبيق: لم يعد «متصلاً»، ولا يُسأل الخادمُ عن الرسائل.
+      if (!DemoMode.active) unawaited(_duelService.leaveClass());
+      _chatInbox?.pause();
+    });
     WidgetsBinding.instance.addPostFrameCallback((_) => _runOpeningSequence());
   }
 
@@ -497,6 +540,90 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> with RouteAware {
     _openModule(index);
   }
 
+  /// يفتح ساحةَ «تحدَّ زملاءك» — من بطاقتها، أو لدعوةٍ وصلت والطالبُ في مكانٍ آخر.
+  void _openDuel({DuelInviteEvent? invite}) {
+    _duelOpen = true;
+    Navigator.of(context)
+        .push(
+          StudentPageRoute<void>(
+            immersive: true,
+            builder: (_) => StudentDuelScreen(
+              profile: widget.profile,
+              duelService: _duelService,
+              challengeService: _challengeService,
+              leaderboardService: _leaderboardService,
+              academicContext: _academicContext,
+              initialInvite: invite,
+            ),
+          ),
+        )
+        .whenComplete(() {
+      _duelOpen = false;
+      // جوهرةُ الفوز تُصرف في الخادم، فرصيدُ الواجهة يُقرأ عند العودة.
+      if (mounted) _loadGamification();
+    });
+  }
+
+  /// ينضمّ إلى قناة صفّه: «متصل» لزملائه ما دام التطبيقُ أمامه.
+  void _joinClass() {
+    if (DemoMode.active) return;
+    final key = _classKey;
+    if (key.isEmpty) return;
+    unawaited(_duelService.joinClass(classKey: key, myId: widget.profile.id));
+  }
+
+  /// دعوةُ تحدٍّ والطالبُ خارج الساحة: تُفتح له الساحةُ ونافذةُ الدعوة فيها،
+  /// فيختار «موافق» أو «مشغول».
+  void _onInviteAnywhere(DuelInviteEvent event) {
+    if (!mounted || _duelOpen || event.kind != DuelInviteKind.invite) return;
+    // ‏أغلق المعلّمُ بطاقةَ التحدي: لا يُسحب الطالبُ إليها، ويعرف الداعي فوراً.
+    if (_isCardLocked(9)) {
+      _duelService.replyInvite(to: event.fromId, matchId: event.matchId, accepted: false);
+      unawaited(_duelService
+          .respond(matchId: event.matchId, accept: false)
+          .then((_) {}, onError: (_) {}));
+      return;
+    }
+    _hideChatBanner();
+    _openDuel(invite: event);
+  }
+
+  // ── تنبيهُ الرسائل ──
+
+  void _onChatArrival(ChatArrival arrival) {
+    if (!mounted || _chatOpen) return;
+    final overlay = Navigator.maybeOf(context, rootNavigator: true)?.overlay;
+    if (overlay == null) return;
+    _hideChatBanner();
+    StudentSoundService.instance.play(StudentSoundCue.success);
+    final entry = OverlayEntry(
+      builder: (_) => Positioned(
+        top: 0,
+        left: 0,
+        right: 0,
+        child: ChatArrivalBanner(
+          arrival: arrival,
+          onOpen: () {
+            _hideChatBanner();
+            if (mounted && !_chatOpen) unawaited(_openCard(8));
+          },
+          onClose: _hideChatBanner,
+        ),
+      ),
+    );
+    overlay.insert(entry);
+    _chatBanner = entry;
+    _chatBannerTimer = Timer(const Duration(seconds: 7), _hideChatBanner);
+  }
+
+  void _hideChatBanner() {
+    _chatBannerTimer?.cancel();
+    _chatBannerTimer = null;
+    final entry = _chatBanner;
+    _chatBanner = null;
+    if (entry != null && entry.mounted) entry.remove();
+  }
+
   Future<void> _loadGamification() async {
     // ‏الزائرُ: جواهرُه ومستواه ومكافآتُه أصفارٌ دائماً.
     if (DemoMode.active) return;
@@ -565,6 +692,10 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> with RouteAware {
     _dealCue?.cancel();
     _dealTracker.dispose();
     _rewardController.dispose();
+    unawaited(_invitesAnywhere?.cancel());
+    unawaited(_chatArrivals?.cancel());
+    _hideChatBanner();
+    _chatInbox?.dispose();
     _duelService.dispose();
     super.dispose();
   }
@@ -694,7 +825,12 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> with RouteAware {
     }
 
     if (index == 8) {
-      Navigator.of(context).push(
+      // ‏الدردشةُ تعرض الجديدَ بنفسها: لا تنبيهَ فوقها، ويعود بعد إغلاقها.
+      _chatOpen = true;
+      _hideChatBanner();
+      _chatInbox?.pause();
+      Navigator.of(context)
+          .push(
         StudentPageRoute<void>(
           immersive: true,
           builder: (_) => StudentChatScreen(
@@ -703,7 +839,11 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> with RouteAware {
             authService: widget.authService,
           ),
         ),
-      );
+      )
+          .whenComplete(() {
+        _chatOpen = false;
+        if (mounted) _chatInbox?.resume(quietly: true);
+      });
       return;
     }
 
@@ -802,21 +942,7 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> with RouteAware {
     }
 
     if (index == 9) {
-      Navigator.of(context)
-          .push(
-            StudentPageRoute<void>(
-              immersive: true,
-              builder: (_) => StudentDuelScreen(
-                profile: widget.profile,
-                duelService: _duelService,
-                challengeService: _challengeService,
-                leaderboardService: _leaderboardService,
-                academicContext: _academicContext,
-              ),
-            ),
-          )
-          // جوهرةُ الفوز تُصرف في الخادم، فرصيدُ الواجهة يُقرأ عند العودة.
-          .then((_) => _loadGamification());
+      _openDuel();
       return;
     }
 
@@ -1281,6 +1407,7 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> with RouteAware {
                       isLocked: _isCardLocked,
                       isVisible: _isCardVisible,
                       dealTracker: _dealTracker,
+                      chatUnread: _chatInbox?.unread,
                     ),
                   ),
                     ],
@@ -1536,7 +1663,60 @@ class _HomeSectionGrid extends StatelessWidget {
     required this.isLocked,
     required this.dealTracker,
     this.isVisible = _always,
+    this.chatUnread,
   });
+
+  /// رسائلُ تنتظر الطالب: عدّادٌ على بطاقة الدردشة.
+  final ValueListenable<int>? chatUnread;
+
+  /// بطاقةُ الدردشة (الموضع 8) بعدّاد رسائلها غير المقروءة في زاويتها.
+  Widget _withUnread(int module, Widget card) {
+    final unread = chatUnread;
+    if (module != 8 || unread == null) return card;
+    return Stack(
+      clipBehavior: Clip.none,
+      children: [
+        card,
+        PositionedDirectional(
+          top: -6,
+          end: -4,
+          child: IgnorePointer(
+            child: ValueListenableBuilder<int>(
+              valueListenable: unread,
+              builder: (context, count, _) => count <= 0
+                  ? const SizedBox.shrink()
+                  : Semantics(
+                      label: trf('chat.unreadBadge', {'n': '$count'}),
+                      child: Container(
+                        key: const ValueKey('chat-unread-badge'),
+                        constraints: const BoxConstraints(minWidth: 30),
+                        height: 30,
+                        padding: const EdgeInsets.symmetric(horizontal: 8),
+                        alignment: Alignment.center,
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFDC2626),
+                          borderRadius: BorderRadius.circular(15),
+                          border: Border.all(color: Colors.white, width: 2.5),
+                          boxShadow: const [
+                            BoxShadow(color: Color(0x55000000), blurRadius: 8, offset: Offset(0, 3)),
+                          ],
+                        ),
+                        child: Text(
+                          count > 99 ? '99+' : '$count',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 14,
+                            fontWeight: FontWeight.w900,
+                          ),
+                        ),
+                      ),
+                    ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
 
   static bool _always(int index) => true;
 
@@ -1619,7 +1799,9 @@ class _HomeSectionGrid extends StatelessWidget {
                 // motion tests read the first `Transform` under that key and
                 // assert on the card's own breath and tilt. Wrapping the key
                 // would put this transform there instead.
-                child: DealtCardEntrance(
+                child: _withUnread(
+                  order[index],
+                  DealtCardEntrance(
                   index: index,
                   tracker: dealTracker,
                   child: _SectionTile(
@@ -1636,6 +1818,7 @@ class _HomeSectionGrid extends StatelessWidget {
                     // الموضعُ المنطقيّ لا البصريّ: المستقبِل يوزّع به.
                     onPressed: () => onSectionPressed(order[index]),
                   ),
+                ),
                 ),
               ),
             ],

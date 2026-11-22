@@ -11,12 +11,14 @@ import 'package:gal/gal.dart';
 import '../services/coloring_canvas.dart';
 import '../services/coloring_cloud.dart';
 import '../services/coloring_drawings.dart';
+import '../services/drawing_studio.dart';
 import '../services/free_drawing.dart';
 import '../services/student_settings.dart';
 import '../services/student_sound_service.dart';
 import '../theme/student_theme.dart';
 import '../widgets/portal_watermark.dart';
 import '../widgets/student_avatar_view.dart';
+import 'drawing_studio_screen.dart';
 
 /// «لوحة الألوان السحرية»: يختار الطفلُ رسمةً ويلوّنها بإصبعه.
 ///
@@ -429,6 +431,13 @@ class MagicColoringScreenState extends State<MagicColoringScreen> {
     final copy = ColoringArtwork.fromJson(saved.toJson());
     if (copy == null) return;
     HapticFeedback.selectionClick();
+    // ‏رسمةُ الاستوديو تُعدَّل في الاستوديو بطبقاتها وأدواته — لا بأدوات لوحة الألوان.
+    if (copy is StudioArtwork) {
+      unawaited(Navigator.of(context).push(MaterialPageRoute<void>(
+        builder: (_) => DrawingStudioScreen(account: widget.account, initial: copy.studio),
+      )).then((_) => _loadGallery()));
+      return;
+    }
     _mode = copy is FreeDrawingController ? ColoringMode.free : ColoringMode.ready;
     if (copy is FreeDrawingController) _tool = ColoringTool.brush;
     _replaceController(copy, galleryIndex: index);

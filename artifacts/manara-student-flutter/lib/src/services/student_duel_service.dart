@@ -421,9 +421,10 @@ class DuelResult {
 /// مسألةَ من يُعدّل التطبيق.
 ///
 /// ── والحضورُ شرطُ التحدي ──
-/// قناةُ الصفّ تقول من في الساحة الآن، وعليها تُبثّ الدعوةُ والردُّ عليها. فلا
-/// يُتحدّى إلا متصل، وتُلعب المباراةُ بين اثنين حاضرين معاً — السؤالُ نفسه في
-/// اللحظة نفسها، وأوّلُ صحيحٍ يكسبه.
+/// قناةُ الصفّ تقول من في تطبيق منارة الآن — لا في بطاقة التحدي وحدها — وعليها
+/// تُبثّ الدعوةُ والردُّ عليها. فالواجهةُ تنضمّ إليها ما دام التطبيقُ أمام الطالب،
+/// وتصله الدعوةُ أينما كان فيه. ولا يُتحدّى إلا متصل، وتُلعب المباراةُ بين اثنين
+/// حاضرين معاً — السؤالُ نفسه في اللحظة نفسها، وأوّلُ صحيحٍ يكسبه.
 class StudentDuelService {
   StudentDuelService({
     required this.apiBaseUrl,
@@ -438,7 +439,11 @@ class StudentDuelService {
   static const _timeout = Duration(seconds: 20);
 
   RealtimeChannel? _classChannel;
+  String _classKey = '';
   RealtimeChannel? _matchChannel;
+
+  /// منضمٌّ الآن إلى قناة صفّ.
+  bool get inClass => _classChannel != null;
 
   /// من في الصفّ متصلٌ الآن، بمعرّفاتهم.
   final ValueNotifier<Set<String>> online = ValueNotifier(const {});
@@ -712,7 +717,7 @@ class StudentDuelService {
   final StreamController<DuelInviteEvent> _inviteEvents =
       StreamController<DuelInviteEvent>.broadcast();
 
-  /// دعواتٌ وردودٌ موجَّهةٌ إليّ، ما دمتُ في الساحة.
+  /// دعواتٌ وردودٌ موجَّهةٌ إليّ، ما دمتُ في التطبيق.
   Stream<DuelInviteEvent> get inviteEvents => _inviteEvents.stream;
 
   String _myId = '';
@@ -793,8 +798,12 @@ class StudentDuelService {
     required String myId,
   }) async {
     if (classKey.isEmpty || myId.isEmpty) return;
+    // ‏منضمٌّ إلى القناة نفسها: لا يُعاد الانضمام. الواجهةُ والساحةُ تطلبانه معاً،
+    // وإعادتُه تُخرج الطالبَ من الحضور لحظةً ثم تعيده.
+    if (_classChannel != null && _classKey == classKey && _myId == myId) return;
     try {
       await leaveClass();
+      _classKey = classKey;
       final channel = authService.client.channel(
         'class:$classKey',
         opts: const RealtimeChannelConfig(self: true),
@@ -843,6 +852,7 @@ class StudentDuelService {
   Future<void> leaveClass() async {
     final channel = _classChannel;
     _classChannel = null;
+    _classKey = '';
     online.value = const {};
     if (channel == null) return;
     // ── يُزال من العميل لا يُلغى اشتراكُه وحده ──
