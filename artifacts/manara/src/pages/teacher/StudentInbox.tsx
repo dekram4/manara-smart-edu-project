@@ -24,9 +24,12 @@ import {
  * الدردشة حالياً». ودردشتُه مع زملائه باقيةٌ إرسالاً واستقبالاً. والمعلّمُ يرسل له
  * كما يشاء.
  *
- * ── «جميع الطلاب» ──
- * أوّلُ القائمة: رسالةٌ واحدةٌ تصل كلَّ طلاب المعلّم معاً، بكل صفوفهم. ويبقى اختيارُ
- * طالبٍ بعينه كما هو.
+ * ── ثلاثُ طرقٍ للإرسال ──
+ * «جميع الطلاب»: رسالةٌ واحدةٌ تصل كلَّ طلاب المعلّم معاً، بكل صفوفهم.
+ * «طالبٌ واحد»: يُختار من القائمة فتُفتح محادثتُه.
+ * «عدّة طلاب»: خاناتُ تحديدٍ بجانب الأسماء، وعدّادٌ، و«تحديد الكل» و«إلغاء التحديد».
+ * وما يُرسل لهم يُكتب لكلٍّ منهم كأنه له وحده: يظهر في «معلّمي» عنده وفي محادثته
+ * هنا، ولكلٍّ مؤشّرُ قراءته.
  *
  * ── والصورُ تظهر في مكانها ──
  * صورةُ الطالب تُجلب وتُعرض في المحادثة مباشرةً، وتُكبَّر بلمسة.
@@ -61,6 +64,12 @@ interface ChatMessage {
 
 /** «جميع الطلاب» في قائمة المحادثات. */
 const ALL = 'all';
+
+/** «عدّة طلاب»: الطلابُ المحدَّدون بخاناتهم. */
+const MULTI = '__multi__';
+
+/** رسالةٌ واحدةٌ أُرسلت لعدّة طلاب: نسخُها كلُّها، واحدةٌ لكل طالب. */
+type SentGroup = { lead: ChatMessage; copies: ChatMessage[] };
 
 interface ChatStudent {
   id: string;
@@ -135,6 +144,8 @@ const StudentInbox: React.FC<StudentInboxProps> = ({ onClose }) => {
   const [notice, setNotice] = useState('');
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [selected, setSelected] = useState('');
+  /** المحدَّدون في «عدّة طلاب». */
+  const [picked, setPicked] = useState<Set<string>>(new Set());
   const [query, setQuery] = useState('');
   const [draft, setDraft] = useState('');
   const [loading, setLoading] = useState(true);
@@ -217,9 +228,27 @@ const StudentInbox: React.FC<StudentInboxProps> = ({ onClose }) => {
 
   const thread = useMemo(
     () => messages.filter((m) =>
-      selected === ALL ? m.mine && m.to === ALL : m.from === selected || m.to === selected),
+      selected === ALL
+        ? m.mine && m.to === ALL
+        : selected === MULTI
+          ? false
+          : m.from === selected || m.to === selected),
     [messages, selected],
   );
+
+  // ‏«عدّة طلاب»: ما أرسلتُه للمحدَّدين، والنسخُ المتطابقة (الوقتُ والمحتوى) رسالةٌ واحدة.
+  const groups = useMemo<SentGroup[]>(() => {
+    if (selected !== MULTI) return [];
+    const byKey = new Map<string, SentGroup>();
+    for (const m of messages) {
+      if (!m.mine || !picked.has(m.to)) continue;
+      const key = [m.kind, m.time, m.message, m.fileName ?? '', m.durationMs ?? ''].join('|');
+      const group = byKey.get(key);
+      if (group) group.copies.push(m);
+      else byKey.set(key, { lead: m, copies: [m] });
+    }
+    return [...byKey.values()];
+  }, [messages, picked, selected]);
 
   // ‏النصُّ من الطالب يُقرأ بعرضه في محادثته.
   useEffect(() => {
@@ -236,7 +265,19 @@ const StudentInbox: React.FC<StudentInboxProps> = ({ onClose }) => {
   const shown = students.filter((s) => !query.trim() || s.name.includes(query.trim()) || s.grade.includes(query.trim()));
   const current = students.find((s) => s.id === selected);
   const toAll = selected === ALL;
+  const toMany = selected === MULTI;
   const chatStudents = students.filter((s) => s.chat).length;
+  /** المستلمُ في طلب الإرسال: طالب، أو `all`، أو قائمةُ المحدَّدين. */
+  const target = (): string | string[] => (toMany ? [...picked] : selected);
+  const nameOf = (id: string) => students.find((s) => s.id === id)?.name ?? '';
+  const togglePick = (id: string) =>
+    setPicked((prev) => {
+      const next = new Set(prev);
+      if (!next.delete(id)) next.add(id);
+      return next;
+    });
+  const pickAll = () => setPicked(new Set(shown.filter((s) => s.chat).map((s) => s.id)));
+  const clearPicks = () => setPicked(new Set());
 
   const post = async (route: string, body: Record<string, unknown>) => {
     const response = await fetch(`${BASE}/${route}`, {
@@ -256,6 +297,10 @@ const StudentInbox: React.FC<StudentInboxProps> = ({ onClose }) => {
 
   const run = async (task: () => Promise<unknown>) => {
     if (sending || !selected) return;
+    if (selected === MULTI && picked.size === 0) {
+      setError('حدّد طالباً واحداً على الأقل من القائمة');
+      return;
+    }
     setSending(true);
     setError('');
     try {
@@ -263,6 +308,9 @@ const StudentInbox: React.FC<StudentInboxProps> = ({ onClose }) => {
       if (selected === ALL) {
         const classes = (sent as { classes?: number } | undefined)?.classes ?? 0;
         setNotice(`📣 أُرسلت إلى جميع طلابك${classes > 1 ? ` في ${classes} صفوف` : ''}.`);
+      } else if (selected === MULTI) {
+        const count = (sent as { classes?: number } | undefined)?.classes ?? picked.size;
+        setNotice(`📨 أُرسلت إلى ${count} ${count === 1 ? 'طالب' : 'طلاب'} — تظهر لكلٍّ منهم في «معلّمي».`);
       }
       await loadMessages();
     } catch (err) {
@@ -276,7 +324,7 @@ const StudentInbox: React.FC<StudentInboxProps> = ({ onClose }) => {
     const message = draft.trim();
     if (!message) return;
     void run(async () => {
-      const sent = await post('messages', { to: selected, message });
+      const sent = await post('messages', { to: target(), message });
       setDraft('');
       return sent;
     });
@@ -286,12 +334,12 @@ const StudentInbox: React.FC<StudentInboxProps> = ({ onClose }) => {
     void run(async () => {
       if (/^image\/(png|jpeg|webp)$/.test(file.type)) {
         const bytes = await shrinkImage(file);
-        return post('image', { to: selected, image: toBase64(bytes) });
+        return post('image', { to: target(), image: toBase64(bytes) });
       }
       if (file.size > FILE_MAX) throw new Error('الملف أكبر من 1.5 ميغابايت');
       const { data, gzip } = await pack(new Uint8Array(await file.arrayBuffer()));
       if (data.length > FILE_STORED_MAX) throw new Error('الملف أكبر من المسموح');
-      return post('file', { to: selected, name: file.name, file: toBase64(data), gzip });
+      return post('file', { to: target(), name: file.name, file: toBase64(data), gzip });
     });
   };
 
@@ -315,7 +363,7 @@ const StudentInbox: React.FC<StudentInboxProps> = ({ onClose }) => {
         const blob = new Blob(chunks, { type: rec.mimeType });
         void run(async () => {
           const bytes = new Uint8Array(await blob.arrayBuffer());
-          return post('voice', { to: selected, audio: toBase64(bytes), durationMs });
+          return post('voice', { to: target(), audio: toBase64(bytes), durationMs });
         });
       };
       recorder.current = rec;
@@ -453,6 +501,21 @@ const StudentInbox: React.FC<StudentInboxProps> = ({ onClose }) => {
                 </button>
               </div>
             )}
+            {!loading && students.length > 0 && (
+              <div style={{ ...styles.student, ...(toMany ? styles.studentActive : {}) }}>
+                <button type="button" data-testid="chat-multi" onClick={() => setSelected(MULTI)} style={styles.studentName}>
+                  <strong>☑️ عدّة طلاب</strong>
+                  <span style={styles.meta}>حدّد من تريد بالخانات، ثم أرسل لهم معاً</span>
+                </button>
+              </div>
+            )}
+            {toMany && !loading && students.length > 0 && (
+              <div style={styles.pickBar} data-testid="pick-bar">
+                <strong data-testid="pick-count">المحدَّدون: {picked.size}</strong>
+                <button type="button" data-testid="pick-all" onClick={pickAll} style={styles.pickButton}>تحديد الكل</button>
+                <button type="button" data-testid="pick-none" onClick={clearPicks} disabled={picked.size === 0} style={styles.pickButton}>إلغاء التحديد</button>
+              </div>
+            )}
             {loading ? (
               <div style={styles.empty}>جارٍ التحميل…</div>
             ) : shown.length === 0 ? (
@@ -465,9 +528,24 @@ const StudentInbox: React.FC<StudentInboxProps> = ({ onClose }) => {
                 return (
                   <div
                     key={student.id}
-                    style={{ ...styles.student, ...(student.id === selected ? styles.studentActive : {}) }}
+                    style={{ ...styles.student, ...(student.id === selected || (toMany && picked.has(student.id)) ? styles.studentActive : {}) }}
                   >
-                    <button type="button" onClick={() => setSelected(student.id)} style={styles.studentName}>
+                    {toMany && (
+                      <input
+                        type="checkbox"
+                        data-testid={`pick-${student.id}`}
+                        aria-label={`تحديد ${student.name}`}
+                        checked={picked.has(student.id)}
+                        disabled={!student.chat}
+                        onChange={() => togglePick(student.id)}
+                        style={styles.checkbox}
+                      />
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => (toMany ? student.chat && togglePick(student.id) : setSelected(student.id))}
+                      style={styles.studentName}
+                    >
                       <strong>{student.name}</strong>
                       <span style={styles.meta}>{student.grade}{student.chat ? '' : ' · الدردشة معطّلة'}</span>
                     </button>
@@ -496,8 +574,17 @@ const StudentInbox: React.FC<StudentInboxProps> = ({ onClose }) => {
           </aside>
 
           <section style={styles.thread}>
-            {!current && !toAll ? (
-              <div style={styles.empty}>اختر طالباً لبدء الدردشة معه، أو «جميع الطلاب» لتصل رسالتك إليهم كلّهم.</div>
+            {!current && !toAll && !toMany ? (
+              <div style={styles.empty}>اختر طالباً لبدء الدردشة معه، أو «جميع الطلاب» لتصل رسالتك إليهم كلّهم، أو «عدّة طلاب» لتحدّد من تريد.</div>
+            ) : toMany ? (
+              <div style={styles.threadHead}>
+                <strong>☑️ عدّة طلاب</strong>
+                <span style={styles.meta}>
+                  {picked.size === 0
+                    ? 'حدّد الطلاب من القائمة بالخانات'
+                    : `تصل رسالتك إلى ${picked.size} ${picked.size === 1 ? 'طالب' : 'طلاب'}: ${[...picked].map(nameOf).filter(Boolean).slice(0, 6).join('، ')}${picked.size > 6 ? '…' : ''}`}
+                </span>
+              </div>
             ) : toAll ? (
               <div style={styles.threadHead}>
                 <strong>📣 جميع الطلاب</strong>
@@ -521,10 +608,34 @@ const StudentInbox: React.FC<StudentInboxProps> = ({ onClose }) => {
                   </button>
                 </div>
             ) : null}
-            {(current || toAll) && (
+            {(current || toAll || toMany) && (
               <>
                 <div style={styles.list}>
-                  {thread.length === 0 && <div style={styles.empty}>لا رسائل بعد. اكتب أول رسالة.</div>}
+                  {toMany && groups.length === 0 && (
+                    <div style={styles.empty}>
+                      ما ترسله هنا يصل لكل طالبٍ محدَّد في «معلّمي» عنده، ويظهر أيضاً في محادثته الخاصة معك.
+                    </div>
+                  )}
+                  {toMany && groups.map(({ lead, copies }) => {
+                    const read = copies.filter((c) => c.readByAll).length;
+                    return (
+                      <div key={lead.id} style={{ ...styles.bubble, ...styles.mine }} data-testid="multi-sent">
+                        <div style={styles.cardHead}>
+                          <strong>أنت ← {copies.length} {copies.length === 1 ? 'طالب' : 'طلاب'}</strong>
+                          <span style={{ ...styles.meta, color: '#e0e7ff' }}>{time(lead.time)}</span>
+                        </div>
+                        {lead.kind === 'text' ? (
+                          <div style={styles.text}>{lead.message}</div>
+                        ) : (
+                          <div style={styles.text}>{mediaLabel(lead, false)}</div>
+                        )}
+                        <div style={styles.receipt}>
+                          {copies.map((c) => nameOf(c.to)).filter(Boolean).join('، ')} · {read === copies.length ? '✓✓ قرأها الجميع' : `👁️ قرأها ${read} من ${copies.length}`}
+                        </div>
+                      </div>
+                    );
+                  })}
+                  {!toMany && thread.length === 0 && <div style={styles.empty}>لا رسائل بعد. اكتب أول رسالة.</div>}
                   {thread.map((m) => {
                     const seen = opened.has(m.id);
                     return (
@@ -603,13 +714,13 @@ const StudentInbox: React.FC<StudentInboxProps> = ({ onClose }) => {
                     }}
                     maxLength={2000}
                     rows={1}
-                    placeholder={recording ? 'جارٍ التسجيل… اضغط ■ للإرسال' : toAll ? 'اكتب رسالة لجميع طلابك' : 'اكتب رسالة لطالبك'}
+                    placeholder={recording ? 'جارٍ التسجيل… اضغط ■ للإرسال' : toAll ? 'اكتب رسالة لجميع طلابك' : toMany ? `اكتب رسالة للطلاب المحدَّدين (${picked.size})` : 'اكتب رسالة لطالبك'}
                     style={styles.input}
                     disabled={recording}
                   />
                   <button type="button" onClick={sendText} disabled={sending || !draft.trim()} style={styles.send}>
                     <IconSend size={18} />
-                    {sending ? '…' : toAll ? 'إرسال للجميع' : 'إرسال'}
+                    {sending ? '…' : toAll ? 'إرسال للجميع' : toMany ? `إرسال (${picked.size})` : 'إرسال'}
                   </button>
                 </div>
               </>
@@ -686,6 +797,9 @@ const styles: Record<string, React.CSSProperties> = {
   iconButton: { border: 'none', background: '#f1f5f9', borderRadius: 12, width: 42, height: 42, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
   input: { flex: 1, resize: 'vertical', minHeight: 42, maxHeight: 140, borderRadius: 12, border: '2px solid #e5e7eb', padding: '10px 12px', fontSize: 14, fontFamily: 'inherit' },
   send: { border: 'none', background: '#16a34a', color: 'white', borderRadius: 12, padding: '0 16px', height: 42, cursor: 'pointer', fontWeight: 800, display: 'flex', alignItems: 'center', gap: 6 },
+  pickBar: { display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', padding: '6px 8px', borderRadius: 12, background: '#eef2ff', fontSize: 13 },
+  pickButton: { border: '1px solid #c7d2fe', background: 'white', borderRadius: 999, padding: '4px 10px', cursor: 'pointer', fontWeight: 700, fontSize: 12 },
+  checkbox: { width: 20, height: 20, cursor: 'pointer', accentColor: '#4338ca', flexShrink: 0 },
   thumbButton: { border: 'none', padding: 0, background: 'transparent', cursor: 'zoom-in', display: 'block' },
   thumb: { display: 'block', maxWidth: 260, maxHeight: 220, width: '100%', objectFit: 'cover', borderRadius: 12, background: '#e5e7eb' },
   viewer: { position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', zIndex: 1001, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'zoom-out' },
