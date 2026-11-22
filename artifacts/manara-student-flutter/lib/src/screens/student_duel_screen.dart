@@ -23,7 +23,8 @@ import 'duel_match_screen.dart';
 ///
 /// ── لا يُتحدّى إلا متصل ──
 /// المبارزةُ حيّة: السؤالُ نفسه للاثنين في اللحظة نفسها، وأوّلُ صحيحٍ يكسبه. فلا
-/// معنى لدعوةٍ تنتظر زميلاً غائباً. «متصل» يعني أنه في هذه الشاشة الآن.
+/// معنى لدعوةٍ تنتظر زميلاً غائباً. «متصل» يعني أنه في تطبيق منارة الآن — في أيّ
+/// شاشةٍ منه — فالواجهةُ تُبقيه في قناة الصفّ، وتفتح هذه الساحةَ له حين تصله دعوة.
 ///
 /// ── والخادمُ حَكَمُ الدعوة ──
 /// كان الضيفُ يدخل غرفةَ النزال لحظةَ يضغط «اقبل»، والداعي يعرف الردَّ من إشارةٍ
@@ -40,8 +41,13 @@ class StudentDuelScreen extends StatefulWidget {
     required this.challengeService,
     required this.leaderboardService,
     this.academicContext,
+    this.initialInvite,
     super.key,
   });
+
+  /// دعوةٌ وصلت والطالبُ خارج الساحة: فتحتها الواجهةُ لها، فتُعرض فوراً. وإن
+  /// رفضها أو سُحبت عاد إلى حيث كان.
+  final DuelInviteEvent? initialInvite;
 
   final StudentProfile profile;
   final StudentDuelService duelService;
@@ -116,6 +122,10 @@ class _StudentDuelScreenState extends State<StudentDuelScreen> {
   void initState() {
     super.initState();
     _invites = widget.duelService.inviteEvents.listen(_onInviteEvent);
+    final invite = widget.initialInvite;
+    if (invite != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _onInviteEvent(invite));
+    }
     unawaited(_load());
     _boardTick = Timer.periodic(_boardEvery, (_) => unawaited(_refreshBoard()));
     final key = _classKey;
@@ -135,7 +145,7 @@ class _StudentDuelScreenState extends State<StudentDuelScreen> {
     final incoming = _incomingEvent;
     if (incoming != null) unawaited(_decline(incoming));
     unawaited(_invites?.cancel());
-    unawaited(widget.duelService.leaveClass());
+    // ‏ولا يُغادَر الصفّ هنا: الحضورُ للتطبيق كلّه، والواجهةُ صاحبتُه.
     super.dispose();
   }
 
@@ -408,8 +418,28 @@ class _StudentDuelScreenState extends State<StudentDuelScreen> {
         );
       case _IncomingOutcome.declined:
         unawaited(_decline(event));
+        unawaited(_leaveIfOpenedForInvite(event));
       case _IncomingOutcome.withdrawn:
         _say(trf('arena.withdrawn', {'name': name}));
+        unawaited(_leaveIfOpenedForInvite(event));
+    }
+  }
+
+  /// فُتحت الساحةُ لهذه الدعوة وحدها والطالبُ في مكانٍ آخر: لم يلعب، فيعود إليه.
+  ///
+  /// ونافذةُ الدعوة تُغلق نفسها في اللحظة نفسها: فيُنتظر حتى تصير الساحةُ في
+  /// الأعلى، وإلا أغلق الرجوعُ النافذةَ وبقيت الساحة.
+  Future<void> _leaveIfOpenedForInvite(DuelInviteEvent event) async {
+    if (widget.initialInvite?.matchId != event.matchId || !mounted) return;
+    final route = ModalRoute.of(context);
+    for (var i = 0; i < 20 && mounted && route != null && !route.isCurrent; i++) {
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+    }
+    if (!mounted || route == null || !route.isActive || _busy) return;
+    if (route.isCurrent) {
+      Navigator.of(context).pop();
+    } else {
+      Navigator.of(context).removeRoute(route);
     }
   }
 

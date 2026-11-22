@@ -20,8 +20,16 @@ import {
  * أنّ معلّمه شاهدها، وتبقى هنا حتى تُغلق النافذة — ثم لا تعود، وتُحذف من الخادم.
  *
  * ── والقفل ──
- * يوقف إرسالَ الطالب كلَّه (إلى زملائه وإلى المعلّم)، ويرى في تطبيقه: «المعلم قام
- * بقفل الدردشة حالياً». والمعلّمُ يرسل له كما يشاء.
+ * يوقف إرسالَ الطالب إلى المعلّم وحده، ويرى في محادثة معلّمه: «المعلم قام بقفل
+ * الدردشة حالياً». ودردشتُه مع زملائه باقيةٌ إرسالاً واستقبالاً. والمعلّمُ يرسل له
+ * كما يشاء.
+ *
+ * ── «جميع الطلاب» ──
+ * أوّلُ القائمة: رسالةٌ واحدةٌ تصل كلَّ طلاب المعلّم معاً، بكل صفوفهم. ويبقى اختيارُ
+ * طالبٍ بعينه كما هو.
+ *
+ * ── والصورُ تظهر في مكانها ──
+ * صورةُ الطالب تُجلب وتُعرض في المحادثة مباشرةً، وتُكبَّر بلمسة.
  *
  * والجلسةُ من ملفّ تعريف المعلّم (`manara_teacher_session`): الخادمُ يقصر كلَّ شيءٍ
  * على طلابه هو.
@@ -46,7 +54,13 @@ interface ChatMessage {
   durationMs?: number;
   mine?: boolean;
   readByAll?: boolean;
+  /** لرسالة «جميع الطلاب»: كم طالباً أُرسلت إليه، وكم شاهدها. */
+  recipients?: number;
+  seenCount?: number;
 }
+
+/** «جميع الطلاب» في قائمة المحادثات. */
+const ALL = 'all';
 
 interface ChatStudent {
   id: string;
@@ -129,6 +143,9 @@ const StudentInbox: React.FC<StudentInboxProps> = ({ onClose }) => {
   const [opened, setOpened] = useState<Set<string>>(new Set());
   const [busyId, setBusyId] = useState('');
   const [viewer, setViewer] = useState<{ url: string; name: string } | null>(null);
+  /** صورُ المحادثة المجلوبة: معرّفُ الرسالة ← رابطُها. */
+  const [thumbs, setThumbs] = useState<Record<string, string>>({});
+  const thumbLoading = useRef<Set<string>>(new Set());
   const [recording, setRecording] = useState(false);
   const visit = useRef<string | null>(null);
   const reported = useRef<Set<string>>(new Set());
@@ -199,7 +216,8 @@ const StudentInbox: React.FC<StudentInboxProps> = ({ onClose }) => {
   }, [load, loadMessages]);
 
   const thread = useMemo(
-    () => messages.filter((m) => m.from === selected || m.to === selected),
+    () => messages.filter((m) =>
+      selected === ALL ? m.mine && m.to === ALL : m.from === selected || m.to === selected),
     [messages, selected],
   );
 
@@ -217,6 +235,8 @@ const StudentInbox: React.FC<StudentInboxProps> = ({ onClose }) => {
 
   const shown = students.filter((s) => !query.trim() || s.name.includes(query.trim()) || s.grade.includes(query.trim()));
   const current = students.find((s) => s.id === selected);
+  const toAll = selected === ALL;
+  const chatStudents = students.filter((s) => s.chat).length;
 
   const post = async (route: string, body: Record<string, unknown>) => {
     const response = await fetch(`${BASE}/${route}`, {
@@ -239,7 +259,11 @@ const StudentInbox: React.FC<StudentInboxProps> = ({ onClose }) => {
     setSending(true);
     setError('');
     try {
-      await task();
+      const sent = await task();
+      if (selected === ALL) {
+        const classes = (sent as { classes?: number } | undefined)?.classes ?? 0;
+        setNotice(`📣 أُرسلت إلى جميع طلابك${classes > 1 ? ` في ${classes} صفوف` : ''}.`);
+      }
       await loadMessages();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'تعذر الإرسال الآن');
@@ -252,8 +276,9 @@ const StudentInbox: React.FC<StudentInboxProps> = ({ onClose }) => {
     const message = draft.trim();
     if (!message) return;
     void run(async () => {
-      await post('messages', { to: selected, message });
+      const sent = await post('messages', { to: selected, message });
       setDraft('');
+      return sent;
     });
   };
 
@@ -261,13 +286,12 @@ const StudentInbox: React.FC<StudentInboxProps> = ({ onClose }) => {
     void run(async () => {
       if (/^image\/(png|jpeg|webp)$/.test(file.type)) {
         const bytes = await shrinkImage(file);
-        await post('image', { to: selected, image: toBase64(bytes) });
-        return;
+        return post('image', { to: selected, image: toBase64(bytes) });
       }
       if (file.size > FILE_MAX) throw new Error('الملف أكبر من 1.5 ميغابايت');
       const { data, gzip } = await pack(new Uint8Array(await file.arrayBuffer()));
       if (data.length > FILE_STORED_MAX) throw new Error('الملف أكبر من المسموح');
-      await post('file', { to: selected, name: file.name, file: toBase64(data), gzip });
+      return post('file', { to: selected, name: file.name, file: toBase64(data), gzip });
     });
   };
 
@@ -291,7 +315,7 @@ const StudentInbox: React.FC<StudentInboxProps> = ({ onClose }) => {
         const blob = new Blob(chunks, { type: rec.mimeType });
         void run(async () => {
           const bytes = new Uint8Array(await blob.arrayBuffer());
-          await post('voice', { to: selected, audio: toBase64(bytes), durationMs });
+          return post('voice', { to: selected, audio: toBase64(bytes), durationMs });
         });
       };
       recorder.current = rec;
@@ -304,13 +328,30 @@ const StudentInbox: React.FC<StudentInboxProps> = ({ onClose }) => {
     }
   };
 
-  const fetchBlob = async (route: string, id: string) => {
+  const fetchBlob = useCallback(async (route: string, id: string) => {
     const response = await fetch(`${BASE}/${route}/${encodeURIComponent(id)}`, { credentials: 'same-origin' });
     if (!response.ok) throw new Error('تعذر الفتح الآن');
     const url = URL.createObjectURL(await response.blob());
     objectUrls.current.push(url);
     return url;
-  };
+  }, []);
+
+  // ‏صورُ المحادثة المفتوحة تُجلب وتُعرض في مكانها — لا زرٌّ يُضغط أوّلاً. وظهورُها
+  // للمعلّم مشاهدتُها، كالنصّ.
+  useEffect(() => {
+    for (const m of thread) {
+      if (m.kind !== 'image' || !m.imageId || thumbs[m.id] || thumbLoading.current.has(m.id)) continue;
+      thumbLoading.current.add(m.id);
+      void fetchBlob('image', m.imageId)
+        .then((url) => {
+          setThumbs((prev) => ({ ...prev, [m.id]: url }));
+          setOpened((prev) => new Set(prev).add(m.id));
+          if (!m.mine) void reportSeen([m.id]);
+        })
+        .catch(() => undefined)
+        .finally(() => thumbLoading.current.delete(m.id));
+    }
+  }, [thread, thumbs, fetchBlob, reportSeen]);
 
   const openMedia = async (message: ChatMessage) => {
     if (busyId) return;
@@ -319,7 +360,7 @@ const StudentInbox: React.FC<StudentInboxProps> = ({ onClose }) => {
       if (message.kind === 'voice' && message.voiceId) {
         await new Audio(await fetchBlob('voice', message.voiceId)).play();
       } else if (message.kind === 'image' && message.imageId) {
-        setViewer({ url: await fetchBlob('image', message.imageId), name: message.name });
+        setViewer({ url: thumbs[message.id] ?? await fetchBlob('image', message.imageId), name: message.name });
       } else if (message.kind === 'file' && message.fileId) {
         const link = document.createElement('a');
         link.href = await fetchBlob('file', message.fileId);
@@ -345,8 +386,8 @@ const StudentInbox: React.FC<StudentInboxProps> = ({ onClose }) => {
       const who = 'all' in change ? 'لجميع الطلاب' : `للطالب ${students.find((s) => s.id === change.studentId)?.name ?? ''}`;
       const on = 'all' in change ? change.all : change.locked;
       setNotice(on
-        ? `🔒 قُفلت الدردشة ${who}. سيرى: «المعلم قام بقفل الدردشة حالياً».`
-        : `🔓 فُتحت الدردشة ${who}.`);
+        ? `🔒 قُفلت الدردشة معك ${who}. سيرى: «المعلم قام بقفل الدردشة حالياً»، وتبقى دردشتُه مع زملائه مفتوحة.`
+        : `🔓 فُتحت الدردشة معك ${who}.`);
       setError('');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'تعذر تغيير القفل');
@@ -404,6 +445,14 @@ const StudentInbox: React.FC<StudentInboxProps> = ({ onClose }) => {
               placeholder="ابحث عن طالب أو صف"
               style={styles.search}
             />
+            {!loading && students.length > 0 && (
+              <div style={{ ...styles.student, ...(toAll ? styles.studentActive : {}) }}>
+                <button type="button" data-testid="chat-all" onClick={() => setSelected(ALL)} style={styles.studentName}>
+                  <strong>📣 جميع الطلاب</strong>
+                  <span style={styles.meta}>رسالة واحدة تصل {chatStudents} طالباً معاً</span>
+                </button>
+              </div>
+            )}
             {loading ? (
               <div style={styles.empty}>جارٍ التحميل…</div>
             ) : shown.length === 0 ? (
@@ -447,10 +496,14 @@ const StudentInbox: React.FC<StudentInboxProps> = ({ onClose }) => {
           </aside>
 
           <section style={styles.thread}>
-            {!current ? (
-              <div style={styles.empty}>اختر طالباً لبدء الدردشة معه.</div>
-            ) : (
-              <>
+            {!current && !toAll ? (
+              <div style={styles.empty}>اختر طالباً لبدء الدردشة معه، أو «جميع الطلاب» لتصل رسالتك إليهم كلّهم.</div>
+            ) : toAll ? (
+              <div style={styles.threadHead}>
+                <strong>📣 جميع الطلاب</strong>
+                <span style={styles.meta}>تصل رسالتك إلى {chatStudents} طالباً من طلابك في كل صفوفهم</span>
+              </div>
+            ) : current ? (
                 <div style={styles.threadHead}>
                   <strong>{current.name}</strong>
                   <span style={styles.meta}>{current.grade}</span>
@@ -467,6 +520,9 @@ const StudentInbox: React.FC<StudentInboxProps> = ({ onClose }) => {
                     {current.locked ? 'فتح الدردشة لهذا الطالب' : 'قفل الدردشة لهذا الطالب'}
                   </button>
                 </div>
+            ) : null}
+            {(current || toAll) && (
+              <>
                 <div style={styles.list}>
                   {thread.length === 0 && <div style={styles.empty}>لا رسائل بعد. اكتب أول رسالة.</div>}
                   {thread.map((m) => {
@@ -479,6 +535,16 @@ const StudentInbox: React.FC<StudentInboxProps> = ({ onClose }) => {
                         </div>
                         {m.kind === 'text' ? (
                           <div style={styles.text}>{m.message}</div>
+                        ) : m.kind === 'image' && thumbs[m.id] ? (
+                          <button
+                            type="button"
+                            data-testid="chat-thumb"
+                            onClick={() => setViewer({ url: thumbs[m.id], name: m.name })}
+                            style={styles.thumbButton}
+                            title="اضغط لتكبير الصورة"
+                          >
+                            <img src={thumbs[m.id]} alt={`صورة من ${m.mine ? 'أنت' : m.name}`} style={styles.thumb} />
+                          </button>
                         ) : (
                           <button
                             type="button"
@@ -490,7 +556,13 @@ const StudentInbox: React.FC<StudentInboxProps> = ({ onClose }) => {
                             <span>{mediaLabel(m, seen)}</span>
                           </button>
                         )}
-                        {m.mine && <div style={styles.receipt}>{m.readByAll ? '✓✓ قرأها' : '✓ أُرسلت'}</div>}
+                        {m.mine && (
+                          <div style={styles.receipt}>
+                            {m.to === ALL
+                              ? `${m.grade ? `${m.grade} · ` : ''}${m.readByAll ? '✓✓ شاهدها الجميع' : `👁️ شاهدها ${m.seenCount ?? 0} من ${m.recipients ?? 0}`}`
+                              : m.readByAll ? '✓✓ قرأها' : '✓ أُرسلت'}
+                          </div>
+                        )}
                       </div>
                     );
                   })}
@@ -531,13 +603,13 @@ const StudentInbox: React.FC<StudentInboxProps> = ({ onClose }) => {
                     }}
                     maxLength={2000}
                     rows={1}
-                    placeholder={recording ? 'جارٍ التسجيل… اضغط ■ للإرسال' : 'اكتب رسالة لطالبك'}
+                    placeholder={recording ? 'جارٍ التسجيل… اضغط ■ للإرسال' : toAll ? 'اكتب رسالة لجميع طلابك' : 'اكتب رسالة لطالبك'}
                     style={styles.input}
                     disabled={recording}
                   />
                   <button type="button" onClick={sendText} disabled={sending || !draft.trim()} style={styles.send}>
                     <IconSend size={18} />
-                    {sending ? '…' : 'إرسال'}
+                    {sending ? '…' : toAll ? 'إرسال للجميع' : 'إرسال'}
                   </button>
                 </div>
               </>
@@ -614,6 +686,8 @@ const styles: Record<string, React.CSSProperties> = {
   iconButton: { border: 'none', background: '#f1f5f9', borderRadius: 12, width: 42, height: 42, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
   input: { flex: 1, resize: 'vertical', minHeight: 42, maxHeight: 140, borderRadius: 12, border: '2px solid #e5e7eb', padding: '10px 12px', fontSize: 14, fontFamily: 'inherit' },
   send: { border: 'none', background: '#16a34a', color: 'white', borderRadius: 12, padding: '0 16px', height: 42, cursor: 'pointer', fontWeight: 800, display: 'flex', alignItems: 'center', gap: 6 },
+  thumbButton: { border: 'none', padding: 0, background: 'transparent', cursor: 'zoom-in', display: 'block' },
+  thumb: { display: 'block', maxWidth: 260, maxHeight: 220, width: '100%', objectFit: 'cover', borderRadius: 12, background: '#e5e7eb' },
   viewer: { position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', zIndex: 1001, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'zoom-out' },
 };
 

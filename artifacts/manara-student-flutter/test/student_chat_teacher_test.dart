@@ -12,7 +12,8 @@ import 'package:manara_student/src/models/student_profile.dart';
 import 'package:manara_student/src/screens/student_chat_screen.dart';
 import 'package:manara_student/src/services/student_auth_service.dart';
 
-/// الدردشةُ مع المعلّم في قائمةٍ منفصلة، والملفّات، وقفلُ المعلّم للدردشة.
+/// الدردشةُ مع المعلّم في قائمةٍ منفصلة، والملفّات والصور، وقفلُ المعلّم للدردشة
+/// معه وحده.
 class FakeAuth implements StudentAuthService {
   @override
   String? get apiSessionToken => 'token';
@@ -41,6 +42,8 @@ void main() {
   late bool locked;
   late bool oldServer;
   final doc = Uint8List.fromList(utf8.encode('واجب العلوم: اقرأ الدرس الثالث\n' * 60));
+  // ‏صورةُ PNG حقيقيّة بنقطةٍ واحدة.
+  final png = base64Decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==');
 
   setUp(() {
     requests = [];
@@ -104,7 +107,10 @@ void main() {
             ],
           });
         }
-        if (locked && request.method == 'POST' && !path.endsWith('/chat/seen')) {
+        if (locked &&
+            request.method == 'POST' &&
+            !path.endsWith('/chat/seen') &&
+            '${(jsonDecode(request.body) as Map)['to']}'.startsWith('teacher:')) {
           return json({'error': 'المعلم قام بقفل الدردشة حالياً', 'code': 'chat_locked'}, 423);
         }
         if (path.endsWith('/chat/messages') && request.method == 'POST') {
@@ -116,7 +122,9 @@ void main() {
         if (path.contains('/chat/file/')) {
           return http.Response.bytes(doc, 200, headers: {'content-type': 'text/plain'});
         }
-        if (path.contains('/chat/image/')) return json({'error': 'غير موجودة'}, 404);
+        if (path.contains('/chat/image/')) {
+          return http.Response.bytes(png, 200, headers: {'content-type': 'image/png'});
+        }
         if (path.endsWith('/chat/seen')) return json({'seen': 1});
         return http.Response('{}', 404);
       });
@@ -127,7 +135,10 @@ void main() {
     }
   }
 
+  final openedFiles = <String>[];
+
   Future<List<(String, Uint8List)>> pump(WidgetTester tester, {PickedChatFile? pick}) async {
+    openedFiles.clear();
     final saved = <(String, Uint8List)>[];
     tester.view.physicalSize = const Size(420, 900);
     tester.view.devicePixelRatio = 1;
@@ -141,6 +152,10 @@ void main() {
         pickDeviceFile: () async => pick,
         saveFile: (name, bytes) async {
           saved.add((name, bytes));
+          return true;
+        },
+        openFile: (name, bytes) async {
+          openedFiles.add(name);
           return true;
         },
       ),
@@ -215,17 +230,31 @@ void main() {
     expect(packChatFile(Uint8List(100)).$2, isFalse, reason: 'الصغيرُ لا يُضغط');
   });
 
-  testWidgets('قفل المعلّمُ الدردشة: سطرٌ ظاهر، ولا يُرسل شيء', (tester) async {
+  testWidgets('قفل المعلّمُ الدردشة: محادثتُه وحدها تُقفل، والأصدقاءُ مفتوحون', (tester) async {
     locked = true;
     await pump(tester);
+    // ‏الأصدقاء: لا سطرَ قفل، والرسالةُ تُرسل.
+    expect(find.byKey(const ValueKey('chat-locked-banner')), findsNothing);
+    await tester.enterText(find.byType(TextField), 'مرحبا يا صف');
+    await settle(tester, 2);
+    await tester.tap(find.byIcon(Icons.send_rounded));
+    await settle(tester);
+    final toClass = requests.where((r) => r.url.path.endsWith('/chat/messages') && r.method == 'POST').single;
+    expect(jsonDecode(toClass.body), {'message': 'مرحبا يا صف', 'to': 'all'});
+    requests.clear();
+
+    // ‏المعلّم: سطرٌ ظاهر، ولا يُرسل إليه شيء.
+    await tester.tap(find.byKey(const ValueKey('chat-tab-teacher')));
+    await settle(tester, 4);
     expect(find.byKey(const ValueKey('chat-locked-banner')), findsOneWidget);
     expect(find.text('المعلم قام بقفل الدردشة حالياً'), findsWidgets);
-    await tester.enterText(find.byType(TextField), 'مرحبا');
+    expect(find.text(tr('chat.locked.friendsOpen')), findsOneWidget);
+    await tester.enterText(find.byType(TextField), 'مرحبا أستاذ');
     await settle(tester, 2);
     await tester.tap(find.byIcon(Icons.send_rounded));
     await settle(tester);
     expect(requests.where((r) => r.method == 'POST' && !r.url.path.endsWith('/chat/seen')), isEmpty);
-    await tester.tap(find.byKey(const ValueKey('chat-send-art')));
+    await tester.tap(find.byKey(const ValueKey('chat-send-art')), warnIfMissed: false);
     await settle(tester, 6);
     expect(find.byKey(const ValueKey('chat-attach-file')), findsNothing);
     await tester.pump(const Duration(seconds: 5));
@@ -234,6 +263,8 @@ void main() {
   testWidgets('قُفلت بعد فتح الشاشة: الخادمُ يردّ 423 فتُقال الجملةُ كما هي', (tester) async {
     await pump(tester);
     locked = true;
+    await tester.tap(find.byKey(const ValueKey('chat-tab-teacher')));
+    await settle(tester, 4);
     await tester.enterText(find.byType(TextField), 'مرحبا');
     await settle(tester, 2);
     await tester.tap(find.byIcon(Icons.send_rounded));
@@ -252,5 +283,48 @@ void main() {
     expect(find.text(tr('chat.teacher.serverOld')), findsOneWidget);
     expect(find.text(tr('chat.teacher.none')), findsNothing);
     await tester.pump(const Duration(seconds: 5));
+  });
+
+  testWidgets('صورةُ المعلّم تظهر في محادثته، ولمسُها يفتحها هي ملءَ الشاشة', (tester) async {
+    messages.add({
+      'id': 'chat_4_imageeee',
+      'from': 'teacher:t1',
+      'name': 'المعلّم',
+      'to': 'me',
+      'message': '',
+      'kind': 'image',
+      'imageId': 'chatimage_4_imageeee',
+      'time': '2026-11-15T10:03:00Z',
+    });
+    await pump(tester);
+    await tester.tap(find.byKey(const ValueKey('chat-tab-teacher')));
+    await settle(tester, 6);
+    // ‏تُجلب وحدها وتُعرض في الفقاعة — لا غطاءَ يُضغط أوّلاً.
+    expect(find.byKey(const ValueKey('chat-image-inline')), findsOneWidget);
+    expect(requests.where((r) => r.url.path.endsWith('/chat/image/chatimage_4_imageeee')), hasLength(1));
+
+    // ‏كان اللمسُ يقرأ الرسالةَ من القائمة الكاملة بموضعها في المعروضة: ففتح
+    // رسالةً أخرى أو لا شيء. والآن: هي نفسُها، بلا تنزيلٍ ثانٍ.
+    await tester.tap(find.byKey(const ValueKey('chat-image-tile')));
+    await settle(tester, 5);
+    expect(find.byKey(const ValueKey('chat-image-viewer')), findsOneWidget);
+    expect(requests.where((r) => r.url.path.endsWith('/chat/image/chatimage_4_imageeee')), hasLength(1));
+    final seen = [
+      for (final r in requests)
+        if (r.url.path.endsWith('/chat/seen')) ...(jsonDecode(r.body)['ids'] as List),
+    ];
+    expect(seen, contains('chat_4_imageeee'));
+  });
+
+  testWidgets('ملفُّ المعلّم يُفتح بتطبيق الجهاز من زرّ «افتح الملف»', (tester) async {
+    await pump(tester);
+    await tester.tap(find.byKey(const ValueKey('chat-tab-teacher')));
+    await settle(tester, 4);
+    await tester.tap(find.byKey(const ValueKey('chat-file-tile')));
+    await settle(tester);
+    expect(find.byKey(const ValueKey('chat-file-open')), findsOneWidget);
+    await tester.tap(find.byKey(const ValueKey('chat-file-open')));
+    await settle(tester);
+    expect(openedFiles, ['الواجب.txt']);
   });
 }
