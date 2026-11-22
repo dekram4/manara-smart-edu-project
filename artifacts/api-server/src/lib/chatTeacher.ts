@@ -139,3 +139,19 @@ export function studentTeacherKey(directory: TeacherDirectory, student: StudentT
 export function chatTeacherByKey(directory: TeacherDirectory, key: string): ChatTeacher | null {
   return key ? directory.byIdentity.get(key) ?? null : null;
 }
+
+/** أقصى عددٍ من الطلاب في إرسالٍ واحدٍ «لعدّة طلاب». */
+export const TEACHER_PICK_MAX = 300;
+
+/**
+ * مستلمو «عدّة طلاب» من جسم الطلب: قائمةُ معرّفاتٍ بلا تكرار ولا فراغ — أو
+ * `null` إن لم تكن قائمة، أو كانت فارغةً أو أطولَ من السقف.
+ */
+export function pickedRecipients(value: unknown): string[] | null {
+  if (!Array.isArray(value)) return null;
+  const ids = [...new Set(value
+    .filter((id): id is string => typeof id === "string")
+    .map((id) => id.trim())
+    .filter((id) => id.length > 0 && id.length <= 200 && id !== "all"))];
+  return ids.length === 0 || ids.length > TEACHER_PICK_MAX ? null : ids;
+}

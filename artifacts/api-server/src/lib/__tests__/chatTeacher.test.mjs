@@ -3,6 +3,8 @@ import assert from "node:assert/strict";
 import {
   buildTeacherDirectory,
   chatTeacherByKey,
+  pickedRecipients,
+  TEACHER_PICK_MAX,
   studentTeacherKey,
   teacherKeyOf,
 } from "../../../dist/lib/chatTeacher.mjs";
@@ -51,4 +53,12 @@ test("بلا جدول معلّمين: يبقى المعرّفُ كما كُتب"
   const empty = buildTeacherDirectory([]);
   assert.equal(studentTeacherKey(empty, { teacherId: "T1", grade: "g" }), "t1");
   assert.equal(studentTeacherKey(empty, { teacherId: "", grade: "g" }), "");
+});
+
+test("«عدّة طلاب»: قائمةُ معرّفاتٍ بلا تكرار، والفارغةُ والطويلةُ مرفوضتان", () => {
+  assert.deepEqual(pickedRecipients(["s1", " s2 ", "s1", "", 5, "all"]), ["s1", "s2"]);
+  assert.equal(pickedRecipients([]), null);
+  assert.equal(pickedRecipients("s1"), null);
+  assert.equal(pickedRecipients(["all"]), null);
+  assert.equal(pickedRecipients(Array.from({ length: TEACHER_PICK_MAX + 1 }, (_, i) => `s${i}`)), null);
 });

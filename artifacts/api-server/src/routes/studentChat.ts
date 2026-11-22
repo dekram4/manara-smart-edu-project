@@ -10,6 +10,7 @@ import { requireStudentSession } from "../middleware/studentAuth";
 import {
   buildTeacherDirectory,
   chatTeacherByKey,
+  pickedRecipients,
   studentTeacherKey,
   teacherKeyOf,
   type TeacherDirectory,
@@ -1234,7 +1235,12 @@ router.get("/teacher/chat/students", teacherChatLimit, async (req, res) => {
 type TeacherScope = ReturnType<typeof teacherScope>;
 
 /**
- * يحلّ المستلمَ أو يردّ بالخطأ: طالبٌ من طلاب المعلّم، أو `all` — جميعُ طلابه.
+ * يحلّ المستلمَ أو يردّ بالخطأ: طالبٌ من طلاب المعلّم، أو `all` — جميعُ طلابه —
+ * أو قائمةُ معرّفاتٍ — «عدّة طلاب» يحدّدهم المعلّم.
+ *
+ * ── «عدّة طلاب»: رسالةٌ لكل طالب ──
+ * تُكتب لكلٍّ منهم كما لو أُرسلت إليه وحده، فتظهر في «معلّمي» عنده وفي محادثته
+ * عند المعلّم، ولكلٍّ مؤشّرُ قراءته. ولا تُرسل إلا إن كانوا كلُّهم من طلابه.
  *
  * ── «لجميع الطلاب»: رسالةٌ لكل صفّ ──
  * طلابُ المعلّم في صفوفٍ مختلفة، والطالبُ يرى ما في صفّه وحده. فتُكتب الرسالةُ مرّةً
@@ -1246,6 +1252,20 @@ async function teacherTargets(req: any, res: any): Promise<{ teacher: { key: str
   if (!teacher) {
     res.status(401).json({ error: "سجّل الدخول كمعلّم أولاً" });
     return null;
+  }
+  if (Array.isArray(req.body?.to)) {
+    const ids = pickedRecipients(req.body.to);
+    if (!ids) {
+      res.status(400).json({ error: "حدّد طالباً واحداً على الأقل", code: "bad_recipients" });
+      return null;
+    }
+    const mine = new Map((await studentsOfTeacher(teacher.key)).map((s) => [s.id, s]));
+    const picked = ids.map((id) => mine.get(id));
+    if (picked.some((s) => !s)) {
+      res.status(403).json({ error: "بعض المحدَّدين ليسوا من طلابك", code: "not_your_student" });
+      return null;
+    }
+    return { teacher, scopes: picked.map((s) => teacherScope(teacher, s!)) };
   }
   const to = text(req.body?.to);
   if (to === "all") {
