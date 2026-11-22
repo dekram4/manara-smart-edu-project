@@ -170,7 +170,7 @@ void main() {
   late DuelLiveController host;
   late DuelLiveController guest;
 
-  void build({int questions = 3, bool guestPresent = true}) {
+  void build({int questions = 3, bool guestPresent = true, Future<void> Function(int)? intro}) {
     server = FakeServer(pack(questions));
     hostLink = FakeTransport(server, 'h', 'g');
     guestLink = FakeTransport(server, 'g', 'h');
@@ -180,6 +180,7 @@ void main() {
       myId: 'h',
       rivalId: 'g',
       isHost: true,
+      beforeTimer: intro,
       questionWindow: const Duration(seconds: 5),
       revealHold: const Duration(milliseconds: 500),
       rivalWait: const Duration(seconds: 4),
@@ -190,6 +191,7 @@ void main() {
       myId: 'g',
       rivalId: 'h',
       isHost: false,
+      beforeTimer: intro,
       questionWindow: const Duration(seconds: 5),
       revealHold: const Duration(milliseconds: 500),
       rivalWait: const Duration(seconds: 4),
@@ -417,4 +419,55 @@ void main() {
     expect(host.phase, DuelPhase.result);
     expect(host.result!.gems, 5);
   });
+
+  // ── الروضة: السؤالُ يُسمع أوّلاً، ثم يبدأ العدّاد ──
+
+  scenario('الروضة: لا عدّادَ ولا جوابَ والسؤالُ يُسمع، ثم يبدأ العدّادُ من أوّله', (tester) async {
+    final heard = <int, Completer<void>>{};
+    build(intro: (index) => (heard[index] ??= Completer<void>()).future);
+    await startBoth(tester);
+    expect(host.hearing, isTrue);
+    expect(host.timeLeft, host.questionWindow, reason: 'الوقتُ لم يبدأ');
+    // ‏مرّ وقتٌ أطولُ من نافذة السؤال والمقطعُ لم ينتهِ: لا كشفَ ولا انتهاءَ وقت.
+    await run(tester, const Duration(seconds: 6));
+    expect(host.phase, DuelPhase.question);
+    expect(host.hearing, isTrue);
+    // ‏ولا جوابَ يُقبل قبل أن ينتهي السؤال.
+    unawaited(host.pick(0));
+    await run(tester, const Duration(milliseconds: 200));
+    expect(host.picked, isNull);
+    expect(host.myPoints, 0);
+
+    heard[0]!.complete();
+    await run(tester, const Duration(milliseconds: 100));
+    expect(host.hearing, isFalse);
+    expect(host.timeLeft, greaterThan(const Duration(seconds: 4)));
+    // ‏والنقاطُ والسرعةُ كما هي: الأسرعُ صحيحاً يكسب السؤال.
+    unawaited(host.pick(0));
+    await run(tester, const Duration(milliseconds: 200));
+    expect(host.winner, QuestionWinner.me);
+    expect(host.myPoints, 10);
+    expect(guest.winner, QuestionWinner.rival);
+    for (final c in heard.values) {
+      if (!c.isCompleted) c.complete();
+    }
+  });
+
+  scenario('الروضة: مقطعٌ لا ينتهي لا يحبس السؤال — يبدأ العدّادُ بعد حدّه', (tester) async {
+    build(intro: (_) => Completer<void>().future);
+    await startBoth(tester);
+    expect(host.hearing, isTrue);
+    await run(tester, const Duration(seconds: 16));
+    expect(host.hearing, isFalse);
+  });
+
+  scenario('غيرُ الروضة: العدّادُ فورَ فتح السؤال كما كان', (tester) async {
+    build();
+    await startBoth(tester);
+    expect(host.hearing, isFalse);
+    expect(host.timeLeft, lessThanOrEqualTo(host.questionWindow));
+    await run(tester, const Duration(seconds: 6));
+    expect(host.index > 0 || host.phase != DuelPhase.question, isTrue, reason: 'انتهى وقتُ السؤال الأوّل');
+  });
+
 }

@@ -28,6 +28,8 @@ import {
 } from "../lib/duel";
 import { awardDuelWin } from "./studentProgress";
 import { parseDuelPack, type DuelPack } from "../lib/duelQuestions";
+import { kgPackFor } from "../lib/kgDuelBank";
+import { isKindergartenGrade } from "../lib/tracing";
 
 /**
  * مبارياتُ التحدي بين زملاء الصفّ — لاعبان أو أكثر.
@@ -234,8 +236,20 @@ function toJson(match: StoredMatch, me: string): Record<string, unknown> {
   };
 }
 
-/** حزمةُ أسئلة المباراة، أو `null` إن لم تُكتب أو لم تصلح. انظر `claim_duel_pack`. */
+/** صفُّ المباراة من مفتاحه (`المعلم:الصف`). */
+function gradeOfClassKey(key: string): string {
+  const at = key.indexOf(":");
+  return at < 0 ? "" : key.slice(at + 1);
+}
+
+/**
+ * حزمةُ أسئلة المباراة، أو `null` إن لم تُكتب أو لم تصلح. انظر `claim_duel_pack`.
+ *
+ * وصفُّ «روضة منارة المعرفة» وحده حزمتُه أسئلتُه المسموعة المئة، تُبنى من
+ * معرّف المباراة (`kgPackFor`) — وكلُّ صفٍّ غيره على حزمته من القاعدة كما كان.
+ */
 function packOf(match: StoredMatch): DuelPack | null {
+  if (isKindergartenGrade(gradeOfClassKey(match.classKey))) return kgPackFor(match.id);
   return parseDuelPack(match.questions);
 }
 

@@ -54,6 +54,7 @@ async function buildAll() {
       path.resolve(artifactDir, "src/lib/gameEmbed.ts"),
       path.resolve(artifactDir, "src/lib/safePath.ts"),
       path.resolve(artifactDir, "src/lib/duelQuestions.ts"),
+      path.resolve(artifactDir, "src/lib/kgDuelBank.ts"),
       path.resolve(artifactDir, "src/lib/duelDomainBank.ts"),
       path.resolve(artifactDir, "src/lib/challengeQuestions.ts"),
       path.resolve(artifactDir, "src/lib/leaderboard.ts"),
