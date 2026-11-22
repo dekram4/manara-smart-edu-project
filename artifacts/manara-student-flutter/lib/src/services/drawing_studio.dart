@@ -6,6 +6,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/rendering.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'coloring_canvas.dart';
 import 'coloring_drawings.dart';
 
 /// «استوديو الرسم»: رسمٌ حرٌّ بطبقات — منفصلٌ عن ألعاب التلوين.
@@ -1114,5 +1115,80 @@ class StudioColors {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setStringList(keyFor(owner), [for (final c in kept) '${c.toARGB32()}']);
     return kept;
+  }
+}
+
+/// رسمةُ «استوديو الرسم» في «لوحاتي»: تُحفظ بالمخزن والصيغة اللذين تحفظ بهما
+/// «لوحة الألوان» لوحاتِها ([ColoringGallery])، فتراها الدردشةُ وترسلها، ويراها
+/// معرضُ «لوحاتي» بصورتها المصغّرة.
+///
+/// ── للعرض والإرسال، والتعديلُ في الاستوديو ──
+/// طبقاتُها وأدواتُها في الاستوديو وحده، فأدواتُ لوحة الألوان (الدلو والفرشاة
+/// والممحاة) لا تمسّها هنا. والمشروعُ نفسُه بطبقاته باقٍ في [StudioProjects]،
+/// ويُفتح منه للتعديل.
+class StudioArtwork extends ColoringArtwork {
+  StudioArtwork(this.studio);
+
+  /// معرّفُ رسمات الاستوديو: `studio:<وقت>` — كما يصنعه [StudioController].
+  static const idPrefix = 'studio:';
+
+  final StudioController studio;
+
+  static StudioArtwork? fromJson(Object? json) {
+    final studio = StudioController.fromJson(json);
+    return studio == null ? null : StudioArtwork(studio);
+  }
+
+  @override
+  String get artworkId => studio.id;
+
+  @override
+  String title({required bool arabic}) => arabic ? 'رسمتي في الاستوديو' : 'My Studio Drawing';
+
+  @override
+  bool get isEmpty => studio.isEmpty;
+  @override
+  bool get canUndo => false;
+  @override
+  bool get canRedo => false;
+
+  @override
+  void fillAt(Offset point, Color color) {}
+  @override
+  void beginStroke(
+    Offset point, {
+    required Color? color,
+    required double width,
+    BrushStyle brush = BrushStyle.pen,
+    ShapeKind? shape,
+    bool filled = false,
+    int? magic,
+  }) {}
+  @override
+  void extendStroke(Offset point) {}
+  @override
+  void endStroke() {}
+  @override
+  void eraseAt(Offset point) {}
+  @override
+  void undo() {}
+  @override
+  void redo() {}
+  @override
+  void clear() {}
+
+  @override
+  Map<String, Object?> toJson() => studio.toJson();
+
+  @override
+  CustomPainter painter({double outline = 3.2}) => StudioPainter(studio);
+
+  @override
+  Future<Uint8List?> toPng({int size = 600}) => studio.toPng(size: size);
+
+  @override
+  void dispose() {
+    studio.dispose();
+    super.dispose();
   }
 }
