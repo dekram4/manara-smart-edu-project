@@ -3,9 +3,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 
 import '../l10n/student_strings.dart';
-import '../theme/student_theme.dart';
 import 'arena_widgets.dart';
-import 'duel_game_arenas.dart' show ArenaRacer;
 import 'duel_versus.dart' show DuelMomentumBar;
 import 'student_avatar_view.dart';
 
@@ -476,69 +474,4 @@ class _FlagPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(_FlagPainter old) => false;
-}
-
-/// لعبةُ «شدّ الحبل» في المبارزة بين اثنين: اسمُ كلٍّ ونتيجتُه من الأسئلة فوق
-/// الحبل، والتاجُ لمن فاز حين تُحسم. والحبلُ يسير بعدد ما أصاب كلٌّ — كبقيّة
-/// الحلبات، لا بحسابٍ خاصٍّ بها.
-class TugOfWarArena extends StatelessWidget {
-  const TugOfWarArena({required this.racers, required this.total, this.finished = false, super.key});
-
-  final List<ArenaRacer> racers;
-  final int total;
-  final bool finished;
-
-  @override
-  Widget build(BuildContext context) {
-    final meIndex = racers.indexWhere((r) => r.me);
-    final me = racers[meIndex < 0 ? 0 : meIndex];
-    final rival = racers.firstWhere((r) => !identical(r, me), orElse: () => racers.last);
-    final winner = !finished || me.at == rival.at ? null : (me.at > rival.at ? me : rival);
-    Widget side(ArenaRacer r, Color team, CrossAxisAlignment align) => Expanded(
-          child: Column(
-            crossAxisAlignment: align,
-            children: [
-              Text(
-                '${identical(winner, r) ? '👑 ' : ''}${r.name}',
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(fontSize: 13, fontWeight: FontWeight.w900, color: StudentSurface.ink(context)),
-              ),
-              Text(
-                '${r.at}/$total',
-                style: TextStyle(fontSize: 12, fontWeight: FontWeight.w900, color: team),
-              ),
-              if (r.badge != null)
-                Text(
-                  r.badge!,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.w800, color: StudentSurface.mutedInk(context)),
-                ),
-            ],
-          ),
-        );
-    return Column(
-      key: const ValueKey('tug-arena'),
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        Row(
-          children: [
-            side(me, ArenaPalette.me, CrossAxisAlignment.start),
-            const Text('💪', style: TextStyle(fontSize: 18)),
-            side(rival, ArenaPalette.rival, CrossAxisAlignment.end),
-          ],
-        ),
-        const SizedBox(height: 4),
-        DuelTugOfWar(
-          myPoints: me.at,
-          rivalPoints: rival.at,
-          myAppearance: me.appearance,
-          rivalAppearance: rival.appearance,
-          height: 92,
-          steps: total,
-        ),
-      ],
-    );
-  }
 }

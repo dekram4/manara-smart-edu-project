@@ -270,6 +270,11 @@ class DuelLiveController extends ChangeNotifier {
   String? get lastLeft => _lastLeft;
 
   DateTime? _deadline;
+
+  /// نبضُ العدّاد: يزيد كلَّ عُشر ثانيةٍ والسؤالُ مفتوح. يستمع له العدّادُ
+  /// وحده، فلا تُبنى الشاشةُ كلُّها لأن الوقتَ نقص.
+  final ValueNotifier<int> ticks = ValueNotifier(0);
+
   Duration get timeLeft {
     if (hearing) return questionWindow;
     final deadline = _deadline;
@@ -490,7 +495,9 @@ class DuelLiveController extends ChangeNotifier {
       if (timeLeft == Duration.zero) {
         _reveal();
       } else {
-        notifyListeners();
+        // ‏الوقتُ وحده تغيّر: يُنبَّه العدّادُ لا الشاشة — كانت تُبنى كلُّها عشرَ
+        // ‏مرّاتٍ في الثانية، بمشهدها وخياراتها، فيثقل التابلت.
+        ticks.value++;
       }
     });
   }
@@ -662,6 +669,7 @@ class DuelLiveController extends ChangeNotifier {
     _hold?.cancel();
     _fallback?.cancel();
     _hearTimer?.cancel();
+    ticks.dispose();
     super.dispose();
   }
 }

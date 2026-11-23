@@ -845,6 +845,8 @@ class _GameCardState extends State<_GameCard> {
                         players: widget.players,
                         height: 64,
                         radius: 14,
+                        // ‏المختارةُ وحدها تتحرّك: أربعةُ مشاهد تُفكّ معاً كانت تُبطئ التابلت.
+                        paused: !selected,
                         overlay: Align(
                           alignment: AlignmentDirectional.bottomEnd,
                           child: Padding(

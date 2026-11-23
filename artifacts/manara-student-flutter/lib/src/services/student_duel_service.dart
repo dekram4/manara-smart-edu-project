@@ -440,6 +440,19 @@ class StudentDuelService {
 
   RealtimeChannel? _classChannel;
   String _classKey = '';
+
+  /// إعادةُ الانضمام بعد تعذّرٍ، وحارسٌ يتفقّد القناة.
+  Timer? _presenceRetry;
+  Timer? _presenceWatch;
+  int _presenceFailures = 0;
+
+  /// آخرُ ما قالته القناةُ عن اشتراكها، و`null` وهي تنضمّ.
+  RealtimeSubscribeStatus? _classStatus;
+
+  PresenceRepair get _repair => presenceRepair(
+        joined: _classStatus == RealtimeSubscribeStatus.subscribed,
+        joining: _classStatus == null,
+      );
   RealtimeChannel? _matchChannel;
 
   /// منضمٌّ الآن إلى قناة صفّ.
@@ -800,7 +813,21 @@ class StudentDuelService {
     if (classKey.isEmpty || myId.isEmpty) return;
     // ‏منضمٌّ إلى القناة نفسها: لا يُعاد الانضمام. الواجهةُ والساحةُ تطلبانه معاً،
     // وإعادتُه تُخرج الطالبَ من الحضور لحظةً ثم تعيده.
-    if (_classChannel != null && _classKey == classKey && _myId == myId) return;
+    // ‏لكن تُنعش: يُعاد إعلانُ حضوري وتُقرأ القائمةُ الآن — من فتح الساحة يرى
+    // من حضر لحظتها، لا ما بقي من آخر مزامنة.
+    final current = _classChannel;
+    if (current != null && _classKey == classKey && _myId == myId) {
+      switch (_repair) {
+        case PresenceRepair.refresh:
+          _readPresence(current);
+          unawaited(_track(current, myId));
+          return;
+        case PresenceRepair.wait:
+          return;
+        case PresenceRepair.rejoin:
+          break; // ‏قناةٌ سقطت (مهلةٌ أو خطأ أو انقطاع): تُبنى من جديد.
+      }
+    }
     try {
       await leaveClass();
       _classKey = classKey;
@@ -809,6 +836,9 @@ class StudentDuelService {
         opts: const RealtimeChannelConfig(self: true),
       );
       _myId = myId;
+      // ‏قبل الاشتراك: ردُّه قد يصل في الحال، ويُعرف به أنها قناتُنا الجارية.
+      _classChannel = channel;
+      _classStatus = null;
       for (final event in const ['invite', 'invite-reply', 'invite-cancel']) {
         channel.onBroadcast(
           event: event,
@@ -823,15 +853,79 @@ class StudentDuelService {
       channel.onPresenceSync((_) => _readPresence(channel));
       channel.onPresenceJoin((_) => _readPresence(channel));
       channel.onPresenceLeave((_) => _readPresence(channel));
-      channel.subscribe((status, _) async {
-        if (status == RealtimeSubscribeStatus.subscribed) {
-          await channel.track({'id': myId});
+      // ── ولماذا يُعاد الانضمام ──
+      // كان اشتراكٌ تأخّر ردُّه (شبكةُ تابلتٍ بطيئة، أو مقبسٌ ما زال يُغلق بعد
+      // العودة من الخلفية) يترك القناةَ معلّقةً إلى الأبد: لا حضورَ يُعلن ولا
+      // يُقرأ، والطالبُ يرى «لا أحد متصل» وزميلُه أمامه. الآن تُعاد بعد مهلةٍ
+      // تطول قليلاً مع كل تعذّر، والحارسُ يلتقط ما فات.
+      channel.subscribe((status, error) async {
+        if (!identical(_classChannel, channel)) return;
+        _classStatus = status;
+        switch (status) {
+          case RealtimeSubscribeStatus.subscribed:
+            _presenceFailures = 0;
+            await _track(channel, myId);
+            _readPresence(channel);
+          case RealtimeSubscribeStatus.channelError:
+          case RealtimeSubscribeStatus.timedOut:
+          case RealtimeSubscribeStatus.closed:
+            debugPrint('[duel] presence $status: $error');
+            _scheduleRejoin();
         }
       });
-      _classChannel = channel;
+      _watchPresence();
     } catch (error) {
       debugPrint('[duel] presence unavailable: $error');
+      if (_classKey.isNotEmpty) _scheduleRejoin();
     }
+  }
+
+  Future<void> _track(RealtimeChannel channel, String myId) async {
+    try {
+      await channel.track({'id': myId});
+    } catch (error) {
+      debugPrint('[duel] presence not tracked: $error');
+    }
+  }
+
+  /// قناةٌ تعذّرت: يُعاد الانضمامُ بعد مهلةٍ تطول مع كل تعذّر (٢، ٤، ٨… حتى ٣٠ ثانية).
+  void _scheduleRejoin() {
+    final key = _classKey;
+    final me = _myId;
+    if (key.isEmpty || me.isEmpty || (_presenceRetry?.isActive ?? false)) return;
+    final wait = presenceRetryDelay(_presenceFailures++);
+    _presenceRetry = Timer(wait, () {
+      if (_classKey != key || _myId != me) return;
+      // ‏عادت القناةُ وحدها في المهلة: لا شيء يُعاد.
+      if (_classStatus == RealtimeSubscribeStatus.subscribed) return;
+      // ‏وما زالت «تنضمّ» بلا ردّ: تُعامل كساقطة فتُبنى من جديد.
+      _classStatus ??= RealtimeSubscribeStatus.timedOut;
+      unawaited(joinClass(classKey: key, myId: me));
+    });
+  }
+
+  /// يتفقّد القناةَ كلَّ ٢٠ ثانية: سقطت دون أن تُخبر → تُعاد؛ وقائمةُ
+  /// المتصلين تُقرأ — فلا تبقى صورةٌ قديمة إن فاتت مزامنة.
+  void _watchPresence() {
+    _presenceWatch?.cancel();
+    var waited = 0;
+    _presenceWatch = Timer.periodic(const Duration(seconds: 20), (_) {
+      final channel = _classChannel;
+      if (channel == null) return;
+      switch (_repair) {
+        case PresenceRepair.refresh:
+          waited = 0;
+          _readPresence(channel);
+        case PresenceRepair.wait:
+          // ‏تنضمّ منذ أكثر من ٤٠ ثانيةً بلا ردّ: كأنها سقطت.
+          if (++waited >= 2) {
+            waited = 0;
+            _scheduleRejoin();
+          }
+        case PresenceRepair.rejoin:
+          _scheduleRejoin();
+      }
+    });
   }
 
   void _readPresence(RealtimeChannel channel) {
@@ -852,6 +946,10 @@ class StudentDuelService {
   Future<void> leaveClass() async {
     final channel = _classChannel;
     _classChannel = null;
+    _presenceRetry?.cancel();
+    _presenceRetry = null;
+    _presenceWatch?.cancel();
+    _presenceWatch = null;
     _classKey = '';
     online.value = const {};
     if (channel == null) return;
@@ -1075,4 +1173,26 @@ class StudentDuelService {
     unawaited(leaveMatch());
     online.dispose();
   }
+}
+
+/// ما تحتاجه قناةُ حضور الصفّ حين تُتفقَّد.
+enum PresenceRepair {
+  /// منضمّة: تُقرأ القائمةُ ويُعاد الإعلان.
+  refresh,
+
+  /// تنضمّ الآن: تُترك.
+  wait,
+
+  /// مغلقةٌ أو متعذّرة: تُبنى من جديد.
+  rejoin,
+}
+
+/// حالُ القناة ← ما يُفعل بها.
+PresenceRepair presenceRepair({required bool joined, required bool joining}) =>
+    joined ? PresenceRepair.refresh : (joining ? PresenceRepair.wait : PresenceRepair.rejoin);
+
+/// مهلةُ إعادة الانضمام بعد [failures] تعذّراً متتالياً: ٢، ٤، ٨، ١٦، ثم ٣٠ ثانية.
+Duration presenceRetryDelay(int failures) {
+  final seconds = 2 << failures.clamp(0, 4);
+  return Duration(seconds: seconds > 30 ? 30 : seconds);
 }

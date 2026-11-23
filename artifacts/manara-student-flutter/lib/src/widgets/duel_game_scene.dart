@@ -2,32 +2,39 @@ import 'package:flutter/material.dart';
 
 import '../services/student_duel_service.dart';
 
-/// مشاهدُ ألعاب «تحدَّ زملاءك» المتحرّكة (GIF)، ملفٌّ لكلّ لعبة:
+/// مشاهدُ ألعاب «تحدَّ زملاءك» المتحرّكة (WebP متحرّك)، ملفٌّ لكلّ لعبة:
+///
+/// ── ولماذا WebP لا GIF ──
+/// الملفّاتُ العشرة كانت ٧٤ ميغابايت GIF: تُثقل التطبيقَ وفكُّها يُبطئ التابلت.
+/// وهي الآن ~٦ ميغابايت بالإطارات نفسها وتوقيتها ووضوحٍ يكاد لا يُفرَّق.
 ///  • سباقُ الحواجز وشدُّ الحبل: بعدد اللاعبين في الجولة، من ٢ إلى ٥.
 ///  • بستانُ الأرقام: جمعُ الفواكه. وأبراجُ التحدي: بناءُ الجدار.
 ///
 /// والمساراتُ مكتوبةً كاملةً لا مبنيّةً بالأرقام: فيراها اختبارُ الأصول
 /// (`asset_policy_test`) ويتحقّق أنّ كلَّ ملفٍّ منها موجودٌ ومعلن.
 const Map<int, String> _hurdles = {
-  2: 'assets/images/duel_games/hurdle-race-2-players.gif',
-  3: 'assets/images/duel_games/hurdle-race-3-players.gif',
-  4: 'assets/images/duel_games/hurdle-race-4-players.gif',
-  5: 'assets/images/duel_games/hurdle-race-5-players.gif',
+  2: 'assets/images/duel_games/hurdle-race-2-players.webp',
+  3: 'assets/images/duel_games/hurdle-race-3-players.webp',
+  4: 'assets/images/duel_games/hurdle-race-4-players.webp',
+  5: 'assets/images/duel_games/hurdle-race-5-players.webp',
 };
 
 const Map<int, String> _tugs = {
-  2: 'assets/images/duel_games/tug-of-war-2-players.gif',
-  3: 'assets/images/duel_games/tug-of-war-3-players.gif',
-  4: 'assets/images/duel_games/tug-of-war-4-players.gif',
-  5: 'assets/images/duel_games/tug-of-war-5-players.gif',
+  2: 'assets/images/duel_games/tug-of-war-2-players.webp',
+  3: 'assets/images/duel_games/tug-of-war-3-players.webp',
+  4: 'assets/images/duel_games/tug-of-war-4-players.webp',
+  5: 'assets/images/duel_games/tug-of-war-5-players.webp',
 };
 
-const _fruits = 'assets/images/duel_games/fruit-collecting.gif';
-const _wall = 'assets/images/duel_games/wall-building.gif';
+const _fruits = 'assets/images/duel_games/fruit-collecting.webp';
+const _wall = 'assets/images/duel_games/wall-building.webp';
 
 /// أقلُّ عددٍ وأكثرُه لمشاهد العدد.
 const duelSceneMinPlayers = 2;
 const duelSceneMaxPlayers = 5;
+
+/// عرضُ إطارات المشاهد في ملفّاتها.
+const duelSceneSourceWidth = 560;
 
 /// مشهدُ [game] لجولةٍ فيها [players] لاعباً.
 ///
@@ -69,11 +76,15 @@ class DuelGameScene extends StatelessWidget {
     this.height,
     this.radius = 18,
     this.overlay,
+    this.paused = false,
     super.key,
   });
 
   final DuelGame game;
   final int players;
+
+  /// المشهدُ واقفٌ على إطاره: بطاقةٌ غيرُ مختارة في الصالة، أو لحظةُ تعثّر.
+  final bool paused;
 
   /// ارتفاعٌ ثابت (المشهدُ يُقصّ ليملأه)، أو نسبةُ ١٦:٩ إن غاب.
   final double? height;
@@ -86,17 +97,28 @@ class DuelGameScene extends StatelessWidget {
   Widget build(BuildContext context) {
     final path = duelGameScene(game, players);
     final still = MediaQuery.maybeOf(context)?.disableAnimations ?? false;
-    final image = TickerMode(
-      enabled: !still && TickerMode.valuesOf(context).enabled,
-      child: Image.asset(
-        path,
-        key: ValueKey(path),
-        fit: BoxFit.cover,
-        gaplessPlayback: true,
-        filterQuality: FilterQuality.medium,
-        excludeFromSemantics: true,
-        errorBuilder: (context, _, __) => _SceneFallback(game: game),
-      ),
+    final dpr = MediaQuery.maybeOf(context)?.devicePixelRatio ?? 1;
+    // ── يُفكّ بحجم ما يُعرض لا بحجم الملف ──
+    // ‏صورةٌ مصغّرةٌ في الصالة لا تحمل إطاراتٍ بعرض ٥٦٠ في الذاكرة. والعرضُ يُقرَّب
+    // ‏إلى درجاتٍ ثابتة كي لا يُعاد الفكُّ مع كل تغيّرٍ صغيرٍ في التخطيط.
+    final image = LayoutBuilder(
+      builder: (context, constraints) {
+        final shown = constraints.maxWidth.isFinite ? constraints.maxWidth * dpr : duelSceneSourceWidth.toDouble();
+        final bucket = ((shown / 120).ceil() * 120).clamp(120, duelSceneSourceWidth);
+        return TickerMode(
+          enabled: !still && !paused && TickerMode.valuesOf(context).enabled,
+          child: Image.asset(
+            path,
+            key: ValueKey(path),
+            cacheWidth: bucket < duelSceneSourceWidth ? bucket : null,
+            fit: BoxFit.cover,
+            gaplessPlayback: true,
+            filterQuality: FilterQuality.medium,
+            excludeFromSemantics: true,
+            errorBuilder: (context, _, __) => _SceneFallback(game: game),
+          ),
+        );
+      },
     );
     final scene = ClipRRect(
       borderRadius: BorderRadius.circular(radius),
@@ -108,12 +130,15 @@ class DuelGameScene extends StatelessWidget {
         ],
       ),
     );
-    return Semantics(
-      image: true,
-      label: game.label,
-      child: KeyedSubtree(
-        key: ValueKey('duel-scene-${game.id}'),
-        child: height != null ? SizedBox(height: height, child: scene) : AspectRatio(aspectRatio: 16 / 9, child: scene),
+    // ‏حدُّ رسمٍ مستقلّ: إطاراتُ المشهد لا تُعيد رسمَ ما حوله من الشاشة.
+    return RepaintBoundary(
+      child: Semantics(
+        image: true,
+        label: game.label,
+        child: KeyedSubtree(
+          key: ValueKey('duel-scene-${game.id}'),
+          child: height != null ? SizedBox(height: height, child: scene) : AspectRatio(aspectRatio: 16 / 9, child: scene),
+        ),
       ),
     );
   }
