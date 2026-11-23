@@ -99,6 +99,7 @@ void main() {
       SavedAccounts saved, {
       List<String>? spoken,
       List<String>? asked,
+      List<int>? listens,
     }) async {
       grantMic(tester);
       tester.view.physicalSize = const Size(1280, 800);
@@ -114,6 +115,7 @@ void main() {
           voicePrompt: () async => asked?.add('voice_login'),
           // ‏كمحرّك التعرّف: الكلماتُ تصل واحدةً واحدة، ثم النصُّ النهائيّ.
           voiceListen: ({required onResult, onPartial}) async {
+            listens?.add(1);
             if (said.isEmpty) return false;
             final words = said.removeAt(0);
             scheduleMicrotask(() {
@@ -210,6 +212,7 @@ void main() {
       await saved.save(const SavedAccount(username: 'sara', displayName: 'سارة'), 'secret-s');
       final asked = <String>[];
       final auth = await pump(tester, saved, spoken: ['أنا جوري داود'], asked: asked);
+      await tester.tap(find.byKey(const ValueKey('voice-login')));
       await tester.pump(const Duration(milliseconds: 300));
       await tester.pump(const Duration(milliseconds: 300));
       expect(asked, ['voice_login'], reason: 'السؤالُ المسموع قبل الاستماع');
@@ -223,6 +226,7 @@ void main() {
       final saved = SavedAccounts();
       await saved.save(const SavedAccount(username: 'sara', displayName: 'سارة'), 'secret');
       final auth = await pump(tester, saved, spoken: ['طائرة', 'سارة']);
+      await tester.tap(find.byKey(const ValueKey('voice-login')));
       await tester.pump(const Duration(milliseconds: 300));
       await tester.pump(const Duration(milliseconds: 300));
       expect(auth.attempts, isEmpty);
@@ -232,6 +236,45 @@ void main() {
       await tester.pump(const Duration(milliseconds: 300));
       await tester.pump(const Duration(milliseconds: 300));
       expect(auth.attempts, [('sara', 'secret')]);
+      await settle(tester);
+    });
+
+    testWidgets('المايكُ لا يُفتح وحده: لا سؤالَ ولا استماعَ حتى يُلمس', (tester) async {
+      final saved = SavedAccounts();
+      await saved.save(const SavedAccount(username: 'sara', displayName: 'سارة'), 'secret');
+      final asked = <String>[];
+      final listens = <int>[];
+      final auth = await pump(tester, saved, spoken: ['سارة'], asked: asked, listens: listens);
+      for (var i = 0; i < 6; i++) {
+        await tester.pump(const Duration(milliseconds: 500));
+      }
+      expect(find.byKey(const ValueKey('voice-login')), findsOneWidget);
+      expect(asked, isEmpty, reason: 'لا سؤالَ مسموعٌ عند فتح الشاشة');
+      expect(listens, isEmpty, reason: 'لا استماعَ قبل اللمس');
+      expect(auth.attempts, isEmpty);
+      expect(find.text(tr('voice.sayName')), findsOneWidget);
+      // ‏لمسةٌ: يُسأل ثم يُسمع فيدخل.
+      await tester.tap(find.byKey(const ValueKey('voice-login')));
+      await tester.pump(const Duration(milliseconds: 300));
+      await tester.pump(const Duration(milliseconds: 300));
+      expect(asked, ['voice_login']);
+      expect(listens, hasLength(1));
+      expect(auth.attempts, [('sara', 'secret')]);
+      await settle(tester);
+    });
+
+    testWidgets('من لا يريد الصوت: خانةُ الاسم تعرض الحسابات كما كانت، والمايكُ مغلق', (tester) async {
+      final saved = SavedAccounts();
+      await saved.save(const SavedAccount(username: 'sara', displayName: 'سارة'), 'secret');
+      final listens = <int>[];
+      final auth = await pump(tester, saved, spoken: ['سارة'], listens: listens);
+      await tester.tap(find.byKey(const ValueKey('login-username')));
+      await tester.pump(const Duration(milliseconds: 400));
+      expect(find.byKey(const ValueKey('login-account-picker')), findsOneWidget);
+      await tester.tap(find.byKey(const ValueKey('login-account-sara')));
+      await tester.pump(const Duration(milliseconds: 400));
+      expect(auth.attempts, [('sara', 'secret')]);
+      expect(listens, isEmpty);
       await settle(tester);
     });
 
@@ -250,6 +293,7 @@ void main() {
       await saved.save(const SavedAccount(username: 'jory1', displayName: 'جوري داود'), 'a');
       await saved.save(const SavedAccount(username: 'jory2', displayName: 'جوري سالم'), 'b');
       final auth = await pump(tester, saved, spoken: ['جوري', 'جوري سالم']);
+      await tester.tap(find.byKey(const ValueKey('voice-login')));
       await tester.pump(const Duration(milliseconds: 300));
       await tester.pump(const Duration(milliseconds: 300));
       expect(auth.attempts, isEmpty, reason: 'جوري وحدها لا تُدخل أحداً');

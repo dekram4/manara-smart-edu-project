@@ -72,7 +72,11 @@ class _LoginScreenState extends State<LoginScreen> {
   bool _manualEntry = false;
   bool _pickerOpen = false;
 
-  /// سُئل «إيش اسمك يا بطل؟» في هذه الفتحة: لا يُسأل وحده ثانيةً.
+  /// سُئل «إيش اسمك يا بطل؟» في هذه الفتحة: لا يُسأل ثانيةً.
+  ///
+  /// ── والمايكُ لا يُفتح وحده ──
+  /// الشاشةُ تُفتح صامتةً الأذن: الطفلُ يلمس الميكروفون فيُسأل ثم يُسمع.
+  /// ومن لا يريد الصوت يلمس خانةَ الاسم فيختار حسابه أو يكتب كما كان.
   bool _voiceAsked = false;
 
   /// ما يُقال للطفل تحت الميكروفون بعد أن تكلّم.
@@ -158,6 +162,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
   /// «إيش اسمك يا بطل؟» — يُسأل الطفلُ بصوتٍ مسجّل قبل أن يُفتح المايك.
   Future<void> _askName() async {
+    if (_voiceAsked) return;
     _voiceAsked = true;
     final prompt = widget.voicePrompt;
     if (prompt != null) return prompt();
@@ -748,7 +753,6 @@ class _LoginScreenState extends State<LoginScreen> {
                           note: _voiceNote,
                           mic: VoiceMicButton(
                             key: const ValueKey('voice-login'),
-                            autoStart: !_voiceAsked,
                             prompt: _askName,
                             listen: widget.voiceListen,
                             onHeard: _voiceLogin,

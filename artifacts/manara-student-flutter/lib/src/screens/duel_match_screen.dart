@@ -747,7 +747,7 @@ class _DuelMatchScreenState extends State<DuelMatchScreen>
     return LayoutBuilder(
       builder: (context, constraints) {
         final wide = constraints.maxWidth >= 760 && constraints.maxHeight >= 420;
-        final arena = _arenaSection(showScene: wide);
+        final arena = _arenaSection(compact: !wide);
         final ask = _questionSection(question);
         final answer = _answerSection(question);
         final chat = _chatSection();
@@ -767,16 +767,18 @@ class _DuelMatchScreenState extends State<DuelMatchScreen>
               children: [
                 Expanded(
                   flex: 5,
+                  // ‏المواجهةُ ودردشةُ الزملاء في جانب، والسؤالُ وجوابُه وحدهما في
+                  // ‏الآخر: لا يُمرَّر إلى الخيارات، ولا يختلط زرُّ الجواب بالدردشة.
                   child: ListView(
                     padding: const EdgeInsets.fromLTRB(14, 6, 8, 120),
-                    children: arena,
+                    children: [...arena, const SizedBox(height: 14), chat],
                   ),
                 ),
                 Expanded(
                   flex: 6,
                   child: ListView(
                     padding: const EdgeInsets.fromLTRB(8, 6, 14, 120),
-                    children: [...ask, const SizedBox(height: 12), ...answer, const SizedBox(height: 16), chat],
+                    children: [...ask, const SizedBox(height: 12), ...answer],
                   ),
                 ),
               ],
@@ -788,7 +790,7 @@ class _DuelMatchScreenState extends State<DuelMatchScreen>
   }
 
   /// ١. المواجهة.
-  List<Widget> _arenaSection({required bool showScene}) => [
+  List<Widget> _arenaSection({required bool compact}) => [
         DuelVersusBar(
           myName: tr('duel.you'),
           rivalName: _leaderName,
@@ -827,7 +829,9 @@ class _DuelMatchScreenState extends State<DuelMatchScreen>
           theirAppearance: _leaderLook,
           opponentName: _leaderName,
           players: _racers,
-          showScene: showScene,
+          // ‏المشهدُ يتعثّر إن أخطأتُ، ويقفز أو يُشدّ إن أصبت — من النتائج نفسها.
+          missAt: _game.pickedCorrect == false ? _game.index : null,
+          compact: compact,
         ),
         // ⚡ سريع! — زمنُ إجابتي حين أسبق.
         AnimatedSwitcher(
@@ -868,10 +872,14 @@ class _DuelMatchScreenState extends State<DuelMatchScreen>
             if (_game.hearing)
               const _HearingBadge()
             else if (_game.phase == DuelPhase.question)
-              ArenaTimerRing(
-                left: _game.timeLeft,
-                window: _game.questionWindow,
-                size: 58,
+              // ‏العدّادُ وحده يُعاد رسمُه كلَّ عُشر ثانية، لا الشاشةُ كلُّها.
+              ValueListenableBuilder<int>(
+                valueListenable: _game.ticks,
+                builder: (context, _, __) => ArenaTimerRing(
+                  left: _game.timeLeft,
+                  window: _game.questionWindow,
+                  size: 58,
+                ),
               )
             else
               const SizedBox(width: 58, height: 58),
@@ -880,7 +888,10 @@ class _DuelMatchScreenState extends State<DuelMatchScreen>
         // ‏والشريطُ التنازليّ تحته: يُرى بطرف العين وينبض في الثواني الأخيرة.
         if (_game.phase == DuelPhase.question && !_game.hearing) ...[
           const SizedBox(height: 8),
-          ArenaTimeBar(left: _game.timeLeft, window: _game.questionWindow),
+          ValueListenableBuilder<int>(
+            valueListenable: _game.ticks,
+            builder: (context, _, __) => ArenaTimeBar(left: _game.timeLeft, window: _game.questionWindow),
+          ),
         ],
         if (_game.hearing) ...[
           const SizedBox(height: 8),

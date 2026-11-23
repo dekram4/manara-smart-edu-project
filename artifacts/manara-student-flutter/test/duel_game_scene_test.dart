@@ -11,27 +11,27 @@ import 'package:manara_student/src/widgets/duel_game_scene.dart';
 void main() {
   test('سباقُ الحواجز وشدُّ الحبل بعدد اللاعبين من ٢ إلى ٥', () {
     for (var n = 2; n <= 5; n++) {
-      expect(duelGameScene(DuelGame.sprint, n), 'assets/images/duel_games/hurdle-race-$n-players.gif');
-      expect(duelGameScene(DuelGame.tug, n), 'assets/images/duel_games/tug-of-war-$n-players.gif');
+      expect(duelGameScene(DuelGame.sprint, n), 'assets/images/duel_games/hurdle-race-$n-players.webp');
+      expect(duelGameScene(DuelGame.tug, n), 'assets/images/duel_games/tug-of-war-$n-players.webp');
     }
   });
 
   test('البستانُ جمعُ الفواكه، والأبراجُ بناءُ الجدار — أيّاً كان العدد', () {
     for (var n = 1; n <= 6; n++) {
-      expect(duelGameScene(DuelGame.balloons, n), 'assets/images/duel_games/fruit-collecting.gif');
-      expect(duelGameScene(DuelGame.gems, n), 'assets/images/duel_games/wall-building.gif');
+      expect(duelGameScene(DuelGame.balloons, n), 'assets/images/duel_games/fruit-collecting.webp');
+      expect(duelGameScene(DuelGame.gems, n), 'assets/images/duel_games/wall-building.webp');
     }
   });
 
   test('عددٌ خارج النطاق: أقربُ مشهدٍ موجود', () {
-    expect(duelGameScene(DuelGame.sprint, 0), endsWith('hurdle-race-2-players.gif'));
-    expect(duelGameScene(DuelGame.sprint, 1), endsWith('hurdle-race-2-players.gif'));
-    expect(duelGameScene(DuelGame.tug, 6), endsWith('tug-of-war-5-players.gif'));
-    expect(duelGameScene(DuelGame.tug, 99), endsWith('tug-of-war-5-players.gif'));
-    expect(duelGameScene(DuelGame.tug, -3), endsWith('tug-of-war-2-players.gif'));
+    expect(duelGameScene(DuelGame.sprint, 0), endsWith('hurdle-race-2-players.webp'));
+    expect(duelGameScene(DuelGame.sprint, 1), endsWith('hurdle-race-2-players.webp'));
+    expect(duelGameScene(DuelGame.tug, 6), endsWith('tug-of-war-5-players.webp'));
+    expect(duelGameScene(DuelGame.tug, 99), endsWith('tug-of-war-5-players.webp'));
+    expect(duelGameScene(DuelGame.tug, -3), endsWith('tug-of-war-2-players.webp'));
   });
 
-  test('كلُّ مشهدٍ ملفُّ GIF حقيقيٌّ في الأصول، ومجلّدُه معلنٌ في pubspec', () {
+  test('كلُّ مشهدٍ WebP متحرّكٌ حقيقيٌّ في الأصول، خفيف، ومجلّدُه معلنٌ في pubspec', () {
     final pubspec = File('pubspec.yaml').readAsStringSync();
     expect(pubspec, contains('    - assets/images/duel_games/'));
     expect(allDuelGameScenes, hasLength(10));
@@ -39,10 +39,18 @@ void main() {
       final file = File(path);
       expect(file.existsSync(), isTrue, reason: path);
       final head = file.openSync()..setPositionSync(0);
-      final magic = String.fromCharCodes(head.readSync(6));
+      final magic = String.fromCharCodes(head.readSync(40));
       head.closeSync();
-      expect(magic, startsWith('GIF8'), reason: '$path ليس GIF');
+      expect(magic.substring(0, 4), 'RIFF', reason: '$path ليس WebP');
+      expect(magic.substring(8, 12), 'WEBP', reason: '$path ليس WebP');
+      expect(magic, contains('ANIM'), reason: '$path ليس متحرّكاً');
+      expect(file.lengthSync(), lessThan(1024 * 1024), reason: '$path أثقل من ميغابايت');
     }
+    // ‏كانت ٧٤ ميغابايت GIF: لا تعود.
+    final total = allDuelGameScenes.fold<int>(0, (sum, path) => sum + File(path).lengthSync());
+    expect(total, lessThan(10 * 1024 * 1024));
+    expect(Directory('assets/images/duel_games').listSync().where((f) => f.path.endsWith('.gif')), isEmpty,
+        reason: 'لا GIF قديمٌ يبقى في الحزمة');
   });
 
   Widget host(Widget child, {bool still = false}) => MaterialApp(
@@ -67,11 +75,23 @@ void main() {
       )));
       await tester.pump(const Duration(milliseconds: 50));
       final image = tester.widget<Image>(find.descendant(of: find.byKey(const ValueKey('duel-scene-sprint')), matching: find.byType(Image)));
-      expect((image.image as AssetImage).assetName, duelGameScene(DuelGame.sprint, players));
+      final provider = image.image;
+      final asset = (provider is ResizeImage ? provider.imageProvider : provider) as AssetImage;
+      expect(asset.assetName, duelGameScene(DuelGame.sprint, players));
       expect(tester.takeException(), isNull);
     }
     await tester.pumpWidget(const SizedBox());
     await tester.pump(const Duration(seconds: 2));
+  });
+
+  testWidgets('مشهدٌ صغيرٌ يُفكّ صغيراً، والموقوفُ (بطاقةٌ غيرُ مختارة) لا يتحرّك', (tester) async {
+    await tester.pumpWidget(host(const SizedBox(width: 120, child: DuelGameScene(game: DuelGame.tug, players: 2, height: 64, paused: true))));
+    await tester.pump(const Duration(milliseconds: 50));
+    final image = tester.widget<Image>(find.byType(Image));
+    expect(image.image, isA<ResizeImage>());
+    expect((image.image as ResizeImage).width, lessThan(duelSceneSourceWidth));
+    final ticker = tester.widget<TickerMode>(find.ancestor(of: find.byType(Image), matching: find.byType(TickerMode)).first);
+    expect(ticker.enabled, isFalse);
   });
 
   testWidgets('«تقليل الحركة»: المشهدُ صورةٌ ثابتة', (tester) async {

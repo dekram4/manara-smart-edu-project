@@ -21,6 +21,7 @@ import 'package:manara_student/src/services/student_leaderboard_service.dart';
 import 'package:manara_student/src/services/student_settings.dart';
 import 'package:manara_student/src/widgets/arena_widgets.dart';
 import 'package:manara_student/src/widgets/duel_chat.dart';
+import 'package:manara_student/src/widgets/duel_game_scene.dart';
 
 const me = StudentProfile(
   id: 'me',
@@ -70,9 +71,14 @@ class FakeDuel implements StudentDuelService {
   @override
   Stream<DuelInviteEvent> get inviteEvents => events.stream;
 
+  /// كلُّ طلبٍ للحضور: الصفُّ ومن أنا.
+  final List<String> joins = [];
+
   @override
   Future<void> joinClass(
-      {required String classKey, required String myId}) async {}
+      {required String classKey, required String myId}) async {
+    joins.add('$classKey/$myId');
+  }
   @override
   Future<void> leaveClass() async {}
   @override
@@ -446,6 +452,33 @@ void main() {
           tester, find.text(trf('arena.party.challengeN', {'n': '1'})));
       await settle(tester, 3);
       expect(duel.log, contains('invite:r1:balloons'));
+    });
+
+    testWidgets('فتحُ الساحة يطلب الحضورَ في لحظته، ومن يتصل يظهر فوراً', (tester) async {
+      sized(tester, const Size(390, 1800));
+      final duel = FakeDuel();
+      duel.online.value = const {};
+      addTearDown(duel.events.close);
+      await tester.pumpWidget(MaterialApp(
+        home: StudentDuelScreen(
+          profile: me,
+          duelService: duel,
+          challengeService: NoChallenge(),
+          leaderboardService: FakeBoard(),
+          academicContext: lessonContext,
+        ),
+      ));
+      await settle(tester);
+      expect(duel.joins, ['t1:4/me'], reason: 'الصفُّ والطالبُ يُمرَّران كما هما');
+      expect(find.text(tr('arena.onlineEmpty')), findsOneWidget);
+      // ‏زميلٌ فتح التطبيق: يظهر بلا إعادة فتح الشاشة.
+      duel.online.value = {'r1'};
+      await tester.pump();
+      expect(find.text(tr('arena.onlineEmpty')), findsNothing);
+      expect(find.textContaining(trf('arena.online', {'n': '1'})), findsOneWidget);
+      duel.online.value = const {};
+      await tester.pump();
+      expect(find.text(tr('arena.onlineEmpty')), findsOneWidget);
     });
 
     testWidgets('المتصلُ وحده يُتحدّى، والغائبون شاحبون بلا زرّ',
@@ -1060,6 +1093,42 @@ void kindergartenDuel() {
     await closeKg(tester);
   });
 
+  for (final size in const [Size(360, 780), Size(390, 844), Size(820, 1180), Size(768, 1024), Size(1024, 768), Size(1366, 1024)]) {
+    testWidgets('الترتيب على ${size.width.toInt()}×${size.height.toInt()}:المشهدُ ثم السؤالُ ثم زرُّ الجواب ثم الخيارات، بلا فيضانٍ ولا تداخل',
+        (tester) async {
+      await openKg(tester, size);
+      expect(tester.takeException(), isNull);
+      final arena = find.byKey(const ValueKey('duel-arena'));
+      final scene = find.byType(DuelGameScene);
+      final mic = find.byKey(const ValueKey('duel-kg-mic'));
+      final chat = find.byKey(const ValueKey('duel-chat-section'));
+      expect(arena, findsOneWidget);
+      expect(scene, findsOneWidget, reason: 'المشهدُ المتحرّكُ حاضرٌ أثناء اللعب على كل جهاز');
+      final wide = find.byKey(const ValueKey('duel-question-wide')).evaluate().isNotEmpty;
+      expect(wide, size.width >= 760, reason: 'العمودان للتابلت والآيباد');
+      if (!wide) {
+        // ‏الهاتف: مشهدٌ قصيرٌ لا يُبعد السؤال.
+        expect(tester.getSize(scene).height, lessThanOrEqualTo(140));
+      }
+      await Scrollable.ensureVisible(tester.element(mic), alignment: 0.2);
+      await tester.pump();
+      final choice = find.text('الكلب').first;
+      await Scrollable.ensureVisible(tester.element(choice), alignment: 0.5);
+      await tester.pump();
+      expect(tester.getCenter(mic).dy, lessThan(tester.getCenter(choice).dy), reason: 'زرُّ الجواب فوق الخيارات');
+      // ‏الخياراتُ داخل الشاشة، وبعرضٍ يُلمس بإصبع.
+      final tile = tester.getRect(choice);
+      expect(tile.left, greaterThanOrEqualTo(0));
+      expect(tile.right, lessThanOrEqualTo(size.width));
+      // ‏الزرُّ والخيارُ لا يتداخلان.
+      expect(tester.getRect(mic).overlaps(tester.getRect(choice)), isFalse);
+      if (!wide) await tester.scrollUntilVisible(chat, 200);
+      expect(chat, findsOneWidget);
+      expect(tester.takeException(), isNull);
+      await closeKg(tester);
+    });
+  }
+
   testWidgets('الروضة: كلامٌ لم يُفهم يُقال للطفل، والزرُّ يعود «جرّب مرة أخرى»', (tester) async {
     final kg = await openKg(tester, const Size(360, 780));
     final mic = find.byKey(const ValueKey('duel-kg-mic'));
@@ -1099,7 +1168,11 @@ void kindergartenDuel() {
     expect(mic, findsOneWidget);
     expect(chat, findsOneWidget);
     expect(tester.getCenter(mic).dy, lessThan(tester.getCenter(choice).dy), reason: 'زرُّ الجواب قبل الخيارات');
-    expect(tester.getCenter(chat).dy, greaterThan(tester.getCenter(choice).dy), reason: 'الدردشةُ بعدها، في بطاقتها');
+    // ‏الدردشةُ في عمود المواجهة تحت المشهد، والسؤالُ وجوابُه وحدهما في العمود الآخر.
+    final arena = find.byKey(const ValueKey('duel-arena'));
+    expect((tester.getCenter(chat).dx - tester.getCenter(choice).dx).abs(), greaterThan(300), reason: 'الدردشةُ بعيدةٌ عن الخيارات');
+    expect((tester.getCenter(chat).dx - tester.getCenter(arena).dx).abs(), lessThan(40), reason: 'في عمود المشهد');
+    expect(tester.getCenter(chat).dy, greaterThan(tester.getCenter(arena).dy), reason: 'تحت المشهد');
     expect(find.descendant(of: chat, matching: find.byType(DuelVoiceButton)), findsOneWidget);
     expect(find.descendant(of: chat, matching: mic), findsNothing);
     expect(tester.takeException(), isNull, reason: 'لا فيضانَ في العرض العريض');
