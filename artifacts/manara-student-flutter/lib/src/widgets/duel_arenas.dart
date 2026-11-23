@@ -5,6 +5,7 @@ import '../services/student_duel_service.dart';
 import '../theme/student_theme.dart';
 import 'arena_widgets.dart';
 import 'duel_game_arenas.dart';
+import 'duel_game_scene.dart';
 import 'duel_tug_of_war.dart';
 
 export 'duel_game_arenas.dart' show ArenaRacer;
@@ -36,8 +37,13 @@ class DuelArena extends StatelessWidget {
     required this.opponentName,
     this.finished = false,
     this.players,
+    this.showScene = true,
     super.key,
   });
+
+  /// يُعرض مشهدُ اللعبة المتحرّك فوق المسارات. والهاتفُ أثناء السؤال يخفيه:
+  /// تبقى الخياراتُ في الشاشة الأولى بلا تمرير، والمشهدُ في العدّ والنتيجة.
+  final bool showScene;
 
   /// انتهت المباراة: الحلبةُ تُري الحسم — التاجُ لمن تقدّم.
   final bool finished;
@@ -70,20 +76,61 @@ class DuelArena extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final racers = _racers;
-    return Card(
-      color: StudentSurface.card(context),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
-      child: Padding(
-        padding: const EdgeInsets.all(14),
-        child: switch (game) {
-          DuelGame.sprint => HurdleRaceArena(racers: racers, total: total, finished: finished),
-          DuelGame.balloons => NumberOrchardArena(racers: racers, total: total, finished: finished),
-          // شدُّ الحبل بين اثنين، وفي غرفةٍ أكبر مغامرةُ الفضاء: الحبلُ طرفان.
-          DuelGame.tug when racers.length == 2 => TugOfWarArena(racers: racers, total: total, finished: finished),
-          DuelGame.tug => SpaceVoyageArena(racers: racers, total: total, finished: finished),
-          DuelGame.gems => ChallengeTowersArena(racers: racers, total: total, finished: finished),
-        },
-      ),
+    final score = racers.fold<int>(0, (sum, racer) => sum + racer.at);
+    // ── مشهدُ اللعبة المتحرّك أوّلاً، ثم مساراتُ التقدّم ──
+    // ‏المشهدُ (GIF) يقول أيَّ لعبةٍ هذه وكم لاعباً فيها، والمساراتُ تحته تقول
+    // ‏من تقدّم — فلا يُفقد شيءٌ من حال المباراة لأن الرسمَ تبدّل.
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final width = constraints.maxWidth.isFinite ? constraints.maxWidth : 360.0;
+        // ‏على الهاتف شريطٌ قصير لا يُبعد السؤال، وعلى التابلت مشهدٌ بنسبته.
+        final sceneHeight = width < 520 ? 132.0 : (width * 9 / 16).clamp(150.0, 300.0);
+        return DuelScenePulse(
+          score: score,
+          child: Card(
+            color: StudentSurface.card(context),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
+            child: Padding(
+              padding: const EdgeInsets.all(12),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  if (showScene) ...[
+                  DuelGameScene(
+                    game: game,
+                    players: racers.length,
+                    height: sceneHeight,
+                    overlay: Padding(
+                      padding: const EdgeInsets.all(8),
+                      child: Align(
+                        alignment: AlignmentDirectional.topStart,
+                        child: Wrap(spacing: 6, runSpacing: 6, children: [
+                          DuelSceneChip(text: game.label),
+                          DuelSceneChip(
+                            text: trf('arena.scenePlayers', {'n': '${racers.length}'}),
+                            color: const Color(0xCC9A3412),
+                          ),
+                        ]),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  ],
+                  switch (game) {
+                    DuelGame.sprint => HurdleRaceArena(racers: racers, total: total, finished: finished),
+                    DuelGame.balloons => NumberOrchardArena(racers: racers, total: total, finished: finished),
+                    // شدُّ الحبل بين اثنين، وفي غرفةٍ أكبر مغامرةُ الفضاء: الحبلُ طرفان.
+                    DuelGame.tug when racers.length == 2 => TugOfWarArena(racers: racers, total: total, finished: finished),
+                    DuelGame.tug => SpaceVoyageArena(racers: racers, total: total, finished: finished),
+                    DuelGame.gems => ChallengeTowersArena(racers: racers, total: total, finished: finished),
+                  },
+                ],
+              ),
+            ),
+          ),
+        );
+      },
     );
   }
 }

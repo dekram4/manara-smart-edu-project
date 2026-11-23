@@ -20,6 +20,7 @@ import '../theme/student_theme.dart';
 import '../widgets/arena_widgets.dart';
 import '../widgets/duel_arenas.dart';
 import '../widgets/duel_chat_mixin.dart';
+import '../widgets/duel_game_scene.dart';
 import '../widgets/duel_versus.dart';
 import '../widgets/duel_voice_answer_pad.dart';
 import '../widgets/voice_mic_button.dart' show ensureVoiceMic;
@@ -389,6 +390,10 @@ class _DuelMatchScreenState extends State<DuelMatchScreen>
     _game.addListener(_onGame);
     initChat();
     unawaited(_connect());
+    // ‏مشهدُ اللعبة يُحمَّل والطفلُ ينتظر زميله، فلا يظهر فارغاً حين تبدأ.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) unawaited(precacheDuelScene(context, widget.game, _allRivals.length + 1));
+    });
   }
 
   Future<void> _connect() async {
@@ -589,7 +594,31 @@ class _DuelMatchScreenState extends State<DuelMatchScreen>
                               {'name': _nameOf(_game.lastLeft!)}),
                           color: const Color(0xFFF59E0B),
                         ),
-                      Expanded(child: _phaseBody()),
+                      // ‏الانتقالُ بين المراحل (انتظار، عدّ، أسئلة، نتيجة) يتلاشى ويكبر
+                      // ‏بسلاسة بدل أن يقفز. والسؤالُ وكشفُه مرحلةٌ واحدة: لا تومض الصفحة
+                      // ‏بين السؤال وجوابه.
+                      Expanded(
+                        child: AnimatedSwitcher(
+                          duration: MediaQuery.of(context).disableAnimations
+                              ? Duration.zero
+                              : const Duration(milliseconds: 320),
+                          switchInCurve: Curves.easeOutBack,
+                          switchOutCurve: Curves.easeIn,
+                          // ‏ما خرج يختفي في لحظته، وما دخل يتلاشى إلى مكانه: لا تظهر مرحلتان معاً.
+                          layoutBuilder: (current, _) => current ?? const SizedBox.shrink(),
+                          transitionBuilder: (child, animation) => FadeTransition(
+                            opacity: animation,
+                            child: ScaleTransition(
+                              scale: Tween(begin: 0.96, end: 1.0).animate(animation),
+                              child: child,
+                            ),
+                          ),
+                          child: KeyedSubtree(
+                            key: ValueKey('phase-${_phaseGroup()}'),
+                            child: _phaseBody(),
+                          ),
+                        ),
+                      ),
                     ],
                   ),
                   if (_game.roomOpen)
@@ -637,6 +666,11 @@ class _DuelMatchScreenState extends State<DuelMatchScreen>
     );
   }
 
+  String _phaseGroup() => switch (_game.phase) {
+        DuelPhase.question || DuelPhase.reveal => 'play',
+        final phase => phase.name,
+      };
+
   Widget _phaseBody() {
     Widget versus(Widget footer, {bool rivalPresent = true}) => Center(
           child: SingleChildScrollView(
@@ -674,7 +708,18 @@ class _DuelMatchScreenState extends State<DuelMatchScreen>
           rivalPresent: false,
         );
       case DuelPhase.countdown:
-        return versus(_CountdownNumber(value: _game.countdown));
+        // ‏العدُّ التنازليّ ومشهدُ اللعبة بعدد من في الجولة: «هذه لعبتُكم، استعدّوا».
+        return versus(Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 520),
+              child: DuelGameScene(game: widget.game, players: _allRivals.length + 1),
+            ),
+            const SizedBox(height: 12),
+            _CountdownNumber(value: _game.countdown),
+          ],
+        ));
       case DuelPhase.question:
       case DuelPhase.reveal:
         return _questionView();
@@ -702,7 +747,7 @@ class _DuelMatchScreenState extends State<DuelMatchScreen>
     return LayoutBuilder(
       builder: (context, constraints) {
         final wide = constraints.maxWidth >= 760 && constraints.maxHeight >= 420;
-        final arena = _arenaSection();
+        final arena = _arenaSection(showScene: wide);
         final ask = _questionSection(question);
         final answer = _answerSection(question);
         final chat = _chatSection();
@@ -743,7 +788,7 @@ class _DuelMatchScreenState extends State<DuelMatchScreen>
   }
 
   /// ١. المواجهة.
-  List<Widget> _arenaSection() => [
+  List<Widget> _arenaSection({required bool showScene}) => [
         DuelVersusBar(
           myName: tr('duel.you'),
           rivalName: _leaderName,
@@ -782,6 +827,7 @@ class _DuelMatchScreenState extends State<DuelMatchScreen>
           theirAppearance: _leaderLook,
           opponentName: _leaderName,
           players: _racers,
+          showScene: showScene,
         ),
         // ⚡ سريع! — زمنُ إجابتي حين أسبق.
         AnimatedSwitcher(
@@ -858,7 +904,20 @@ class _DuelMatchScreenState extends State<DuelMatchScreen>
               child: child,
             ),
           ),
-          child: _QuestionCard(question: question),
+          // ‏الإجابةُ تُرى على السؤال نفسه: وهجٌ أخضرُ لمن أصاب، وأحمرُ هادئٌ لمن أخطأ.
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 260),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(24),
+              boxShadow: [
+                if (_game.pickedCorrect == true)
+                  BoxShadow(color: ArenaPalette.right.withValues(alpha: 0.55), blurRadius: 22, spreadRadius: 2)
+                else if (_game.pickedCorrect == false)
+                  BoxShadow(color: ArenaPalette.wrong.withValues(alpha: 0.35), blurRadius: 16),
+              ],
+            ),
+            child: _QuestionCard(question: question),
+          ),
         ),
         // ‏ما جرى في السؤال («أنت الأسرع!»، «سبقك خالد») تحت بطاقته مباشرةً: يُرى
         // ‏مع السؤال نفسه، لا تحت الخيارات حيث يُمرَّر إليه.

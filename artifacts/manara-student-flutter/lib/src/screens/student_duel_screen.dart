@@ -14,6 +14,7 @@ import '../services/student_settings.dart';
 import '../services/student_sound_service.dart';
 import '../theme/student_theme.dart';
 import '../widgets/arena_widgets.dart';
+import '../widgets/duel_game_scene.dart';
 import '../widgets/peer_challenge_card.dart' show duelWinGems;
 import '../widgets/student_avatar_view.dart';
 import '../widgets/student_experience.dart';
@@ -529,10 +530,13 @@ class _StudentDuelScreenState extends State<StudentDuelScreen> {
         if (_picked.contains(mate.id)) mate
     ];
     final ink = StudentSurface.ink(context);
+    // ‏على التابلت والآيباد: المحتوى في عمودٍ متوسّطٍ لا يتمدّد على عرض الشاشة كلّه،
+    // ‏فلا تتباعد البطاقاتُ ولا تطول الأسطر.
+    final side = ((MediaQuery.sizeOf(context).width - 1040) / 2).clamp(14.0, double.infinity);
     return ListView(
       physics:
           const AlwaysScrollableScrollPhysics(parent: BouncingScrollPhysics()),
-      padding: const EdgeInsets.fromLTRB(14, 4, 14, 28),
+      padding: EdgeInsets.fromLTRB(side, 4, side, 28),
       children: [
         Row(
           children: [
@@ -576,6 +580,8 @@ class _StudentDuelScreenState extends State<StudentDuelScreen> {
                     width: width,
                     child: _GameCard(
                       game: game,
+                      // ‏المشهدُ بعدد من في الجولة: أنا ومن اخترتُهم حتى الآن.
+                      players: picked.length + 1,
                       selected: _game == game,
                       onTap: () {
                         StudentSoundService.instance.playTap();
@@ -771,9 +777,12 @@ class _HeroCard extends StatelessWidget {
 /// بطاقةُ لعبة: مجسّمةٌ على حافّتها، والمختارةُ ترتفع وتتلوّن.
 class _GameCard extends StatefulWidget {
   const _GameCard(
-      {required this.game, required this.selected, required this.onTap});
+      {required this.game, required this.players, required this.selected, required this.onTap});
 
   final DuelGame game;
+
+  /// كم لاعباً في الجولة: يختار مشهدَ اللعبة المناسب لعددهم.
+  final int players;
   final bool selected;
   final VoidCallback onTap;
 
@@ -819,8 +828,34 @@ class _GameCardState extends State<_GameCard> {
               ),
               child: Column(
                 children: [
-                  Text(emoji, style: const TextStyle(fontSize: 34)),
-                  const SizedBox(height: 6),
+                  // ‏مشهدُ اللعبة المتحرّك بدل رمزها، يكبر قليلاً ويتوهّج حين يُختار.
+                  AnimatedScale(
+                    scale: selected ? 1.0 : 0.96,
+                    duration: const Duration(milliseconds: 220),
+                    curve: Curves.easeOutBack,
+                    child: DecoratedBox(
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(14),
+                        boxShadow: [
+                          if (selected) BoxShadow(color: Colors.white.withValues(alpha: 0.55), blurRadius: 14, spreadRadius: 1),
+                        ],
+                      ),
+                      child: DuelGameScene(
+                        game: widget.game,
+                        players: widget.players,
+                        height: 64,
+                        radius: 14,
+                        overlay: Align(
+                          alignment: AlignmentDirectional.bottomEnd,
+                          child: Padding(
+                            padding: const EdgeInsets.all(4),
+                            child: Text(emoji, style: const TextStyle(fontSize: 18)),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
                   FittedBox(
                     fit: BoxFit.scaleDown,
                     child: Text(

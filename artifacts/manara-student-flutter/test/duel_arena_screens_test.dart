@@ -425,6 +425,8 @@ void main() {
 
     testWidgets('اللعبةُ أوّلاً: التحدي مقفلٌ حتى تُختار', (tester) async {
       final duel = await pumpLobby(tester);
+      // ‏بطاقاتُ الألعاب بمشاهدها المتحرّكة أطول: التنبيهُ تحتها.
+      await tester.scrollUntilVisible(find.text(tr('arena.pickGameFirst')), 200, scrollable: find.byType(Scrollable).first);
       expect(find.text(tr('arena.pickGameFirst')), findsOneWidget);
       for (final game in DuelGame.values) {
         expect(find.text(game.label), findsOneWidget);
