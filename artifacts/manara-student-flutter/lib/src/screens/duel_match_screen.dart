@@ -755,7 +755,20 @@ class _DuelMatchScreenState extends State<DuelMatchScreen>
           return ListView(
             key: const ValueKey('duel-question-narrow'),
             padding: const EdgeInsets.fromLTRB(14, 6, 14, 120),
-            children: [...arena, const SizedBox(height: 6), ...ask, const SizedBox(height: 12), ...answer, const SizedBox(height: 16), chat],
+            children: [
+              // ‏المواجهةُ داخل خلفية اللعبة نفسها.
+              _GameBackdrop(
+                game: widget.game,
+                players: _allRivals.length + 1,
+                child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: arena),
+              ),
+              const SizedBox(height: 10),
+              ...ask,
+              const SizedBox(height: 12),
+              ...answer,
+              const SizedBox(height: 16),
+              chat,
+            ],
           );
         }
         return Center(
@@ -769,9 +782,20 @@ class _DuelMatchScreenState extends State<DuelMatchScreen>
                   flex: 5,
                   // ‏المواجهةُ ودردشةُ الزملاء في جانب، والسؤالُ وجوابُه وحدهما في
                   // ‏الآخر: لا يُمرَّر إلى الخيارات، ولا يختلط زرُّ الجواب بالدردشة.
-                  child: ListView(
-                    padding: const EdgeInsets.fromLTRB(14, 6, 8, 120),
-                    children: [...arena, const SizedBox(height: 14), chat],
+                  // ‏والقسمُ كلُّه — المشهدُ واللوحةُ ودردشةُ الزملاء بزرّها الصوتيّ — مبنيٌّ
+                  // ‏داخل خلفية اللعبة التي يلعبها الطالب، وكلُّ ما فوقها على بطاقةٍ تُقرأ.
+                  child: Padding(
+                    padding: const EdgeInsetsDirectional.fromSTEB(10, 6, 4, 10),
+                    child: _GameBackdrop(
+                      key: const ValueKey('duel-game-backdrop'),
+                      game: widget.game,
+                      players: _allRivals.length + 1,
+                      fill: true,
+                      child: ListView(
+                        padding: const EdgeInsets.fromLTRB(4, 4, 4, 110),
+                        children: [...arena, const SizedBox(height: 14), chat],
+                      ),
+                    ),
                   ),
                 ),
                 Expanded(
@@ -979,7 +1003,8 @@ class _DuelMatchScreenState extends State<DuelMatchScreen>
         padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(20),
-          color: ArenaPalette.violet.withValues(alpha: 0.08),
+          // ‏بطاقةٌ تكاد تكون معتمة: تُقرأ فوق خلفية اللعبة كما تُقرأ وحدها.
+          color: Color.alphaBlend(ArenaPalette.violet.withValues(alpha: 0.08), StudentSurface.card(context).withValues(alpha: 0.96)),
           border: Border.all(color: ArenaPalette.violet.withValues(alpha: 0.35), width: 1.5),
         ),
         child: Column(
@@ -1905,6 +1930,58 @@ class _HearingBadge extends StatelessWidget {
         boxShadow: [BoxShadow(color: ArenaPalette.violet.withValues(alpha: 0.45), blurRadius: 12)],
       ),
       child: const Icon(Icons.volume_up_rounded, color: Colors.white, size: 30),
+    );
+  }
+}
+
+/// خلفيةُ اللعبة التي يلعبها الطالب، يُبنى فوقها قسمُ المواجهة.
+///
+/// المشهدُ نفسه بعدد اللاعبين، واقفاً على إطاره (المتحرّكُ في الحلبة فوقه)،
+/// وتحت ما فوقه تظليلٌ متدرّج: البطاقاتُ والأزرارُ تُقرأ ولا تضيع فيه.
+class _GameBackdrop extends StatelessWidget {
+  const _GameBackdrop({
+    required this.game,
+    required this.players,
+    required this.child,
+    this.fill = false,
+    super.key,
+  });
+
+  final DuelGame game;
+  final int players;
+  final Widget child;
+
+  /// يملأ ما أُعطي من ارتفاع (عمودُ التابلت)، أو بقدر ما فيه (الهاتف).
+  final bool fill;
+
+  @override
+  Widget build(BuildContext context) {
+    final content = Padding(padding: const EdgeInsets.all(8), child: child);
+    return ClipRRect(
+      key: const ValueKey('duel-game-backdrop-art'),
+      borderRadius: BorderRadius.circular(26),
+      child: Stack(
+        fit: fill ? StackFit.expand : StackFit.loose,
+        children: [
+          Positioned.fill(
+            child: ExcludeSemantics(
+              child: DuelGameScene(game: game, players: players, height: 1, radius: 0, paused: true),
+            ),
+          ),
+          const Positioned.fill(
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [Color(0x330F172A), Color(0x8C0F172A)],
+                ),
+              ),
+            ),
+          ),
+          if (fill) Positioned.fill(child: content) else content,
+        ],
+      ),
     );
   }
 }

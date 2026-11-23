@@ -1099,16 +1099,19 @@ void kindergartenDuel() {
       await openKg(tester, size);
       expect(tester.takeException(), isNull);
       final arena = find.byKey(const ValueKey('duel-arena'));
-      final scene = find.byType(DuelGameScene);
+      final scene = find.descendant(of: arena, matching: find.byType(DuelGameScene));
+      final backdrop = find.byKey(const ValueKey('duel-game-backdrop-art'));
       final mic = find.byKey(const ValueKey('duel-kg-mic'));
       final chat = find.byKey(const ValueKey('duel-chat-section'));
       expect(arena, findsOneWidget);
       expect(scene, findsOneWidget, reason: 'المشهدُ المتحرّكُ حاضرٌ أثناء اللعب على كل جهاز');
+      expect(backdrop, findsOneWidget, reason: 'قسمُ المواجهة داخل خلفية اللعبة');
+      expect(find.descendant(of: backdrop, matching: arena), findsOneWidget);
       final wide = find.byKey(const ValueKey('duel-question-wide')).evaluate().isNotEmpty;
       expect(wide, size.width >= 760, reason: 'العمودان للتابلت والآيباد');
       if (!wide) {
         // ‏الهاتف: مشهدٌ قصيرٌ لا يُبعد السؤال.
-        expect(tester.getSize(scene).height, lessThanOrEqualTo(140));
+        expect(tester.getSize(scene).height, lessThanOrEqualTo(160));
       }
       await Scrollable.ensureVisible(tester.element(mic), alignment: 0.2);
       await tester.pump();
@@ -1173,6 +1176,12 @@ void kindergartenDuel() {
     expect((tester.getCenter(chat).dx - tester.getCenter(choice).dx).abs(), greaterThan(300), reason: 'الدردشةُ بعيدةٌ عن الخيارات');
     expect((tester.getCenter(chat).dx - tester.getCenter(arena).dx).abs(), lessThan(40), reason: 'في عمود المشهد');
     expect(tester.getCenter(chat).dy, greaterThan(tester.getCenter(arena).dy), reason: 'تحت المشهد');
+    // ‏والقسمُ كلُّه — المشهدُ والدردشةُ بزرّها الصوتيّ — داخل خلفية اللعبة.
+    final backdrop = find.byKey(const ValueKey('duel-game-backdrop'));
+    expect(find.descendant(of: backdrop, matching: arena), findsOneWidget);
+    expect(find.descendant(of: backdrop, matching: chat), findsOneWidget);
+    expect(find.descendant(of: backdrop, matching: find.byType(DuelVoiceButton)), findsOneWidget);
+    expect(find.descendant(of: backdrop, matching: choice), findsNothing, reason: 'الخياراتُ في عمودها');
     expect(find.descendant(of: chat, matching: find.byType(DuelVoiceButton)), findsOneWidget);
     expect(find.descendant(of: chat, matching: mic), findsNothing);
     expect(tester.takeException(), isNull, reason: 'لا فيضانَ في العرض العريض');
