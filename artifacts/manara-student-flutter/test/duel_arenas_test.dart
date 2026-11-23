@@ -79,6 +79,148 @@ void main() {
     });
   });
 
+  group('الحبل', () {
+    const me = ArenaRacer(name: 'أنا', at: 0, me: true);
+    test('حصّةُ الحبل: بيني وبين أقوى المنافسين', () {
+      expect(duelRopeShift(const [me, ArenaRacer(name: 'س', at: 0)], 5), 0);
+      expect(duelRopeShift(const [ArenaRacer(name: 'أنا', at: 3, me: true), ArenaRacer(name: 'س', at: 1)], 5), closeTo(0.4, 1e-9));
+      expect(duelRopeShift(const [me, ArenaRacer(name: 'س', at: 1), ArenaRacer(name: 'ر', at: 4)], 5), closeTo(-0.8, 1e-9));
+      expect(duelRopeShift(const [ArenaRacer(name: 'أنا', at: 9, me: true), ArenaRacer(name: 'س', at: 0)], 5), 1.0);
+    });
+    test('البناءُ يكتمل بكل طوبه', () {
+      expect(duelBuildingComplete(const [ArenaRacer(name: 'أنا', at: 5, me: true)], 5), isTrue);
+      expect(duelBuildingComplete(const [ArenaRacer(name: 'أنا', at: 4, me: true), ArenaRacer(name: 'س', at: 5)], 5), isFalse);
+    });
+  });
+
+  group('تفاعلُ كل لعبة', () {
+    List<ArenaRacer> party(int me, int sara, int reem) => [
+          ArenaRacer(name: 'أنا', at: me, me: true),
+          ArenaRacer(name: 'سارة', at: sara),
+          ArenaRacer(name: 'ريم', at: reem),
+        ];
+    Finder key(String k) => find.byKey(ValueKey(k));
+    double dxOf(WidgetTester tester, String k) => tester.getCenter(key(k)).dx;
+
+    testWidgets('شدّ الحبل: أسبقُ فيُشدّ نحوي، ويسبقني زميلٌ فيُشدّ نحوهم', (tester) async {
+      await tester.pumpWidget(arena(DuelGame.tug, mine: 0, theirs: 0));
+      expect(key('duel-tug-rope'), findsOneWidget);
+      expect(key('duel-tug-me'), findsOneWidget);
+      expect(key('duel-tug-rivals-1'), findsOneWidget);
+      final middle = dxOf(tester, 'duel-tug-flag');
+      final myEnd = dxOf(tester, 'duel-tug-me');
+      await tester.pumpWidget(arena(DuelGame.tug, mine: 2, theirs: 0));
+      await tester.pump(const Duration(milliseconds: 300));
+      expect(key('duel-tug-pull-me'), findsOneWidget, reason: 'سهمُ الشدّ نحوي');
+      await tester.pump(const Duration(seconds: 2));
+      final mineAhead = dxOf(tester, 'duel-tug-flag');
+      expect((mineAhead - myEnd).abs(), lessThan((middle - myEnd).abs()), reason: 'الرايةُ اقتربت من طرفي');
+      await tester.pumpWidget(arena(DuelGame.tug, mine: 2, theirs: 4));
+      await tester.pump(const Duration(milliseconds: 300));
+      expect(key('duel-tug-pull-them'), findsOneWidget, reason: 'سبقني: يُشدّ نحوهم');
+      expect(key('duel-tug-pull-me'), findsNothing);
+      await tester.pump(const Duration(seconds: 2));
+      expect((dxOf(tester, 'duel-tug-flag') - myEnd).abs(), greaterThan((middle - myEnd).abs()), reason: 'الرايةُ عند المنافس');
+    });
+
+    testWidgets('شدّ الحبل أمام ثلاثة: أنا في طرف وهم الثلاثةُ في الطرف المقابل', (tester) async {
+      List<ArenaRacer> four(int reem) => [
+            const ArenaRacer(name: 'أنا', at: 0, me: true),
+            const ArenaRacer(name: 'سارة', at: 0),
+            ArenaRacer(name: 'ريم', at: reem),
+            const ArenaRacer(name: 'خالد', at: 0),
+          ];
+      await tester.pumpWidget(arena(DuelGame.tug, mine: 0, theirs: 0, players: four(0)));
+      expect(key('duel-tug-rivals-3'), findsOneWidget);
+      expect(find.textContaining(trf('arena.tug.rivals', {'n': '3'})), findsOneWidget);
+      final me = tester.getCenter(key('duel-tug-me')).dx;
+      final them = tester.getCenter(key('duel-tug-rivals-3')).dx;
+      expect((me - them).abs(), greaterThan(150), reason: 'طرفان متقابلان');
+      // ‏سبقتني ريم: الحبلُ نحوهم، ويُعرف من سبق.
+      await tester.pumpWidget(arena(DuelGame.tug, mine: 0, theirs: 0, players: four(1)));
+      await tester.pump(const Duration(milliseconds: 300));
+      expect(key('duel-tug-pull-them'), findsOneWidget);
+      expect(find.textContaining(trf('arena.beat.beatenBy', {'name': 'ريم'})), findsOneWidget);
+      await tester.pump(const Duration(seconds: 2));
+    });
+
+    testWidgets('سباق الحواجز: أصيبُ فيقفز عدّائي، وأخطئ فيسقط، ويسبقني زميلٌ فيقفز عدّاؤه', (tester) async {
+      await tester.pumpWidget(arena(DuelGame.sprint, mine: 0, theirs: 0, players: party(0, 0, 0)));
+      await tester.pumpWidget(arena(DuelGame.sprint, mine: 0, theirs: 0, players: party(1, 0, 0)));
+      await tester.pump(const Duration(milliseconds: 500));
+      expect(key('duel-runner-jump'), findsOneWidget);
+      expect(key('duel-runner-fall'), findsNothing);
+      await tester.pump(const Duration(seconds: 2));
+      expect(key('duel-runner-jump'), findsNothing);
+      await tester.pumpWidget(arena(DuelGame.sprint, mine: 0, theirs: 0, players: party(1, 1, 0)));
+      await tester.pump(const Duration(milliseconds: 400));
+      expect(key('duel-runner-fall'), findsOneWidget, reason: 'سبقتني سارة: أتعثّر');
+      expect(key('duel-runner-rival-jump'), findsOneWidget, reason: 'وعدّاؤها يقفز');
+      await tester.pump(const Duration(seconds: 2));
+      await tester.pumpWidget(arena(DuelGame.sprint, mine: 0, theirs: 0, players: party(1, 1, 0), missAt: 3));
+      await tester.pump(const Duration(milliseconds: 400));
+      expect(key('duel-runner-fall'), findsOneWidget, reason: 'أخطأتُ: أتعثّر');
+      await tester.pump(const Duration(seconds: 2));
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('بناء الجدار: طوبةٌ مع كل صحيح، وطوبةٌ تسقط مع الخطأ، والبناءُ يكتمل', (tester) async {
+      await tester.pumpWidget(arena(DuelGame.gems, mine: 0, theirs: 0));
+      expect(key('duel-wall-brick'), findsNothing);
+      await tester.pumpWidget(arena(DuelGame.gems, mine: 1, theirs: 0));
+      await tester.pump(const Duration(milliseconds: 200));
+      expect(key('duel-wall-brick'), findsOneWidget, reason: 'تهبط إلى مكانها');
+      await tester.pump(const Duration(seconds: 2));
+      await tester.pumpWidget(arena(DuelGame.gems, mine: 3, theirs: 0));
+      await tester.pump(const Duration(seconds: 2));
+      expect(key('duel-wall-brick'), findsNWidgets(3));
+      await tester.pumpWidget(arena(DuelGame.gems, mine: 3, theirs: 0, missAt: 4));
+      await tester.pump(const Duration(milliseconds: 300));
+      expect(key('duel-wall-fall'), findsOneWidget, reason: 'أخطأتُ: طوبةٌ تسقط');
+      await tester.pump(const Duration(seconds: 2));
+      expect(key('duel-wall-fall'), findsNothing);
+      expect(key('duel-wall-complete'), findsNothing);
+      await tester.pumpWidget(arena(DuelGame.gems, mine: 5, theirs: 0, missAt: 4));
+      await tester.pump(const Duration(seconds: 2));
+      expect(key('duel-wall-brick'), findsNWidgets(5));
+      expect(key('duel-wall-complete'), findsOneWidget, reason: 'اكتمل البناء');
+      await tester.pumpWidget(arena(DuelGame.gems, mine: 5, theirs: 3, finished: true));
+      await tester.pump(const Duration(seconds: 1));
+      expect(key('duel-wall-complete'), findsOneWidget, reason: 'ويبقى مكتملاً في النتيجة');
+    });
+
+    testWidgets('جمع الفواكه: ثمرةٌ في السلّة، أو تسقط على الأرض ويجمعها من سبق', (tester) async {
+      await tester.pumpWidget(arena(DuelGame.balloons, mine: 0, theirs: 0, players: party(0, 0, 0)));
+      expect(key('duel-basket-me'), findsOneWidget);
+      await tester.pumpWidget(arena(DuelGame.balloons, mine: 0, theirs: 0, players: party(1, 0, 0)));
+      await tester.pump(const Duration(milliseconds: 300));
+      expect(key('duel-fruit-in'), findsOneWidget);
+      expect(key('duel-fruit-ground'), findsNothing);
+      await tester.pump(const Duration(seconds: 2));
+      expect(find.descendant(of: key('duel-basket-me'), matching: find.text('🍎×1')), findsOneWidget);
+      await tester.pumpWidget(arena(DuelGame.balloons, mine: 0, theirs: 0, players: party(1, 1, 0)));
+      await tester.pump(const Duration(milliseconds: 300));
+      expect(key('duel-fruit-ground'), findsOneWidget, reason: 'سبقتني سارة: ثمرتي على الأرض');
+      expect(key('duel-fruit-rival-catch'), findsOneWidget, reason: 'وسلّتُها تمتلئ');
+      await tester.pump(const Duration(seconds: 2));
+      await tester.pumpWidget(arena(DuelGame.balloons, mine: 0, theirs: 0, players: party(1, 1, 0), missAt: 2));
+      await tester.pump(const Duration(milliseconds: 300));
+      expect(key('duel-fruit-ground'), findsOneWidget, reason: 'أخطأتُ: تسقط');
+      await tester.pump(const Duration(seconds: 2));
+    });
+
+    testWidgets('أمام زميلٍ واحد: كلُّ لعبةٍ تُري السبقَ باسم من سبق', (tester) async {
+      for (final game in DuelGame.values) {
+        await tester.pumpWidget(arena(game, mine: 0, theirs: 0));
+        await tester.pumpWidget(arena(game, mine: 0, theirs: 1));
+        await tester.pump(const Duration(milliseconds: 300));
+        expect(find.textContaining(trf('arena.beat.beatenBy', {'name': 'سارة'})), findsOneWidget, reason: game.name);
+        await tester.pump(const Duration(seconds: 2));
+        await tester.pumpWidget(const SizedBox());
+      }
+    });
+  });
+
   for (final game in DuelGame.values) {
     testWidgets('${game.name}: الجوابُ الصحيح حركةُ نجاحٍ في المشهد، ثم تهدأ', (tester) async {
       await tester.pumpWidget(arena(game, mine: 0, theirs: 0));
@@ -115,7 +257,7 @@ void main() {
       await tester.pumpWidget(arena(game, mine: 1, theirs: 1));
       await tester.pump(const Duration(milliseconds: 300));
       expect(beat(game, DuelBeat.beaten), findsOneWidget);
-      expect(find.textContaining(tr('arena.beat.beaten')), findsOneWidget);
+      expect(find.textContaining(trf('arena.beat.beatenBy', {'name': 'سارة'})), findsOneWidget, reason: 'يُعرف من سبق');
       await tester.pump(const Duration(seconds: 2));
       expect(beat(game, DuelBeat.beaten), findsNothing);
     });
@@ -170,16 +312,18 @@ void main() {
         await tester.pumpWidget(arena(game, mine: 0, theirs: 0, players: players, size: size));
         await tester.pump(const Duration(seconds: 1));
         expect(tester.takeException(), isNull, reason: 'لا فيضانَ ولا تداخل');
-        for (var lane = 1; lane <= 6; lane++) {
-          expect(find.text('$lane'), findsOneWidget, reason: 'اللاعب $lane');
+        final board = find.byKey(const ValueKey('duel-racer-board'));
+        Finder lane(int n) => find.descendant(of: board, matching: find.text('$n'));
+        for (var n = 1; n <= 6; n++) {
+          expect(lane(n), findsOneWidget, reason: 'اللاعب $n');
         }
-        final centers = [for (var lane = 1; lane <= 6; lane++) tester.getCenter(find.text('$lane'))];
+        final centers = [for (var n = 1; n <= 6; n++) tester.getCenter(lane(n))];
         for (var a = 0; a < centers.length; a++) {
           for (var b = a + 1; b < centers.length; b++) {
             expect((centers[a] - centers[b]).distance, greaterThan(20));
           }
         }
-        expect(find.text('2/5'), findsNWidgets(2));
+        expect(find.descendant(of: board, matching: find.text('2/5')), findsNWidgets(2));
         // ‏والمشهدُ بعدد من في الغرفة (أقربُ مشهد: خمسة).
         final image = tester.widget<Image>(find.byType(Image));
         final provider = image.image;
