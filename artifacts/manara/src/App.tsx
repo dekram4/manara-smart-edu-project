@@ -30,6 +30,7 @@ import { playLamsaSound } from './utils/sounds';
 import { endServerSession, isLoggedOut, markLoggedOut, purgeApiCache } from './utils/logoutGuard';
 import { clearDashboardRoute } from './utils/dashboardRoute';
 import { GameAudioEngine } from './utils/gameAudioEngine';
+import { fetchEdition, isOpenEdition, type EditionInfo } from './edition';
 
 // أصوات تفاعلية سريعة
 const readControlState = () => {
@@ -263,6 +264,13 @@ const App: React.FC = () => {
   const [booting, setBooting] = useState(true);
   const [sessionReady, setSessionReady] = useState(false);
   const [syncing, setSyncing] = useState(true);
+  // ‏أيُّ نسخةٍ يقدّمها الخادم: العاديةُ لا يتغيّر فيها شيء، والمفتوحةُ بوابةُ معلّمٍ واحد.
+  const [edition, setEdition] = useState<EditionInfo | null>(null);
+  useEffect(() => {
+    let alive = true;
+    void fetchEdition().then((info) => { if (alive) setEdition(info); });
+    return () => { alive = false; };
+  }, []);
 
   const clearActiveSessions = () => {
     removeSessionValue(STORAGE_KEYS.ACTIVE_STUDENT);
@@ -446,6 +454,18 @@ const App: React.FC = () => {
   }, [mainView]);
 
   const renderView = () => {
+    // ‏النسخةُ المفتوحة: لا شاشةَ أدوار ولا مشرفَ ولا وليَّ أمر — بوابةُ المعلم
+    // ‏الوحيد، ولوحتُه تعرض دخولَه حتى يدخل.
+    if (isOpenEdition(edition)) {
+      return (
+        <>
+          <div className="bg-indigo-900 text-white text-center text-sm font-bold py-2 px-4" data-testid="open-edition-banner">
+            النسخة المفتوحة — بوابة {edition?.teacherName || 'المعلم'}
+          </div>
+          <TeacherDashboard key="open-edition-teacher" onLogout={leaveRole} />
+        </>
+      );
+    }
     switch (mainView) {
       case 'admin':
         return <AdminDashboard onLogout={leaveRole} />;
@@ -464,7 +484,7 @@ const App: React.FC = () => {
     }
   };
 
-  if (booting || !sessionReady) {
+  if (booting || !sessionReady || edition === null) {
     return (
       <div className="flex flex-col items-center justify-center min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 font-tajawal">
         <BootLoader />

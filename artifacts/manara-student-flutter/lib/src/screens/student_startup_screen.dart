@@ -14,7 +14,9 @@ import '../services/student_sound_service.dart';
 import '../widgets/splash_intro.dart';
 import '../widgets/student_experience.dart';
 import '../widgets/student_immersive.dart';
+import '../config/edition.dart';
 import 'login_screen.dart';
+import 'open_entry_screen.dart';
 import 'student_home_screen.dart';
 
 /// The app's opening screen: the welcome film, with the Manara logo on its
@@ -355,11 +357,19 @@ class _StudentStartupScreenState extends State<StudentStartupScreen>
               authService: authService,
               apiBaseUrl: widget.apiBaseUrl,
             )
-          : LoginScreen(
-              authService: authService,
-              initializationError: widget.initializationError,
-              apiBaseUrl: widget.apiBaseUrl,
-            ),
+          // ‏النسخةُ المفتوحة: بابٌ بالاسم وحده، يتابع بالحساب المحفوظ تلقائياً.
+          : isOpenEdition
+              ? OpenEntryScreen(
+                  authService: authService,
+                  initializationError: widget.initializationError,
+                  apiBaseUrl: widget.apiBaseUrl,
+                  autoContinue: true,
+                )
+              : LoginScreen(
+                  authService: authService,
+                  initializationError: widget.initializationError,
+                  apiBaseUrl: widget.apiBaseUrl,
+                ),
     );
   }
 

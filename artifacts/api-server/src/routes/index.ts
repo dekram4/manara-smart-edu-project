@@ -1,5 +1,6 @@
 import { Router, type IRouter } from "express";
 import healthRouter from "./health";
+import openEditionRouter from "./openEdition";
 import authRouter from "./auth";
 import geminiRouter from "./gemini";
 import mediaRouter from "./media";
@@ -21,6 +22,8 @@ import joinRequestsRouter from "./joinRequests";
 
 const router: IRouter = Router();
 
+// ‏أوّلاً: حارسُ النسخة المفتوحة يرى كلَّ طلب (ويمرّر كلَّ شيءٍ في النسخة العادية).
+router.use(openEditionRouter);
 router.use(healthRouter);
 router.use(authRouter);
 router.use(geminiRouter);

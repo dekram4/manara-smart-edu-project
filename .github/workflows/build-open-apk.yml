@@ -1,0 +1,157 @@
+name: Build Open Edition APK
+
+# ‏«النسخة المفتوحة» من تطبيق الطالب — مستقلّةٌ عن سير عمل التطبيق الحالي:
+#   • تُبنى يدوياً فقط (Actions → Build Open Edition APK → Run workflow)،
+#     فلا يُطلقها دفعٌ إلى main ولا إلى أيّ فرع.
+#   • مفاتيحها أسرارٌ خاصّة بها (OPEN_*) لقاعدة manara-open-app وخادمها، ولا
+#     تقرأ أسرار التطبيق الحالي (SUPABASE_URL، API_BASE_URL…) أبداً.
+#   • معرّفُها com.manara.open واسمُها «منارة المفتوحة»: يُثبَّت بجانب التطبيق
+#     الحالي ولا يحلّ محلّه. وبمفتاح التوقيع نفسه.
+#   • إصدارُها بوسم open-v<النسخة> وملفُّه manara-open.apk، ولا يُعلَّم «Latest»:
+#     رابطُ التحميل الحالي (releases/latest/download/manara-student.apk) لا يتغيّر.
+#   • لا حزمةَ AAB ولا Google Play.
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    env:
+      MANARA_APP_ID: com.manara.open
+      MANARA_APP_LABEL: منارة المفتوحة
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Set up Java
+        uses: actions/setup-java@v5
+        with:
+          distribution: 'zulu'
+          java-version: '17'
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.44.8'
+
+      - name: Fix Kotlin Gradle Plugin Version
+        run: |
+          if [ -f android/settings.gradle ]; then
+            sed -i -E 's/id "org.jetbrains.kotlin.android" version "[^"]+"/id "org.jetbrains.kotlin.android" version "2.1.0"/g' android/settings.gradle
+          fi
+          if [ -f android/build.gradle ]; then
+            sed -i -E 's/ext\.kotlin_version = .*/ext.kotlin_version = "2.1.0"/' android/build.gradle
+            sed -i -E 's/kotlin-gradle-plugin:[0-9\.]+/kotlin-gradle-plugin:2.1.0/' android/build.gradle
+          fi
+          cat << 'EOF' >> android/build.gradle
+
+          allprojects {
+              configurations.all {
+                  resolutionStrategy {
+                      force 'org.jetbrains.kotlin:kotlin-stdlib:2.1.0'
+                      force 'org.jetbrains.kotlin:kotlin-stdlib-jdk7:2.1.0'
+                      force 'org.jetbrains.kotlin:kotlin-stdlib-jdk8:2.1.0'
+                      force 'org.jetbrains.kotlin:kotlin-reflect:2.1.0'
+                  }
+              }
+          }
+          EOF
+        working-directory: artifacts/manara-student-flutter
+
+      - name: Install Dependencies
+        run: flutter pub get
+        working-directory: artifacts/manara-student-flutter
+
+      - name: Restore release signing key
+        run: |
+          set -euo pipefail
+          if [ -z "${ANDROID_KEYSTORE_BASE64:-}" ] || [ -z "${ANDROID_KEYSTORE_PASSWORD:-}" ] \
+             || [ -z "${ANDROID_KEY_ALIAS:-}" ] || [ -z "${ANDROID_KEY_PASSWORD:-}" ]; then
+            echo "::error::أسرار التوقيع ANDROID_KEYSTORE_* غير مضبوطة."
+            exit 1
+          fi
+          echo "$ANDROID_KEYSTORE_BASE64" | base64 --decode > android/app/manara-release.jks
+          {
+            echo "storeFile=manara-release.jks"
+            echo "storePassword=$ANDROID_KEYSTORE_PASSWORD"
+            echo "keyAlias=$ANDROID_KEY_ALIAS"
+            echo "keyPassword=$ANDROID_KEY_PASSWORD"
+          } > android/key.properties
+        working-directory: artifacts/manara-student-flutter
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+
+      - name: Build open edition APK
+        # ‏الأسرارُ الثلاثة إلزامية: بلا عنوان خادمٍ مضبوط يرجع التطبيقُ إلى
+        # ‏عنوانه الافتراضي — خادمِ النسخة الحالية — وهذا ما لا يكون أبداً.
+        run: |
+          set -euo pipefail
+          if [ -z "${OPEN_SUPABASE_URL:-}" ] || [ -z "${OPEN_SUPABASE_ANON_KEY:-}" ] || [ -z "${OPEN_API_BASE_URL:-}" ]; then
+            echo "::error::OPEN_SUPABASE_URL و OPEN_SUPABASE_ANON_KEY و OPEN_API_BASE_URL كلُّها لازمة."
+            exit 1
+          fi
+          case "$OPEN_SUPABASE_URL" in
+            *yvvgvbwokclinsiabmzx*) ;;
+            *) echo "::error::OPEN_SUPABASE_URL ليس مشروع manara-open-app."; exit 1 ;;
+          esac
+          flutter build apk --release \
+            --dart-define=MANARA_EDITION=open \
+            --dart-define=SUPABASE_URL="$OPEN_SUPABASE_URL" \
+            --dart-define=SUPABASE_ANON_KEY="$OPEN_SUPABASE_ANON_KEY" \
+            --dart-define=API_BASE_URL="$OPEN_API_BASE_URL"
+        working-directory: artifacts/manara-student-flutter
+        env:
+          OPEN_SUPABASE_URL: ${{ secrets.OPEN_SUPABASE_URL }}
+          OPEN_SUPABASE_ANON_KEY: ${{ secrets.OPEN_SUPABASE_ANON_KEY }}
+          OPEN_API_BASE_URL: ${{ secrets.OPEN_API_BASE_URL }}
+
+      - name: Verify signature and package id
+        run: |
+          set -euo pipefail
+          APK=build/app/outputs/flutter-apk/app-release.apk
+          SDK="${ANDROID_SDK_ROOT:-${ANDROID_HOME:-/usr/local/lib/android/sdk}}"
+          SIGNER=$(find "$SDK/build-tools" -name apksigner -type f | sort -V | tail -1)
+          AAPT2=$(find "$SDK/build-tools" -name aapt2 -type f | sort -V | tail -1)
+          CERT=$("$SIGNER" verify --print-certs "$APK")
+          echo "$CERT" | grep -E "certificate DN|SHA-256 digest"
+          if echo "$CERT" | grep -q "CN=Android Debug"; then
+            echo "::error::الملفّ موقَّعٌ بمفتاح التطوير."
+            exit 1
+          fi
+          PACKAGE=$("$AAPT2" dump packagename "$APK")
+          echo "package: $PACKAGE"
+          if [ "$PACKAGE" != "com.manara.open" ]; then
+            echo "::error::معرّف النسخة المفتوحة ليس com.manara.open."
+            exit 1
+          fi
+          rm -f android/key.properties android/app/manara-release.jks
+        working-directory: artifacts/manara-student-flutter
+
+      - name: Upload APK Artifact
+        uses: actions/upload-artifact@v6
+        with:
+          name: open-edition-apk
+          path: artifacts/manara-student-flutter/build/app/outputs/flutter-apk/app-release.apk
+
+      - name: Publish open edition release (never "Latest")
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          VERSION=$(grep -E '^version:' artifacts/manara-student-flutter/pubspec.yaml | sed -E 's/^version:[[:space:]]*([^+[:space:]]+).*/\1/')
+          TAG="open-v$VERSION"
+          cp artifacts/manara-student-flutter/build/app/outputs/flutter-apk/app-release.apk manara-open.apk
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" manara-open.apk --clobber
+          else
+            gh release create "$TAG" manara-open.apk \
+              --title "منارة المفتوحة $TAG" \
+              --notes "النسخة المفتوحة — بناءٌ يدوي من ${GITHUB_SHA::7}." \
+              --latest=false
+          fi

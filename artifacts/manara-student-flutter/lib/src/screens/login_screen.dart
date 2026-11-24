@@ -20,7 +20,9 @@ import '../widgets/login_scene.dart';
 import '../widgets/student_avatar_view.dart';
 import '../widgets/student_mascot.dart';
 import '../widgets/voice_mic_button.dart';
+import '../config/edition.dart';
 import 'academic_selection_screen.dart';
+import 'open_entry_screen.dart';
 import '../services/demo_mode.dart';
 import '../widgets/demo_ui.dart';
 
@@ -346,6 +348,16 @@ class _LoginScreenState extends State<LoginScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // ‏النسخةُ المفتوحة لا شاشةَ دخولٍ فيها: كلُّ خروجٍ يعود إلى بابها (بالاسم
+    // ‏وحده). وفي التطبيق الحالي [isOpenEdition] خطأٌ ثابت، فلا يتغيّر شيء.
+    if (isOpenEdition) {
+      return OpenEntryScreen(
+        authService: widget.authService,
+        initializationError: widget.initializationError,
+        apiBaseUrl: widget.apiBaseUrl,
+        savedAccounts: widget.savedAccounts,
+      );
+    }
     final isConfigured = widget.authService != null;
     // Read here, above the Scaffold, and deliberately not inside the
     // LayoutBuilder below: a Scaffold with resizeToAvoidBottomInset
