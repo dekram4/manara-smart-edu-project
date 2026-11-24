@@ -147,7 +147,7 @@ declare
   ];
   t text; c text; want text; def text; req boolean;
   have text; expr text; src text; pol record; tbl text; ident "char"; extra record;
-  pk_have text; pk_name text;
+  pk_have text; pk_name text; n bigint; keytype text; same text; nulls text;
   i int;
 begin
   -- ‏العرضُ يُعاد إنشاؤه في solved-questions-cache.sql، ووجودُه يمنع تغيير نوع ai_qa_cache.data.
@@ -257,6 +257,46 @@ begin
       pk_name := null;
     end if;
     if pk_name is null then
+      -- ‏قبل المفتاح: صفوفٌ بمفتاحٍ فارغ أو مكرّر (من استيرادٍ سابق) تمنع إنشاءه.
+      -- ‏١) الصفُّ المكرّر بكامله نسخةٌ زائدة: تُحذف ويبقى واحد.
+      execute format('delete from public.%I a using public.%I b where a.ctid > b.ctid and to_jsonb(a) = to_jsonb(b)', tbl, tbl);
+      get diagnostics n = row_count;
+      if n > 0 then raise notice 'manara: حُذفت % نسخةً مكرّرةً تماماً من %', n, tbl; end if;
+
+      if position(',' in pk[i][2]) = 0 then
+        select format_type(a.atttypid, a.atttypmod) into keytype
+          from pg_attribute a
+         where a.attrelid = format('public.%I', tbl)::regclass and a.attname = pk[i][2];
+        -- ‏٢) المفتاحُ الفارغ يأخذ معرّفاً جديداً.
+        if keytype = 'uuid' then
+          execute format('update public.%I set %I = gen_random_uuid() where %I is null', tbl, pk[i][2], pk[i][2]);
+        else
+          execute format('update public.%I set %I = gen_random_uuid()::text where %I is null or btrim(%I::text) = ''''', tbl, pk[i][2], pk[i][2], pk[i][2]);
+        end if;
+        get diagnostics n = row_count;
+        if n > 0 then raise notice 'manara: أُعطي % صفّاً بلا معرّف في % معرّفاً جديداً', n, tbl; end if;
+        -- ‏٣) معرّفٌ مكرّر لصفوفٍ مختلفة: يبقى الأوّل، ويأخذ ما بعده معرّفاً مشتقّاً (id-dup1…)
+        -- ‏فلا يُحذف شيءٌ مختلف. والاستنساخُ يكتب صفوفه بمعرّفاتها فلا يلتقي بها.
+        if keytype = 'uuid' then
+          execute format('with d as (select ctid, row_number() over (partition by %I order by ctid) rn from public.%I)
+                          update public.%I t set %I = gen_random_uuid() from d where t.ctid = d.ctid and d.rn > 1',
+                         pk[i][2], tbl, tbl, pk[i][2]);
+        else
+          execute format('with d as (select ctid, row_number() over (partition by %I order by ctid) rn from public.%I)
+                          update public.%I t set %I = t.%I || ''-dup'' || (d.rn - 1) from d where t.ctid = d.ctid and d.rn > 1',
+                         pk[i][2], tbl, tbl, pk[i][2], pk[i][2]);
+        end if;
+        get diagnostics n = row_count;
+        if n > 0 then raise notice 'manara: أُعيدت تسمية % معرّفاً مكرّراً في % (بلاحقة -dupN)', n, tbl; end if;
+      else
+        -- ‏مفتاحٌ مركّب (match_answers: سجلُّ إجاباتٍ مؤقّت): الناقصُ والمكرّر يُحذفان ويبقى الأوّل.
+        select string_agg(format('a.%1$I = b.%1$I', btrim(x)), ' and '), string_agg(format('%I is null', btrim(x)), ' or ')
+          into same, nulls
+          from unnest(string_to_array(pk[i][2], ',')) as x;
+        execute format('delete from public.%I where %s', tbl, nulls);
+        execute format('delete from public.%I a using public.%I b where a.ctid > b.ctid and %s', tbl, tbl, same);
+      end if;
+
       begin
         execute format('alter table public.%I add primary key (%s)', tbl, pk[i][2]);
         raise notice 'manara: أُضيف المفتاحُ الأساسي لـ % (%)', tbl, pk[i][2];
