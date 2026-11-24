@@ -43,6 +43,12 @@
    - `anon_readable… = app_kv, created_quizzes, lesson_configs`
 
 > يُعاد توليده من سكربتات الخادم بـ `node open-edition/scripts/build-schema-sql.mjs`.
+>
+> **جداولُ موجودةٌ من قبل:** أوّلُ جزءٍ فيه (`sql/parts/align-existing.sql`) يواءمها قبل أيّ شيء:
+> - يحوّل الأنواع المختلفة، مثل `text` إلى `jsonb` و`int8` إلى `text`، بلا فقدٍ للبيانات.
+> - يضيف الأعمدة الناقصة، ويضع المفتاح الأساسي على عموده الصحيح، مثل `app_kv.key`.
+>
+> وتُطبع كلُّ مواءمةٍ في المحرّر سطراً يبدأ بـ `manara:`.
 
 ### ٢. استنساخ المعلم
 بعد ضبط `.env.open` في جذر المستودع (القالب `open-edition/.env.open.example`):

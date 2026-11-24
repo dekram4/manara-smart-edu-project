@@ -8,6 +8,9 @@
  * بترتيب اعتمادها، فتبقى القاعدتان على بنيةٍ واحدة: يُعدَّل الجزءُ في مكانه
  * ثم يُعاد هذا السكربت. ولا يقرأ قاعدةً ولا يكتب فيها.
  *
+ * وأجزاءٌ في `open-edition/sql/parts/` تخصّ القاعدة الجديدة وحدها: مواءمةُ جداولَ
+ * وُجدت فيها قبلُ بأنواعٍ أخرى، وأعمدةٌ في الإنتاج لا يُنشئها سكربت.
+ *
  * ── وما يُترك عمداً ──
  *   harden-rls.sql            قديم: security-lockdown.sql يحلّ محلّه.
  *   duel-party.sql            لم يعد لازماً (انظر رأسه).
@@ -29,8 +32,10 @@ const scripts = path.join(repoRoot, "artifacts", "api-server", "scripts");
 
 /** الأجزاءُ بترتيب اعتمادها. */
 export const PARTS = [
+  ["open-edition/sql/parts/align-existing.sql", "مواءمةُ الجداول الموجودة مسبقاً (أنواعٌ وأعمدةٌ ومفاتيح)"],
   ["artifacts/manara/src/db/schema.sql", "جداولُ الكيانات و app_kv"],
   [path.join(scripts, "ai-qa-cache.sql"), "ذاكرةُ إجابات الذكاء الاصطناعي"],
+  ["open-edition/sql/parts/ai-qa-cache-columns.sql", "أعمدةُ ai_qa_cache المقروءة كما في الإنتاج"],
   [path.join(scripts, "challenge-matches.sql"), "مبارياتُ التحدي"],
   [path.join(scripts, "duel-upgrade.sql"), "حزمةُ أسئلة المباراة وسجلُّ المحادثة"],
   [path.join(scripts, "duel-question-bank.sql"), "بنكُ أسئلة المبارزة"],
@@ -41,6 +46,7 @@ export const PARTS = [
   [path.join(scripts, "entertainment-games.sql"), "الترفيهُ والألعاب"],
   [path.join(scripts, "solved-questions-cache.sql"), "ذاكرةُ «حل المسائل»"],
   [path.join(scripts, "security-lockdown.sql"), "إغلاقُ المفتاح العام — قراءةُ المحتوى وحده"],
+  ["open-edition/sql/parts/ai-qa-cache-embedding.sql", "عمودُ embedding من النوع vector قبل المتّجهات"],
   [path.join(scripts, "ai-qa-cache-vectors.sql"), "مطابقةُ الإجابات بالمعنى"],
   [path.join(scripts, "duel-knowledge-bank.sql"), "أبوابُ المعرفة العامّة"],
 ];
