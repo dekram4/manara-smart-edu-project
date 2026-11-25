@@ -100,12 +100,18 @@ console.log(`✔ كُتب ${outFile}`);
 if (apply) {
   const fresh = client({ url: newUrl, key: required("SUPABASE_SERVICE_ROLE_KEY"), label: "manara-open-app" });
   const conflict = { app_kv: "key" };
+  // ‏في جداول الأعمدة: الحقلُ الفارغ (null) في القديمة يُترك فيأخذ قيمته الافتراضية
+  // ‏(description='' مثلاً)، فـ null صريحٌ يكسر not null ولا يطبّق الافتراضي.
+  const withoutNulls = (row) => Object.fromEntries(Object.entries(row).filter(([, v]) => v !== null && v !== undefined));
   for (const [table, list] of Object.entries(rows)) {
     for (let i = 0; i < list.length; i += 200) {
-      const chunk = list.slice(i, i + 200);
-      await fresh.call(`${table}?on_conflict=${conflict[table] || "id"}`, {
+      const chunk = list.slice(i, i + 200).map(withoutNulls);
+      // ‏PostgREST يطلب مفاتيحَ واحدةً لكل صفوف الطلب، إلا مع `columns`: فيُعطى اتحادُها،
+      // ‏والمفتاحُ الغائب عن صفٍّ يأخذ الافتراضي (missing=default).
+      const columns = [...new Set(chunk.flatMap((row) => Object.keys(row)))].join(",");
+      await fresh.call(`${table}?on_conflict=${conflict[table] || "id"}&columns=${encodeURIComponent(columns)}`, {
         method: "POST",
-        headers: { Prefer: "resolution=merge-duplicates,return=minimal" },
+        headers: { Prefer: "resolution=merge-duplicates,missing=default,return=minimal" },
         body: JSON.stringify(chunk),
       });
     }
