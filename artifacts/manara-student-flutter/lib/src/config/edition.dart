@@ -18,3 +18,24 @@ library;
 const String manaraEdition = String.fromEnvironment('MANARA_EDITION');
 
 const bool isOpenEdition = manaraEdition == 'open';
+
+/// النسخةُ المفتوحة فعلاً: [isOpenEdition]، أو ما يضبطه اختبارٌ بـ
+/// [debugOverrideOpenEdition].
+bool get openEditionActive => _openEditionOverride ?? isOpenEdition;
+
+bool? _openEditionOverride;
+
+/// للاختبار وحده: يشغّل سلوكَ النسخة المفتوحة (أو يطفئه) بلا إعادة بناء،
+/// و`null` يعيده إلى [isOpenEdition].
+void debugOverrideOpenEdition(bool? value) => _openEditionOverride = value;
+
+/// بطاقاتُ واجهة الطالب المخفيّة في النسخة المفتوحة (بمعرّفها: ما بعد `portal.`):
+/// حلُّ المسائل، والدردشة، والمعلم الافتراضي، واللقاء المباشر، وتحدَّ زملاءك.
+///
+/// تُخفى من العرض وحده: شاشاتُها ومنطقُها ومساراتُها في الكود كما هي، وفي
+/// النسخة العادية تظهر وتعمل كما كانت.
+const Set<String> openEditionHiddenCards = {'solver', 'chat', 'tutor', 'meeting', 'challenge'};
+
+/// هل تُخفى البطاقة [cardId] في هذه النسخة؟
+bool cardHiddenByEdition(String cardId, {bool? openEdition}) =>
+    (openEdition ?? openEditionActive) && openEditionHiddenCards.contains(cardId);

@@ -348,8 +348,8 @@ class _LoginScreenState extends State<LoginScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // ‏النسخةُ المفتوحة لا شاشةَ دخولٍ فيها: كلُّ خروجٍ يعود إلى بابها (بالاسم
-    // ‏وحده). وفي التطبيق الحالي [isOpenEdition] خطأٌ ثابت، فلا يتغيّر شيء.
+    // ‏النسخةُ المفتوحة لا شاشةَ دخولٍ فيها: كلُّ خروجٍ يعود إلى بابها (بزرٍّ
+    // ‏واحد). وفي التطبيق الحالي [isOpenEdition] خطأٌ ثابت، فلا يتغيّر شيء.
     if (isOpenEdition) {
       return OpenEntryScreen(
         authService: widget.authService,

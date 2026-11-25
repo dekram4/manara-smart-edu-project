@@ -357,7 +357,7 @@ class _StudentStartupScreenState extends State<StudentStartupScreen>
               authService: authService,
               apiBaseUrl: widget.apiBaseUrl,
             )
-          // ‏النسخةُ المفتوحة: بابٌ بالاسم وحده، يتابع بالحساب المحفوظ تلقائياً.
+          // ‏النسخةُ المفتوحة: بابٌ بزرٍّ واحد، يتابع بالحساب المحفوظ تلقائياً.
           : isOpenEdition
               ? OpenEntryScreen(
                   authService: authService,

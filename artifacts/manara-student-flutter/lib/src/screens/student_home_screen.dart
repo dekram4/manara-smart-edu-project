@@ -4,6 +4,7 @@ import 'dart:math' as math;
 import 'package:confetti/confetti.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import '../config/edition.dart';
 import '../theme/motion.dart';
 import 'package:flutter/physics.dart';
 
@@ -389,8 +390,10 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> with RouteAware {
   static String _cardIdOf(_HomeSection section) =>
       section.titleKey.replaceFirst('portal.', '');
 
-  /// بطاقتا الروضة لا تظهران إلا في نطاقهما، وسائرُ البطاقات دائماً.
+  /// بطاقتا الروضة لا تظهران إلا في نطاقهما، وسائرُ البطاقات دائماً — إلا
+  /// ما تخفيه النسخةُ المفتوحة ([openEditionHiddenCards]).
   bool _isCardVisible(int index) {
+    if (_isHiddenByEdition(index)) return false;
     final context = _academicContext;
     return switch (index) {
       recitationModule => quranRecitationAllowedFor(
@@ -409,6 +412,13 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> with RouteAware {
       _ => true,
     };
   }
+
+  /// بطاقةٌ لا تظهر في النسخة المفتوحة: لا تُعرض ولا تُفتح من أيّ طريق
+  /// (تنبيهُ رسالة، دعوةُ تحدٍّ). وفي النسخة العادية خطأٌ دائماً.
+  bool _isHiddenByEdition(int index) =>
+      index >= 0 &&
+      index < _homeSections.length &&
+      cardHiddenByEdition(_cardIdOf(_homeSections[index]));
 
   bool _isCardLocked(int index) =>
       index >= 0 &&
@@ -522,6 +532,7 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> with RouteAware {
   /// المقفلةُ تُردّ برسالتها، والمفتوحةُ تُفتح في لحظتها — وتُقرأ الصلاحياتُ
   /// بعدها، فبطاقةٌ أغلقها المعلمُ للتوّ لا تُفتح من اللمسة التالية.
   Future<void> _openCard(int index) async {
+    if (_isHiddenByEdition(index)) return;
     unawaited(_loadCardAccess());
     if (_isTeaser(index)) {
       _showTeaser(_cardIdOf(_homeSections[index]));
@@ -577,7 +588,7 @@ class _StudentHomeScreenState extends State<StudentHomeScreen> with RouteAware {
   void _onInviteAnywhere(DuelInviteEvent event) {
     if (!mounted || _duelOpen || event.kind != DuelInviteKind.invite) return;
     // ‏أغلق المعلّمُ بطاقةَ التحدي: لا يُسحب الطالبُ إليها، ويعرف الداعي فوراً.
-    if (_isCardLocked(9)) {
+    if (_isCardLocked(9) || _isHiddenByEdition(9)) {
       _duelService.replyInvite(to: event.fromId, matchId: event.matchId, accepted: false);
       unawaited(_duelService
           .respond(matchId: event.matchId, accept: false)

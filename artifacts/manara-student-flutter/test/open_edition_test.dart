@@ -1,7 +1,6 @@
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
@@ -11,7 +10,9 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:manara_student/src/config/edition.dart';
 import 'package:manara_student/src/l10n/student_strings.dart';
 import 'package:manara_student/src/models/student_profile.dart';
+import 'package:manara_student/src/screens/academic_selection_screen.dart';
 import 'package:manara_student/src/screens/open_entry_screen.dart';
+import 'package:manara_student/src/screens/student_home_screen.dart';
 import 'package:manara_student/src/services/open_edition_service.dart';
 import 'package:manara_student/src/services/saved_accounts.dart';
 import 'package:manara_student/src/services/student_auth_service.dart';
@@ -23,10 +24,14 @@ class _FakeAuth extends StudentAuthService {
 
   final List<(String, String)> attempts = [];
 
+  /// أسماءُ مستخدمين يرفضها الخادم (حسابٌ حُذف).
+  final Set<String> reject = {};
+
   @override
   Future<StudentProfile> signIn({required String username, required String password}) async {
     attempts.add((username, password));
-    return StudentProfile(id: 's-$username', name: 'سارة أحمد', username: username, role: 'student');
+    if (reject.contains(username)) throw const StudentAuthException('حسابٌ غيرُ موجود');
+    return StudentProfile(id: 's-$username', name: 'بطل الروضة', username: username, role: 'student');
   }
 }
 
@@ -52,13 +57,6 @@ class _Server {
       });
 }
 
-void grantMic(WidgetTester tester) {
-  tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
-    const MethodChannel('flutter.baseflow.com/permissions/methods'),
-    (call) async => call.method == 'requestPermissions' ? {7: 1} : 1,
-  );
-}
-
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
@@ -71,6 +69,7 @@ void main() {
   test('التطبيقُ الحالي ليس النسخةَ المفتوحة: بلا MANARA_EDITION لا يتغيّر شيء', () {
     expect(manaraEdition, isEmpty);
     expect(isOpenEdition, isFalse);
+    expect(openEditionActive, isFalse);
   });
 
   group('خدمةُ النسخة المفتوحة', () {
@@ -110,29 +109,86 @@ void main() {
     });
   });
 
+  group('بطاقاتُ النسخة المفتوحة', () {
+    const hidden = ['solver', 'chat', 'tutor', 'meeting', 'challenge'];
+
+    test('خمسُ بطاقاتٍ تُخفى في المفتوحة وحدها', () {
+      for (final card in hidden) {
+        expect(cardHiddenByEdition(card, openEdition: true), isTrue, reason: card);
+        expect(cardHiddenByEdition(card, openEdition: false), isFalse, reason: card);
+      }
+      for (final card in ['lesson', 'cinema', 'games', 'personality', 'quiz', 'study', 'recite', 'write']) {
+        expect(cardHiddenByEdition(card, openEdition: true), isFalse, reason: card);
+      }
+      // ‏والتطبيقُ الحالي (بلا MANARA_EDITION): لا شيء مخفيّ.
+      expect(cardHiddenByEdition('solver'), isFalse);
+    });
+
+    // ‏خارج الاختبار: عميلُ Supabase يبدأ مؤقّتَ تجديدٍ دوريّاً حين يُنشأ.
+    late StudentAuthService homeAuth;
+    setUp(() => homeAuth = StudentAuthService(SupabaseClient('http://127.0.0.1:1', 'test-key'), apiBaseUrl: ''));
+
+    Future<List<String>> rail(WidgetTester tester) async {
+      tester.view.physicalSize = const Size(1280, 720);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.reset);
+      await tester.pumpWidget(MaterialApp(
+        home: StudentHomeScreen(
+          profile: const StudentProfile(id: 's1', name: 'طالب', username: 'student', role: 'student'),
+          authService: homeAuth,
+          apiBaseUrl: '',
+        ),
+      ));
+      for (var i = 0; i < 60; i++) {
+        await tester.pump(const Duration(milliseconds: 120));
+      }
+      final keys = [
+        for (final e in find
+            .byWidgetPredicate((w) => w.key is ValueKey<String> && (w.key! as ValueKey<String>).value.startsWith('portal-tile-'))
+            .evaluate())
+          (e.widget.key! as ValueKey<String>).value.replaceFirst('portal-tile-portal.', ''),
+      ];
+      await tester.pumpWidget(const SizedBox());
+      return keys;
+    }
+
+    testWidgets('النسخةُ العادية: البطاقاتُ الخمس ظاهرةٌ كما كانت', (tester) async {
+      final cards = await rail(tester);
+      expect(cards, containsAll(hidden));
+    });
+
+    testWidgets('النسخةُ المفتوحة: تختفي الخمس وتبقى البقيّة', (tester) async {
+      debugOverrideOpenEdition(true);
+      addTearDown(() => debugOverrideOpenEdition(null));
+      final cards = await rail(tester);
+      for (final card in hidden) {
+        expect(cards, isNot(contains(card)), reason: card);
+      }
+      expect(cards, containsAll(['lesson', 'cinema', 'games', 'personality', 'quiz', 'study']));
+    });
+  });
+
   group('باب النسخة المفتوحة', () {
     // ‏خارج الاختبار: عميلُ Supabase يبدأ مؤقّتَ تجديدٍ دوريّاً حين يُنشأ.
     late _FakeAuth auth;
     setUp(() => auth = _FakeAuth());
 
-    Future<(_FakeAuth, _Server)> pump(WidgetTester tester, SavedAccounts saved, {bool autoContinue = false}) async {
-      grantMic(tester);
+    Future<_Server> pump(WidgetTester tester, SavedAccounts saved, {bool autoContinue = false, _Server? server}) async {
       tester.view.physicalSize = const Size(800, 1280);
       tester.view.devicePixelRatio = 1;
       addTearDown(tester.view.reset);
-      final server = _Server();
+      final fake = server ?? _Server();
       await tester.pumpWidget(MaterialApp(
         home: OpenEntryScreen(
           authService: auth,
           apiBaseUrl: 'https://open.example',
           autoContinue: autoContinue,
           savedAccounts: saved,
-          service: OpenEditionService(apiBaseUrl: 'https://open.example', client: server.client),
-          voiceListen: ({required onResult, onPartial}) async => false,
+          service: OpenEditionService(apiBaseUrl: 'https://open.example', client: fake.client),
         ),
       ));
       await tester.pump(const Duration(milliseconds: 100));
-      return (auth, server);
+      return fake;
     }
 
     Future<void> settle(WidgetTester tester) async {
@@ -140,67 +196,77 @@ void main() {
       await tester.pump(const Duration(seconds: 20));
     }
 
-    testWidgets('طالبٌ جديد: اسمُه وحده، فيُنشأ حسابُه ويدخل ويُحفظ', (tester) async {
+    testWidgets('زرٌّ واحد بلا كتابة: يُنشئ حساباً تلقائياً ويدخل ويحفظه', (tester) async {
       final saved = SavedAccounts();
-      final (auth, server) = await pump(tester, saved);
+      final server = await pump(tester, saved);
       expect(find.byKey(const ValueKey('open-entry')), findsOneWidget);
       expect(find.text(trf('open.withTeacher', {'name': 'معلم الروضة داود سيد'})), findsOneWidget);
-      expect(find.byKey(const ValueKey('open-name-mic')), findsOneWidget, reason: 'الاسمُ بالصوت أيضاً');
-      expect(find.byKey(const ValueKey('open-grade')), findsNothing, reason: 'صفٌّ واحد: لا سؤال');
+      expect(find.byType(TextField), findsNothing, reason: 'لا اسمَ يُكتب');
+      expect(find.text(tr('open.enter')), findsOneWidget);
 
-      await tester.enterText(find.byKey(const ValueKey('open-name')), 'سارة أحمد');
-      await tester.tap(find.text(tr('open.girl')));
-      await tester.pump();
       await tester.tap(find.byKey(const ValueKey('open-start')));
       await tester.pump(const Duration(milliseconds: 300));
 
-      expect(server.joins.single, {'name': 'سارة أحمد', 'grade': 'روضة منارة المعرفة', 'gender': 'female'});
+      expect(OpenEntryScreen.autoName, 'بطل الروضة');
+      expect(server.joins.single, {'name': 'بطل الروضة', 'grade': 'روضة منارة المعرفة'});
       expect(auth.attempts, [('open_abc123', 'pw-xyz')]);
       final accounts = await saved.load();
       expect(accounts.single.username, 'open_abc123');
-      expect(accounts.single.displayName, 'سارة أحمد');
       expect(await saved.passwordFor('open_abc123'), 'pw-xyz');
+      await tester.pump(const Duration(seconds: 1));
+      expect(find.byType(AcademicSelectionScreen), findsOneWidget, reason: 'مباشرةً إلى اختيار المسار والصف والمادة');
       await settle(tester);
     });
 
-    testWidgets('بلا اسم: تنبيهٌ ولا تسجيل', (tester) async {
-      final (auth, server) = await pump(tester, SavedAccounts());
+    testWidgets('حسابٌ محفوظ: الزرُّ يعود إليه ولا يُنشئ غيره', (tester) async {
+      final saved = SavedAccounts();
+      await saved.save(const SavedAccount(username: 'open_abc123', displayName: 'بطل الروضة'), 'pw-xyz');
+      // ‏حسابٌ من التطبيق الحالي على الجهاز نفسه لا يُستعمل هنا.
+      await saved.save(const SavedAccount(username: 'sara', displayName: 'سارة'), 'old');
+      final server = await pump(tester, saved);
+      await tester.pump(const Duration(milliseconds: 300));
+      expect(auth.attempts, isEmpty, reason: 'لا دخولَ تلقائيَّ بعد خروج');
       await tester.tap(find.byKey(const ValueKey('open-start')));
-      await tester.pump(const Duration(milliseconds: 100));
-      expect(find.text(tr('open.nameRequired')), findsOneWidget);
+      await tester.pump(const Duration(milliseconds: 300));
+      expect(auth.attempts, [('open_abc123', 'pw-xyz')]);
       expect(server.joins, isEmpty);
-      expect(auth.attempts, isEmpty);
       await settle(tester);
     });
 
-    testWidgets('عند فتح التطبيق: حسابٌ محفوظٌ واحد يدخل وحده بلا كتابة', (tester) async {
+    testWidgets('عند فتح التطبيق: الحسابُ المحفوظ يدخل وحده بلا لمسة', (tester) async {
       final saved = SavedAccounts();
-      await saved.save(const SavedAccount(username: 'open_abc123', displayName: 'سارة'), 'pw-xyz');
-      final (auth, server) = await pump(tester, saved, autoContinue: true);
+      await saved.save(const SavedAccount(username: 'open_abc123', displayName: 'بطل الروضة'), 'pw-xyz');
+      final server = await pump(tester, saved, autoContinue: true);
       await tester.pump(const Duration(milliseconds: 300));
       expect(auth.attempts, [('open_abc123', 'pw-xyz')]);
-      expect(server.joins, isEmpty, reason: 'لا حسابَ جديد');
+      expect(server.joins, isEmpty);
       await settle(tester);
     });
 
-    testWidgets('بعد الخروج: لا دخولَ تلقائي، بل «تابع باسمك» بلمسة', (tester) async {
+    testWidgets('حسابٌ محفوظ حُذف من الخادم: يُنسى ويُنشأ غيرُه', (tester) async {
       final saved = SavedAccounts();
-      await saved.save(const SavedAccount(username: 'open_abc123', displayName: 'سارة'), 'pw-xyz');
-      // ‏حسابٌ من التطبيق الحالي على الجهاز نفسه لا يظهر هنا.
-      await saved.save(const SavedAccount(username: 'sara', displayName: 'سارة القديمة'), 'old');
-      final (auth, _) = await pump(tester, saved);
+      await saved.save(const SavedAccount(username: 'open_gone', displayName: 'بطل الروضة'), 'old-pw');
+      auth.reject.add('open_gone');
+      final server = await pump(tester, saved);
+      await tester.tap(find.byKey(const ValueKey('open-start')));
       await tester.pump(const Duration(milliseconds: 300));
-      expect(auth.attempts, isEmpty);
-      expect(find.byKey(const ValueKey('open-continue-open_abc123')), findsOneWidget);
-      expect(find.byKey(const ValueKey('open-continue-sara')), findsNothing);
-      await tester.tap(find.byKey(const ValueKey('open-continue-open_abc123')));
+      expect(server.joins, hasLength(1));
+      expect(auth.attempts.last, ('open_abc123', 'pw-xyz'));
+      expect((await saved.load()).map((a) => a.username), ['open_abc123']);
+      await settle(tester);
+    });
+
+    testWidgets('الخادمُ غيرُ متاح: رسالةٌ ويبقى الزرّ', (tester) async {
+      await pump(tester, SavedAccounts(), server: _Server()..status = 503);
+      await tester.tap(find.byKey(const ValueKey('open-start')));
       await tester.pump(const Duration(milliseconds: 300));
-      expect(auth.attempts, [('open_abc123', 'pw-xyz')]);
+      expect(find.byKey(const ValueKey('open-error')), findsOneWidget);
+      expect(find.byKey(const ValueKey('open-start')), findsOneWidget);
       await settle(tester);
     });
 
     testWidgets('على الهاتف والتابلت: البطاقةُ تتّسع بلا فيضان', (tester) async {
-      for (final size in const [Size(360, 740), Size(820, 1180), Size(1366, 1024)]) {
+      for (final size in const [Size(360, 640), Size(820, 1180), Size(1366, 1024)]) {
         tester.view.physicalSize = size;
         tester.view.devicePixelRatio = 1;
         await pump(tester, SavedAccounts());
